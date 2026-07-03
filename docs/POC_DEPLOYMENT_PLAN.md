@@ -187,7 +187,7 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ## 8. Verification Checklist
 
-- [ ] All 14 containers running (`docker compose ps`)
+- [ ] All 15 containers running (`docker compose ps`)
 - [ ] mix-dirauth-1/2/3 stable (retry loop keeps them up)
 - [ ] mixnet-proxy API: `curl http://127.0.0.1:9090/status` → `mixnet_connected: true`
 - [ ] Mixnet echo test: SOCKS5 "Hello!" returns in ~3s

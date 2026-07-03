@@ -2,7 +2,7 @@
 
 **Post-Quantum Mixnet + ZK Storage Proving + Autonomi P2P Storage**
 
-Verified working with 14 containers, 3.2s mixnet roundtrip, 100% echo success rate.
+Verified working with 15 containers, 3.2s mixnet roundtrip, 100% echo success rate.
 
 ---
 
@@ -59,7 +59,7 @@ df -h / | tail -1
 docker compose up -d
 ```
 
-All 14 containers start. The dirauths generate PKI consensus within ~2 minutes.
+All 15 containers start. The dirauths generate PKI consensus within ~2 minutes.
 
 ```bash
 # Watch startup
@@ -234,7 +234,7 @@ rm -rf data/ config/mixnet/auth*/*.db config/mixnet/auth*/*.log
 
 ## Verification Checklist
 
-- [ ] All 14 containers running (`docker compose ps`)
+- [ ] All 15 containers running (`docker compose ps`)
 - [ ] Mixnet echo: `Hello mixnet!` returns in ~3s
 - [ ] Proxy API: `mixnet_connected: true`
 - [ ] Ping binary: 100% success rate
@@ -286,6 +286,6 @@ curl -s http://127.0.0.1:9090/status
 2. **Privacy guarantees**: 3-hop Sphinx routing hides which SCM4 sent which data
 3. **ZK storage proofs**: Prove chunk storage without revealing data (BLAKE2b Merkle trees)
 4. **Hardware binding**: zymkey HSM attests node identity to storage commitment
-5. **Self-contained**: All 14 containers run on a single SCM4 — no cloud dependency
+5. **Self-contained**: All 15 containers run on a single SCM4 — no cloud dependency
 6. **Metadata-private chat**: chatd component for group communication through the mixnet
 7. **P4P ready**: Designed for proof-of-useful-work — node proves storage + bandwidth

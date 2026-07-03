@@ -38,7 +38,7 @@ A self-contained private Autonomi storage node with traffic routed through an em
 │                            └──────────────────┘                 │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Katzenpost Post-Quantum Mixnet (14 containers)          │   │
+│  │  Katzenpost Post-Quantum Mixnet (15 containers)           │   │
 │  │  dirauth1/2/3 ←→ mix1/2/3 ←→ gateway ←→ servicenode      │   │
 │  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · host networking │   │
 │  └──────────────────────────────────────────────────────────┘   │
