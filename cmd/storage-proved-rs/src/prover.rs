@@ -132,23 +132,21 @@ fn get_merkle_path(index: usize, tree: &[[u8; 32]], num_leaves: usize) -> Vec<Ve
     let mut path = Vec::new();
     let mut idx = index;
     let mut level_start = 0;
-    let mut level_size = num_leaves;
+    let mut level_nodes = num_leaves;
 
-    while level_size > 1 {
-        if level_size % 2 != 0 {
-            level_size += 1;
-        }
+    while level_nodes > 1 {
         let sibling_idx = if idx % 2 == 0 {
-            if idx + 1 < level_size { idx + 1 } else { idx }
+            if idx + 1 < level_nodes { idx + 1 } else { idx }
         } else {
             idx - 1
         };
-        if sibling_idx < level_size && sibling_idx != idx {
+        if sibling_idx < level_nodes && sibling_idx != idx {
             path.push(tree[level_start + sibling_idx].to_vec());
         }
-        level_start += level_size;
+        let next_level_nodes = (level_nodes + 1) / 2;
+        level_start += level_nodes;
         idx /= 2;
-        level_size /= 2;
+        level_nodes = next_level_nodes;
     }
 
     path
