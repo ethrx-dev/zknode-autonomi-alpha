@@ -5,43 +5,43 @@
 ```
 ┌───────────────────────────────────────────────────────────┐
 │                   Application Layer                       │
-│  ┌─────────┐  ┌──────────┐  ┌──────────┐                 │
-│  │ ant CLI │  │ custom   │  │ monitor  │                 │
-│  │ (shell) │  │ apps     │  │ scripts  │                 │
-│  └────┬────┘  └──────────┘  └──────────┘                 │
+│  ┌─────────┐  ┌──────────┐  ┌──────────┐                  │
+│  │ ant CLI │  │ custom   │  │ monitor  │                  │
+│  │ (shell) │  │ apps     │  │ scripts  │                  │
+│  └────┬────┘  └──────────┘  └──────────┘                  │
 │       │ docker exec antd ant <command>                    │
 ├───────┼───────────────────────────────────────────────────┤
-│       ▼            Service Orchestration                 │
-│  ┌────────────────────────────────────────┐              │
-│  │          Docker Compose (11 services)  │              │
-│  │  host network (mixnet) + bridge (auto) │              │
-│  └────────────────────────────────────────┘              │
+│       ▼            Service Orchestration                  │
+│  ┌────────────────────────────────────────┐               │
+│  │          Docker Compose (11 services)  │               │
+│  │  host network (mixnet) + bridge (auto) │               │
+│  └────────────────────────────────────────┘               │
 ├───────────────────────────────────────────────────────────┤
 │                  Storage Layer                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                │
-│  │ Autonomi │  │ mergerfs │  │ LUKS     │                │
-│  │ Chunk DB │  │ (pool)   │  │ (zymkey) │                │
-│  │ (LMDB)   │  │          │  │          │                │
-│  └──────────┘  └──────────┘  └──────────┘                │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
+│  │ Autonomi │  │ mergerfs │  │ LUKS     │                 │
+│  │ Chunk DB │  │ (pool)   │  │ (zymkey) │                 │
+│  │ (LMDB)   │  │          │  │          │                 │
+│  └──────────┘  └──────────┘  └──────────┘                 │
 ├───────────────────────────────────────────────────────────┤
 │                  Transport Layer                          │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │  Katzenpost mixnet (host network, 127.0.0.1)        │ │
-│  │  dirauth×3 + mix×3 + gateway + servicenode          │ │
+│  │  Katzenpost mixnet (host network, 127.0.0.1)         │ │
+│  │  dirauth×3 + mix×3 + gateway + servicenode           │ │
 │  │  3-hop onion routing, post-quantum Sphinx packets    │ │
 │  └──────────────────────────────────────────────────────┘ │
 ├───────────────────────────────────────────────────────────┤
 │                  Integration Layer                        │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │  mixnet-proxy (SOCKS5 bridge, ~300 lines Go)        │ │
-│  │  ant-node ─SOCKS5──▶ proxy ─onion──▶ Autonomi peers │ │
+│  │  mixnet-proxy (SOCKS5 bridge, ~300 lines Go)         │ │
+│  │  ant-node ─SOCKS5──▶ proxy ─onion──▶ Autonomi peers  │ │
 │  └──────────────────────────────────────────────────────┘ │
 ├───────────────────────────────────────────────────────────┤
 │               Hardware Abstraction                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
-│  │ SCM4/CM4 │  │ zymkey   │  │ USB 3.0  │  │ Ethernet │  │
-│  │ 8GB RAM  │  │ HSM I2C  │  │ Drives   │  │ Gigabit  │  │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │ SCM4/CM4 │  │ zymkey   │  │ USB 3.0  │  │ Ethernet │   │
+│  │ 8GB RAM  │  │ HSM I2C  │  │ Drives   │  │ Gigabit  │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -81,15 +81,15 @@ Autonomi peer (external)
 ┌──────────────────────────────────────────┐
 │  Host Network (network_mode: host)       │
 │                                          │
-│  mix-dirauth-1 127.0.0.1:30001          │
-│  mix-dirauth-2 127.0.0.1:30002          │
-│  mix-dirauth-3 127.0.0.1:30003          │
-│  mix-1         127.0.0.1:30011          │
-│  mix-2         127.0.0.1:30014          │
-│  mix-3         127.0.0.1:30017          │
-│  mix-gateway   127.0.0.1:30004          │
-│  mix-servicenode 127.0.0.1:30008        │
-│  mixnet-proxy  127.0.0.1:1080,9090      │
+│  mix-dirauth-1 127.0.0.1:30001           │
+│  mix-dirauth-2 127.0.0.1:30002           │
+│  mix-dirauth-3 127.0.0.1:30003           │
+│  mix-1         127.0.0.1:30011           │
+│  mix-2         127.0.0.1:30014           │
+│  mix-3         127.0.0.1:30017           │
+│  mix-gateway   127.0.0.1:30004           │
+│  mix-servicenode 127.0.0.1:30008         │
+│  mixnet-proxy  127.0.0.1:1080,9090       │
 │                                          │
 ├──────────────────────────────────────────┤
 │  Bridge Network (zknode-autonomi-net)    │
