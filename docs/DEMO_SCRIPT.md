@@ -82,6 +82,7 @@ mix-client        running
 mixnet-proxy      running
 walletshield      running
 storage-proved    running
+reticulum         running
 antd              running
 ```
 
@@ -177,7 +178,24 @@ Expected:
 storage-proved-rs: listening on 0.0.0.0:9201
 ```
 
-### 8. Hardware Attestation (SCM4 only)
+### 8. Reticulum Mesh Networking
+
+```bash
+# Verify RNS is running
+docker logs reticulum | head -3
+
+# Check RNS version
+docker exec reticulum python3 -c "import RNS; print('RNS', RNS.__version__)"
+
+# Check active interfaces (AutoInterface + TCP peer)
+docker exec reticulum python3 -c "
+import RNS; RNS.Reticulum()
+for i in RNS.Transport.interfaces:
+    print(type(i).__name__, 'online:', i.online)
+"
+```
+
+### 9. Hardware Attestation (SCM4 only)
 
 ```bash
 # Generate zymkey-attested storage proof
@@ -224,6 +242,7 @@ rm -rf data/ config/mixnet/auth*/*.db config/mixnet/auth*/*.log
 - [ ] Storage proof: `/prove/storage` returns Merkle proof
 - [ ] WalletShield: port 9200 responding
 - [ ] Storage prover: running on port 9201 (internal)
+- [ ] Reticulum: RNS 1.3.7 loaded, interfaces online
 
 ---
 
