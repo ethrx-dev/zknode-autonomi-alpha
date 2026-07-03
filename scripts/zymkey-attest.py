@@ -24,14 +24,15 @@ def attest(merkle_root: str, node_address: str) -> dict:
     ecdsa_pub = zk.get_ecdsa_public_key()
 
     message = f"zknode-storage:{merkle_root}:{node_address}:{serial}".encode()
-    msg_hash = hashlib.sha3_256(message).digest()
+    msg_hash_obj = hashlib.sha3_256(message)
+    msg_hash = msg_hash_obj.digest()
 
-    signature = zk.sign_digest(msg_hash)
+    signature = zk.sign_digest(msg_hash_obj, 0)
 
     attestation = {
         "version": "1.0",
         "firmware": firmware,
-        "serial": serial.hex(),
+        "serial": serial,
         "ecdsa_public_key": ecdsa_pub.hex(),
         "merkle_root": merkle_root,
         "node_address": node_address,
