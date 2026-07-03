@@ -115,6 +115,7 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/wa
 | walletshield | EVM RPC through mixnet :9200 | host | 128MB |
 | storage-proved | Merkle/Winterfell storage prover :9201 | bridge | 128MB |
 | antd | Autonomi CLI + node manager | bridge | 128MB |
+| reticulum | Reticulum mesh networking (RNS + LXMF) | host | 128MB |
 
 ---
 
