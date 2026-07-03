@@ -11,7 +11,7 @@
 │  └────┬────┘  └──────────┘  └──────────┘                  │
 │       │ docker exec antd ant <command>                    │
 ├───────┼───────────────────────────────────────────────────┤
-│       ▼          Service Orchestration     nn             │
+│       ▼          Service Orchestration                    │
 │  ┌────────────────────────────────────────┐               │
 │  │          Docker Compose (11 services)  │               │
 │  │  host network (mixnet) + bridge (auto) │               │
