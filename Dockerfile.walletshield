@@ -10,7 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Clone ZKNetwork/opt for dependencies (go.mod/go.sum)
 RUN git clone --depth 1 https://github.com/ZeroKnowledgeNetwork/opt.git /src/opt
+
+# Override walletshield main.go with our fixed version (service=proxy)
+COPY walletshield-fix/main.go /src/opt/apps/walletshield/main.go
 
 RUN cd /src/opt/apps/walletshield && \
     GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
