@@ -248,7 +248,7 @@ func bandwidthProofHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func challengeProxyHandler(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get("http://storage-proved:9201/challenge")
+	resp, err := http.Get("http://127.0.0.1:9201/challenge")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -273,7 +273,7 @@ func storageProofHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp, err := http.Post(
-		"http://storage-proved:9201/prove",
+		"http://127.0.0.1:9201/prove",
 		"application/json",
 		&buf,
 	)

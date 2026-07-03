@@ -1,7 +1,7 @@
 # Live Node Status — Autonomi Testnet
 
-**Activated:** 2026-07-03 21:20 UTC  
-**Host:** zknode01 (Raspberry Pi CM4, 4GB RAM, aarch64)  
+**Activated:** [redacted]
+**Host:** [redacted] (Raspberry Pi CM4, 4GB RAM, aarch64)
 **Management:** `systemd --user` service (auto-start on boot, auto-restart on failure)
 
 ---
@@ -9,7 +9,7 @@
 ## Node Identity
 
 ```
-Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
+Peer ID:      [redacted]
 Binary:       ant-node 0.14.2 (statically linked ARM64)
 Port:         UDP/QUIC :12000, IPv4-only mode
 Network:      Autonomi Testnet
@@ -20,7 +20,7 @@ Bootstrap:    7 peers (standard testnet bootstrap_peers.toml)
 ## Wallet
 
 ```
-Address:      0xef902cC111D5435C5116c123771D9459FC77AD4B
+Address:      [redacted]
 Balance:      ~0.04 ETH (Arbitrum Sepolia)
 Network:      Arbitrum Sepolia testnet
 Purpose:      Rewards address for storage payments
@@ -54,7 +54,7 @@ WorkingDirectory=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1
 ExecStart=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node \
     --root-dir %h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1 \
     --port 12000 \
-    --rewards-address 0xef902cC111D5435C5116c123771D9459FC77AD4B \
+    --rewards-address [redacted] \
     --evm-network arbitrum-sepolia \
     --network-mode testnet \
     --ipv4-only \
@@ -105,7 +105,7 @@ tail -f ~/zknode-autonomi/data/logs/ant-node.YYYY-MM-DD.log  # File logs (daily 
 | DHT peers | ~100 connected |
 | NAT traversal coordinators | 5 bootstrap peers |
 | Replication protocol | `/rr/autonomi.ant.replication.v2` (active) |
-| Public IP | 24.31.26.231 (confirmed by multiple peers) |
+| Public IP | [redacted] (confirmed by multiple peers) |
 | Memory usage | ~20MB resident |
 | File descriptors | ~50 open |
 
