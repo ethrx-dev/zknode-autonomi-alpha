@@ -22,7 +22,7 @@ A self-contained private Autonomi storage node with traffic anonymized through a
 │         ▼                           ▼                           │
 │  ┌──────────────┐          ┌─────────────────┐                  │
 │  │  LMDB Chunk  │          │ storage-proved  │                  │
-│  │  Store       │◄────────►│ (Rust/Winfell)  │                  │
+│  │  Store       │◄────────►│(Rust/Winterfell)│                  │
 │  │  /mnt/chunks │  mmap    │  :9201 API      │                  │
 │  └──────────────┘          └────────┬────────┘                  │
 │                                     │                           │
