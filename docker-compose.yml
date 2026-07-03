@@ -216,6 +216,19 @@ services:
     network_mode: host
     restart: unless-stopped
 
+  # ═══════════════════════════════════════════════════════════
+  # ZKChat — mixnet-native group chat (metadata-private)
+  # ═══════════════════════════════════════════════════════════
+  zkchat:
+    image: ${IMAGE_MIXNET}
+    container_name: zkchat
+    entrypoint: ["sh", "-c"]
+    command: ["tail -f /dev/null"]
+    volumes:
+      - ./config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    network_mode: host
+    restart: unless-stopped
+
 networks:
   autonomi:
     driver: bridge

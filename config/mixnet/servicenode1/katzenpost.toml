@@ -45,6 +45,14 @@
     Disable = false
     Config = {log_dir = "/var/lib/katzenpost/servicenode1", log_level = "DEBUG"}
 
+  [[ServiceNode.CBORPluginKaetzchen]]
+    Capability = "chat"
+    Endpoint = "chat"
+    Command = "/usr/local/bin/chatd"
+    MaxConcurrency = 1
+    Disable = false
+    Config = {log_dir = "/var/lib/katzenpost/servicenode1", log_level = "DEBUG"}
+
 [PKI]
   [PKI.Voting]
 
