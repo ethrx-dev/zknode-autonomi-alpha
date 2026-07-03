@@ -40,7 +40,7 @@
   [[ServiceNode.CBORPluginKaetzchen]]
     Capability = "proxy"
     Endpoint = "proxy"
-    Command = "/usr/local/bin/proxy-kaetzchen"
+    Command = "/usr/local/bin/http-proxy-server"
     MaxConcurrency = 1
     Disable = false
     Config = {log_dir = "/var/lib/katzenpost/servicenode1", log_level = "DEBUG"}
