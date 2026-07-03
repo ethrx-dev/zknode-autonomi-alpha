@@ -14,7 +14,7 @@ struct Cli {
     #[arg(short, long, default_value_t = 1024)]
     chunk_size: usize,
 
-    #[arg(short, long, default_value = "127.0.0.1:9201")]
+    #[arg(short, long, default_value = "0.0.0.0:9201")]
     listen: String,
 }
 

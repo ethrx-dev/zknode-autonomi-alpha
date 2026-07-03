@@ -103,7 +103,7 @@ fn build_merkle_tree(leaves: &[[u8; 32]]) -> Vec<[u8; 32]> {
         if level_size % 2 != 0 {
             level_size += 1; // pad with duplicate of last
         }
-        let mut next_level = Vec::with_capacity(level_size / 2);
+        let mut next_level: Vec<[u8; 32]> = Vec::with_capacity(level_size / 2);
         for i in (0..level_size).step_by(2) {
             let left = if offset + i < tree.len() {
                 tree[offset + i]

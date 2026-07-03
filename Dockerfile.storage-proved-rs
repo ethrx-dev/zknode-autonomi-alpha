@@ -1,0 +1,33 @@
+ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
+
+FROM --platform=linux/${BUILDER_ARCH} rust:latest AS builder
+
+# Install cross-compilation toolchain for arm64
+RUN rustup target add aarch64-unknown-linux-gnu && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY cmd/storage-proved-rs/ .
+ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+ENV CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+ENV AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+RUN cargo build --release --target aarch64-unknown-linux-gnu && \
+    mkdir -p /dest && \
+    cp target/aarch64-unknown-linux-gnu/release/storage-proved-rs /dest/
+
+FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/storage-proved-rs /usr/local/bin/
+
+EXPOSE 9201
+
+ENTRYPOINT ["storage-proved-rs"]
+CMD ["--listen", "0.0.0.0:9201"]

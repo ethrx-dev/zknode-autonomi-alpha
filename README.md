@@ -200,12 +200,12 @@ zknode-autonomi/
 |-------|--------|------------|
 | **Host networking** | 🔶 Planned | Mixnet containers share host network. Bridge networking with BindAddresses in katzenpost.toml for production multi-instance isolation. |
 | **Dirauth startup race** | ✅ Mitigated | Entrypoints use `while true; do ...; sleep 2; done` retry loops. All 3 auths converge within 2 epochs after clean restart. |
-| **LMDB overcommit_memory** | 🔶 Available | ant-node needs `vm.overcommit_memory=1` for LMDB mmap. Set `privileged: true` on the antd container. |
+| **LMDB overcommit_memory** | ✅ Fixed | `privileged: true` on antd container with `echo 1 > /proc/sys/vm/overcommit_memory` at startup. |
 | **walletshield** | ✅ Fixed | Rebuilt with matching Sphinx geometry (PacketLength=3082). Running in compose at `:9200` connected to kpclientd on :64332. |
+| **Rust Winterfell STARKs** | ✅ Fixed | `storage-proved-rs` built and deployed (109MB). Cross-compiled for arm64, serves Merkle proof API on :9201. |
 | **Zymkey HSM signing** | 🔌 Planned | zymkey stores wallet key in slot 23/24. ant-node code changes needed for HSM-backed EVM transaction signing. |
 | **kpclientd epoch sync** | 🔶 Workaround | Ping binary achieves 100% mixnet success. kpclientd PKI doc retrieval uses `currentDocument()` fallback — needs auth restarted at epoch start for full consensus with node descriptors. |
 | **Bridge network isolation** | 📋 Future | Each mixnet node on unique bridge network with BindAddress for production multi-tenant deployments. |
-| **Rust Winterfell STARKs** | 🚧 WIP | `cmd/storage-proved-rs/` project structure created. Go Merkle prover deployed as reference. |
 
 ---
 

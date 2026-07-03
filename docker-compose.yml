@@ -174,9 +174,9 @@ services:
   # Storage Proof Daemon (Winterfell / Merkle proofs)
   # ═══════════════════════════════════════════════════════════
   storage-proved:
-    image: zeros/storage-proved:arm64
+    image: zeros/storage-proved-rs:arm64
     container_name: storage-proved
-    command: ["--listen", ":9201", "--dir", "/var/lib/ant-node/chunks"]
+    command: ["--listen", "0.0.0.0:9201", "--dir", "/var/lib/ant-node/chunks"]
     volumes:
       - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
     networks:
@@ -189,6 +189,7 @@ services:
   antd:
     image: ${IMAGE_ANTD}
     container_name: antd
+    privileged: true
     environment:
       - AUTONOMI_EVM_NETWORK=${AUTONOMI_EVM_NETWORK}
       - SECRET_KEY=${SECRET_KEY}
@@ -199,7 +200,7 @@ services:
     networks:
       - autonomi
     entrypoint: ["sh", "-c"]
-    command: ["tail -f /dev/null"]
+    command: ["echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null; tail -f /dev/null"]
     restart: unless-stopped
 
 networks:
