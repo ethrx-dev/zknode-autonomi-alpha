@@ -36,7 +36,7 @@ A self-contained private Autonomi storage node with traffic anonymized through a
 │  │                                                          │   │
 │  │  ┌──────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐  │   │
 │  │  │dirauth 1 │  │ mix-1  │  │gateway │  │ servicenode  │  │   │
-│  │  │dirauth 2 │◄►│ mix-2  │◄►│  :30004│◄►│ :30007       │  │   │
+│  │  │dirauth 2 │◄►│ mix-2  │◄►│ :30004 │◄►│ :30007       │  │   │
 │  │  │dirauth 3 │  │ mix-3  │  │        │  │ (echo/proxy) │  │   │
 │  │  └──────────┘  └────────┘  └────────┘  └──────────────┘  │   │
 │  │                                                          │   │
