@@ -15,32 +15,32 @@ A self-contained private Autonomi storage node with traffic routed through an em
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    zknode (SCM4 / CM4)                          │
-│  8GB RAM · aarch64 · zymkey HSM · USB 3.0 pool                 │
+│  8GB RAM · aarch64 · zymkey HSM · USB 3.0 pool                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────┐  SOCKS5  ┌─────────────────┐                 │
-│  │   ant-node    │◄────────►│  mixnet-proxy   │                 │
-│  │  (Autonomi)   │  :1080   │  (Go, thin lib) │                 │
-│  │  :12000       │          │  :9090 mgmt API  │                 │
-│  └──────┬───────┘          └────────┬─────────┘                │
+│                                                                 │
+│  ┌──────────────┐  SOCKS5  ┌─────────────────┐                  │
+│  │   ant-node   │◄────────►│  mixnet-proxy   │                  │
+│  │  (Autonomi)  │  :1080   │  (Go, thin lib) │                  │
+│  │  :12000      │          │  :9090 mgmt API │                  │
+│  └──────┬───────┘          └───────┬─────────┘                  │
 │         │                          │                            │
 │         │ chunk data               │ ZK proofs                  │
 │         ▼                          ▼                            │
-│  ┌──────────────┐          ┌─────────────────┐                 │
-│  │  LMDB Chunk   │          │ storage-proved  │                 │
-│  │  Store        │◄────────►│ (Merkle/Winterfell)│             │
-│  │  /mnt/chunks  │  mmap    │  :9201 API      │                 │
-│  └──────────────┘          └────────┬─────────┘                │
+│  ┌──────────────┐          ┌─────────────────┐                  │
+│  │  LMDB Chunk  │          │ storage-proved  │                  │
+│  │  Store       │◄────────►│ (Merkle/Wfell)  │                  │
+│  │  /mnt/chunks │  mmap    │  :9201 API      │                  │
+│  └──────────────┘          └────────┬────────┘                  │
 │                                     │                           │
-│                            ┌────────┴─────────┐                │
-│                            │  zymkey HSM (I²C)│                │
-│                            │  HW Attestation   │                │
-│                            └──────────────────┘                │
-│                                                                  │
+│                            ┌────────┴─────────┐                 │
+│                            │  zymkey HSM (I²C)│                 │
+│                            │  HW Attestation  │                 │
+│                            └──────────────────┘                 │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Katzenpost Post-Quantum Mixnet (14 containers)           │   │
+│  │  Katzenpost Post-Quantum Mixnet (14 containers)          │   │
 │  │  dirauth1/2/3 ←→ mix1/2/3 ←→ gateway ←→ servicenode      │   │
-│  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · host networking  │   │
+│  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · host networking │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
