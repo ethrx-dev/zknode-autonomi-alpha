@@ -112,6 +112,22 @@ Key features:
 - Management API on port 9090 (JSON status, health check)
 - Zero Autonomi code changes required
 
-## Known Limitation
+## Known Limitation — RESOLVED
 
-**walletshield** (ZKNetwork thin client) is excluded from the current compose. It uses katzenpost client2 v0.0.64 while the mixnet uses v0.0.73-rc3 — the client config formats are incompatible. Rebuilding walletshield against v0.0.73-rc3 would resolve this.
+**walletshield** was previously excluded (v0.0.64 vs v0.0.73-rc3 incompatibility). Now **fixed**: rebuilt with matching Sphinx geometry (PacketLength=3082), deployed at `:9200`, connected to `kpclientd` on `:64332`.
+
+## Mixnet Proxy Architecture (Current)
+
+The SOCKS5 proxy uses the **official Katzenpost thin client library** compiled into the Go binary. It connects to `kpclientd` (the Katzenpost client daemon) on `127.0.0.1:64332`, which handles all mixnet communication: Sphinx packet creation, SURB reply management, PKI document retrieval, and gateway connection maintenance.
+
+```
+ant-node ──SOCKS5──▶ mixnet-proxy ──thin──▶ kpclientd ──▶ gateway ──▶ mix-3/2/1 ──▶ servicenode
+  :12000               :1080              :64332            :30004
+```
+
+### Key enhancements over original design:
+- **Thin client library**: Official `client/thin` Go import (no raw TCP to gateway)
+- **Post-quantum hash**: BLAKE2b-256 (matches hpqc library)
+- **PKI document parsing**: Extracts services from ServiceNodes
+- **SURB reply handling**: Echo test confirmed 3.2s roundtrip (100% success)
+- **ZK proof endpoints**: Bandwidth, storage challenge, and prove proxied through mixnet
