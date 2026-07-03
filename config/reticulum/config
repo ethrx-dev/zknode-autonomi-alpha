@@ -1,0 +1,35 @@
+# Reticulum config for zknode-autonomi-alpha
+# Post-quantum mesh networking stack integrated with Katzenpost mixnet
+
+[reticulum]
+  enable_transport = true
+  share_instance = true
+  panic_on_interface_error = false
+  loglevel = 4
+  logfile = /var/log/reticulum/reticulum.log
+  instance_storage_path = /var/lib/reticulum
+
+[logging]
+  loglevel = 4
+  destination = file
+  logfile = /var/log/reticulum/reticulum.log
+
+# TCP server — allows other Reticulum nodes on the local network
+# or through the mixnet proxy to connect
+[[TCPPeerInterface]]
+  enabled = yes
+  target_host = 0.0.0.0
+  target_port = 37428
+
+# Local Ethernet/WiFi auto-discovery
+[[AutoInterface]]
+  enabled = yes
+
+# TCP client — route outbound traffic through the mixnet SOCKS5 proxy
+# for metadata-private Reticulum P2P traffic
+# Uncomment when proxy is fully operational:
+# [[TCPPeerInterface]]
+#   enabled = no
+#   target_host = mixnet-proxy
+#   target_port = 1080
+#   proxy = socks5h://mixnet-proxy:1080

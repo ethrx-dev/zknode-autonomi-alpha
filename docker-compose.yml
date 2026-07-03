@@ -203,6 +203,19 @@ services:
     command: ["echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null; tail -f /dev/null"]
     restart: unless-stopped
 
+  # ═══════════════════════════════════════════════════════════
+  # Reticulum — post-quantum mesh networking (RNS + LXMF)
+  # ═══════════════════════════════════════════════════════════
+  reticulum:
+    image: zeros/reticulum:arm64
+    container_name: reticulum
+    command: ["--config", "/etc/reticulum/config"]
+    volumes:
+      - ./config/reticulum:/etc/reticulum
+      - ./data/reticulum:/var/lib/reticulum
+    network_mode: host
+    restart: unless-stopped
+
 networks:
   autonomi:
     driver: bridge
