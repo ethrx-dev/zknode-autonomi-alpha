@@ -200,7 +200,43 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ## 9. Next Steps
 
-1. **Register ant-node on-chain** — wallet funded (0.04 ETH on Arbitrum Sepolia)
+1. ~~**Register ant-node on-chain** — wallet funded (0.04 ETH on Arbitrum Sepolia)~~ **DONE** — Node live on Autonomi Testnet since 2026-07-03. See [Live Node Status](LIVE_NODE_STATUS.md).
 2. **Bridge networking** — replace host networking for production multi-instance isolation
 3. **Zymkey HSM signing** — ant-node code changes for HSM-backed EVM transactions
 4. **USB pool setup** — LUKS encrypted chunk storage on external drives
+
+---
+
+## 10. Actual Deployment Notes
+
+### What Works
+
+- **ant-node v0.14.2** running on zknode01 SCM4 via `systemd --user`
+- **Binary runs directly on host** — statically linked ARM64, no Docker dependency for ant-node
+- **Node is discoverable** — public IP 24.31.26.231:12000, confirmed by multiple DHT peers
+- **Replication active** — `/rr/autonomi.ant.replication.v2` protocol traffic flowing
+- **Auto-restart** — systemd `Restart=always` with 10s backoff
+- **LMDB storage** — chunks.mdb + paid_list.mdb working
+
+### What Differs from the Container Plan
+
+- ant-node runs as **systemd --user service**, not as a Docker container
+- The compose `ant-node` service image was never built (cross-compile from source is slow)
+- Workaround: binary downloaded directly from Autonomi releases, installed at `~/zknode-autonomi/data/antd/`
+- No permission issues when running as the correct user (zero-tech, uid 1001)
+- The `antd` CLI daemon crashes due to bind mount UID conflicts in the container — this is bypassed
+
+### Systemd Quick Start
+
+```bash
+# Install (on SCM4)
+mkdir -p ~/.config/systemd/user/
+cp config/ant-node/ant-node.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+loginctl enable-linger
+systemctl --user enable --now ant-node
+
+# Monitor
+systemctl --user status ant-node
+journalctl --user -u ant-node -f
+```

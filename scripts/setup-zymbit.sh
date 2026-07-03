@@ -160,6 +160,23 @@ PYEOF
 
 # ─── Encrypt USB Drive ────────────────────────────────────
 
+MIN_STORAGE_GB=100
+MAX_STORAGE_GB=32768
+
+cmd_validate_storage() {
+    local device="$1"
+    local size_bytes
+    size_bytes=$(blockdev --getsize64 "$device" 2>/dev/null || die "Cannot read size of $device")
+    local size_gb=$((size_bytes / 1073741824))
+    if [ "$size_gb" -lt "$MIN_STORAGE_GB" ]; then
+        die "Storage device $device is ${size_gb}GB, minimum required is ${MIN_STORAGE_GB}GB"
+    fi
+    if [ "$size_gb" -gt "$MAX_STORAGE_GB" ]; then
+        die "Storage device $device is ${size_gb}GB, maximum allowed is ${MAX_STORAGE_GB}GB"
+    fi
+    step "Storage device $device: ${size_gb}GB (within limits) ✓"
+}
+
 cmd_encrypt_usb() {
     local device="${1:-}"
     if [ -z "$device" ]; then
@@ -172,6 +189,8 @@ cmd_encrypt_usb() {
     if [ ! -b "$device" ]; then
         die "Device $device does not exist"
     fi
+
+    cmd_validate_storage "$device"
 
     echo ""
     warn "=== USB ENCRYPTION ==="

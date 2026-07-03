@@ -15,8 +15,19 @@ except ImportError:
     sys.exit(1)
 
 
+def validate_peer_params(merkle_root: str, node_address: str) -> None:
+    if not isinstance(merkle_root, str) or len(merkle_root) != 64:
+        raise ValueError(f"Invalid merkle_root: must be 64-char hex string, got {len(merkle_root)} chars")
+    int(merkle_root, 16)
+    if not isinstance(node_address, str) or not node_address.startswith("0x"):
+        raise ValueError(f"Invalid node_address: must start with 0x, got {node_address!r}")
+    if len(node_address) != 42:
+        raise ValueError(f"Invalid node_address: must be 42 chars (0x + 40 hex), got {len(node_address)}")
+
+
 def attest(merkle_root: str, node_address: str) -> dict:
     """Generate a zymkey-signed attestation over the storage commitment."""
+    validate_peer_params(merkle_root, node_address)
     zk = zymkey.client
 
     firmware = zk.get_firmware_version()

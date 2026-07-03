@@ -84,6 +84,11 @@ if [ -z "$evm_addr" ]; then
     exit 1
 fi
 
+if ! echo "$evm_addr" | grep -qE '^0x[0-9a-fA-F]{40}$'; then
+    err "Generated address $evm_addr is not a valid EVM address format"
+    exit 1
+fi
+
 step "Wallet generated"
 echo "  Address:      $evm_addr"
 echo "  Private key:  $priv_key"

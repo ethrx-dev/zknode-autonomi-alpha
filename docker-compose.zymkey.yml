@@ -38,6 +38,10 @@ services:
 
   # ─── Autonomi Storage Node (with zymkey) ───────────────────
   ant-node:
+    user: nobody
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
     devices:
       - /dev/zymkey:/dev/zymkey
     volumes:
@@ -52,6 +56,10 @@ services:
 
   # ─── Mixnet Proxy (with zymkey for SURB signing) ─────────
   mixnet-proxy:
+    user: nobody
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
     devices:
       - /dev/zymkey:/dev/zymkey
     volumes:

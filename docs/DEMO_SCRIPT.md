@@ -204,7 +204,37 @@ python3 scripts/zymkey-attest.py \
   --node-address 0xef902cC111D5435C5116c123771D9459FC77AD4B
 ```
 
-### 9. Monitor
+### 10. Live ant-node Verification (SCM4 only)
+
+```bash
+# Check systemd service status
+systemctl --user status ant-node
+
+# Verify port is listening
+ss -ulnp | grep 12000
+
+# Check peer count
+grep -c "DHT peer connected" ~/zknode-autonomi/data/logs/ant-node.*.log
+
+# Tail live logs
+tail -f ~/zknode-autonomi/data/logs/ant-node.*.log
+
+# Check service is enabled for auto-start
+systemctl --user is-enabled ant-node
+```
+
+Expected:
+```
+● ant-node.service - Autonomi Testnet Node
+   Active: active (running) since ...
+
+UNCONN 0 0  0.0.0.0:12000  0.0.0.0:*  users:(("ant-node",...))
+
+100+
+enabled
+```
+
+### 11. Monitor
 
 ```bash
 # Real-time container status
@@ -218,7 +248,7 @@ curl -s http://127.0.0.1:9090/health
 curl -s http://127.0.0.1:9090/prove/bandwidth
 ```
 
-### 10. Teardown
+### 12. Teardown
 
 ```bash
 docker compose down
@@ -234,7 +264,11 @@ rm -rf data/ config/mixnet/auth*/*.db config/mixnet/auth*/*.log
 
 ## Verification Checklist
 
-- [ ] All 15 containers running (`docker compose ps`)
+- [ ] All containers running (`docker compose ps`)
+- [ ] **Live ant-node running**: `systemctl --user status ant-node` shows active
+- [ ] **ant-node port open**: `ss -ulnp | grep 12000` shows bound
+- [ ] **ant-node has peers**: `grep -c "DHT peer connected" ~/zknode-autonomi/data/logs/ant-node.*.log` shows 50+
+- [ ] **ant-node auto-start**: `systemctl --user is-enabled ant-node` shows enabled
 - [ ] Mixnet echo: `Hello mixnet!` returns in ~3s
 - [ ] Proxy API: `mixnet_connected: true`
 - [ ] Ping binary: 100% success rate

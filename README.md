@@ -4,10 +4,12 @@
 
 A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P2P Foundation's proof-of-useful-work movement.
 
+> **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.2 serving on Arbitrum Sepolia since 2026-07-03. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
+
 **Hardware**: SCM4/CM4 (8GB RAM, aarch64) with zymkey HSM.  
 **Mixnet**: Katzenpost v0.0.73-rc3+ (MLKEM768 PQ wire KEM, BLAKE2b-256 hashing, 3-hop Sphinx).  
 **ZK Proofs**: Merkle storage proofs (BLAKE2b), bandwidth proofs, zymkey hardware attestation.  
-**Storage**: Autonomi ant-node with LMDB chunk store on USB pool.
+**Storage**: Autonomi ant-node v0.14.2 with LMDB chunk store — managed via systemd --user.
 
 ---
 ## Architecture
@@ -99,6 +101,24 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/wa
 | `./scripts/setup-zymbit.sh --encrypt-usb /dev/sdX` | Encrypt USB drive with zymkey |
 | `./scripts/gen-wallet.sh --apply` | Generate standard EVM wallet (any machine) |
 | `./scripts/gen-wallet.sh` | Generate wallet, print address only |
+| `systemctl --user status ant-node` | Check live node status |
+| `systemctl --user restart ant-node` | Restart the ant-node service |
+| `journalctl --user -u ant-node -f` | Tail live node logs |
+
+---
+
+## Live Node (zknode01 SCM4)
+
+```
+Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
+Version:      ant-node 0.14.2
+Network:      Autonomi Testnet, Arbitrum Sepolia
+Public IP:    24.31.26.231:12000 (QUIC/UDP)
+Wallet:       0xef902cC111D5435C5116c123771D9459FC77AD4B (0.04 ETH)
+Service:      systemd --user (enabled, Restart=always, RestartSec=10)
+DHT Peers:    ~100 connected
+Replication:  Active (/rr/autonomi.ant.replication.v2)
+```
 
 ---
 
@@ -115,6 +135,7 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/wa
 | walletshield | EVM RPC through mixnet :9200 | host | 128MB |
 | storage-proved | Merkle/Winterfell storage prover :9201 | bridge | 128MB |
 | antd | Autonomi CLI + node manager | bridge | 128MB |
+| ant-node | Autonomi storage node (systemd, bare metal) | host :12000 | ~20MB |
 | reticulum | Reticulum mesh networking (RNS + LXMF) | host | 128MB |
 
 ---
@@ -179,7 +200,8 @@ zknode-autonomi/
 │   ├── mixnet/                  # Generated PKI + node configs
 │   ├── proxy/config.json        # SOCKS5 proxy config
 │   ├── walletshield/config.toml # WalletShield thin client config
-│   └── autonomi/                # Autonomi node/CLI configs
+│   ├── autonomi/                # Autonomi node/CLI configs
+│   └── ant-node/                # Systemd service unit files
 ├── scripts/
 │   ├── deploy.sh                # Deploy/start/stop/export
 │   ├── setup.sh                 # Init project structure
@@ -199,6 +221,7 @@ zknode-autonomi/
 
 | Issue | Status | Resolution |
 |-------|--------|------------|
+| **Live testnet node** | ✅ Deployed | ant-node v0.14.2 running via `systemd --user` on zknode01 SCM4 since 2026-07-03. UDP :12000, Arbitrum Sepolia, ~100 DHT peers. See [Live Node Status](docs/LIVE_NODE_STATUS.md). |
 | **Host networking** | 🔶 Planned | Mixnet containers share host network. Bridge networking with BindAddresses in katzenpost.toml for production multi-instance isolation. |
 | **Dirauth startup race** | ✅ Mitigated | Entrypoints use `while true; do ...; sleep 2; done` retry loops. All 3 auths converge within 2 epochs after clean restart. |
 | **LMDB overcommit_memory** | ✅ Fixed | `privileged: true` on antd container with `echo 1 > /proc/sys/vm/overcommit_memory` at startup. |
@@ -213,6 +236,7 @@ zknode-autonomi/
 ## Documentation
 
 - [P4P Reference Architecture](docs/P4P_ARCHITECTURE.md) — Complete technical reference
+- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on zknode01 SCM4
 - [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md) — Full deployment walkthrough
 - [Architecture](docs/ARCHITECTURE.md) — System layers and data flow
 - [Hardware Setup](docs/HARDWARE_SETUP.md) — SCM4 hardware, storage, USB pool
