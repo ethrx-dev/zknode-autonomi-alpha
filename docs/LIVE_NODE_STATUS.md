@@ -1,7 +1,7 @@
 # Live Node Status — Autonomi Testnet
 
 **Activated:** 2026-07-03 21:20 UTC
-**Host:** zknode01 SCM4 (Raspberry Pi CM4, 4GB RAM, aarch64)
+**Host:** zknode01 SCM4 (Raspberry Pi SCM4, 8GB RAM, aarch64)
 **Management:** `systemd --user` service (auto-start on boot, auto-restart on failure)
 
 ---
