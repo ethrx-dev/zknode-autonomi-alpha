@@ -1,0 +1,35 @@
+# Build artifacts
+katzenpost/
+cmd/mixnet-proxy/katzenpost/
+cmd/mixnet-proxy/target/
+cmd/storage-proved-rs/target/
+**/target/
+
+# Docker build cache
+.docker/
+
+# Data directories
+data/
+config/mixnet/auth1/*.db
+config/mixnet/auth2/*.db
+config/mixnet/auth3/*.db
+config/mixnet/auth1/*.log
+config/mixnet/auth2/*.log
+config/mixnet/auth3/*.log
+config/mixnet/*/katzenpost.log
+config/mixnet/*/*.db
+config/mixnet/*/*.sst
+
+# Environment files (contain secrets)
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo

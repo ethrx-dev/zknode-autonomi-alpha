@@ -1,0 +1,189 @@
+services:
+  # ═══════════════════════════════════════════════════════════
+  # Katzenpost Mixnet (host networking — 127.0.0.1 works)
+  # ═══════════════════════════════════════════════════════════
+
+  mix-dirauth-1:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-dirauth-1
+    entrypoint: ["sh", "-c"]
+    command: ["while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth1/authority.toml; sleep 2; done"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+
+  mix-dirauth-2:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-dirauth-2
+    entrypoint: ["sh", "-c"]
+    command: ["while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth2/authority.toml; sleep 2; done"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-dirauth-1
+
+  mix-dirauth-3:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-dirauth-3
+    entrypoint: ["sh", "-c"]
+    command: ["while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth3/authority.toml; sleep 2; done"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-dirauth-2
+
+  mix-1:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-1
+    command: ["/usr/local/bin/server", "-f", "/var/lib/katzenpost/mix1/katzenpost.toml"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-dirauth-1
+      - mix-dirauth-2
+      - mix-dirauth-3
+
+  mix-2:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-2
+    command: ["/usr/local/bin/server", "-f", "/var/lib/katzenpost/mix2/katzenpost.toml"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-dirauth-1
+      - mix-dirauth-2
+      - mix-dirauth-3
+
+  mix-3:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-3
+    command: ["/usr/local/bin/server", "-f", "/var/lib/katzenpost/mix3/katzenpost.toml"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-dirauth-1
+      - mix-dirauth-2
+      - mix-dirauth-3
+
+  mix-gateway:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-gateway
+    command: ["/usr/local/bin/server", "-f", "/var/lib/katzenpost/gateway1/katzenpost.toml"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-1
+      - mix-2
+      - mix-3
+
+  mix-servicenode:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-servicenode
+    command: ["/usr/local/bin/server", "-f", "/var/lib/katzenpost/servicenode1/katzenpost.toml"]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    depends_on:
+      - mix-1
+      - mix-2
+      - mix-3
+
+  # ═══════════════════════════════════════════════════════════
+  # Katzenpost Client Daemon — thin client API gateway
+  # ═══════════════════════════════════════════════════════════
+  mix-client:
+    image: ${IMAGE_MIXNET}
+    container_name: mix-client
+    entrypoint: ["sh", "-c"]
+    command: [
+      "kpclientd -c /var/lib/katzenpost/client/client.toml & PID=$!; \
+       echo 'Waiting for PKI doc...'; \
+       for i in $(seq 1 30); do \
+         /usr/local/bin/fetch -f /var/lib/katzenpost/client/thinclient.toml && break; \
+         sleep 2; \
+       done; \
+       echo 'PKI doc available'; \
+       wait $PID"
+    ]
+    volumes:
+      - ./config/mixnet:/var/lib/katzenpost
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: 128m
+    depends_on:
+      - mix-gateway
+
+  # ═══════════════════════════════════════════════════════════
+  # Mixnet Proxy — SOCKS5 bridge (host network to access mixnet)
+  # ═══════════════════════════════════════════════════════════
+  mixnet-proxy:
+    image: ${IMAGE_MIXNET_PROXY}
+    container_name: mixnet-proxy
+    command: ["--config", "/etc/mixnet-proxy/config.json"]
+    volumes:
+      - ./config/proxy/config.json:/etc/mixnet-proxy/config.json:ro
+      - ./config/proxy/thinclient.toml:/etc/mixnet-proxy/thinclient.toml:ro
+    network_mode: host
+    restart: unless-stopped
+    mem_limit: ${PROXY_MEM_LIMIT}
+    depends_on:
+      - mix-client
+
+  # ═══════════════════════════════════════════════════════════
+  # Storage Proof Daemon (Winterfell / Merkle proofs)
+  # ═══════════════════════════════════════════════════════════
+  storage-proved:
+    image: zeros/storage-proved:arm64
+    container_name: storage-proved
+    command: ["--listen", ":9201", "--dir", "/var/lib/ant-node/chunks"]
+    volumes:
+      - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
+    networks:
+      - autonomi
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # Autonomi CLI + Node (managed via ant CLI)
+  # ═══════════════════════════════════════════════════════════
+  antd:
+    image: ${IMAGE_ANTD}
+    container_name: antd
+    environment:
+      - AUTONOMI_EVM_NETWORK=${AUTONOMI_EVM_NETWORK}
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - ./data/antd:/var/lib/antd
+      - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks
+      - ${AUTONOMI_LOGS_DIR:-./data/logs}:/var/lib/ant-node/logs
+    networks:
+      - autonomi
+    entrypoint: ["sh", "-c"]
+    command: ["tail -f /dev/null"]
+    restart: unless-stopped
+
+networks:
+  autonomi:
+    driver: bridge
+    name: zknode-autonomi-net

@@ -1,0 +1,10 @@
+# Autonomi ant-node configuration
+[network]
+evm_network = "arbitrum-sepolia"
+
+[storage]
+root_dir = "/var/lib/ant-node"
+chunk_store = "/var/lib/ant-node/chunks"
+
+[proxy]
+http_proxy = "socks5://mixnet-proxy:1080"

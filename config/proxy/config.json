@@ -1,0 +1,8 @@
+{
+  "socks_addr": "0.0.0.0:1080",
+  "mgmt_addr": "0.0.0.0:9090",
+  "thin_config_path": "/etc/mixnet-proxy/thinclient.toml",
+  "service_name": "echo",
+  "wireguard_iface": "wg0",
+  "ant_node_addr": "10.0.0.2"
+}

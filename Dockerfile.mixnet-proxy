@@ -1,0 +1,35 @@
+ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
+
+FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src/proxy
+COPY cmd/mixnet-proxy/ .
+COPY katzenpost /src/katzenpost
+RUN go mod init mixnet-proxy && \
+    go mod edit -replace github.com/katzenpost/katzenpost=/src/katzenpost && \
+    cat /src/katzenpost/go.sum >> go.sum 2>/dev/null || true && \
+    go mod tidy -e && \
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
+    CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+    go build -trimpath -ldflags="-buildid=" -o /dest/mixnet-proxy .
+
+FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/mixnet-proxy /usr/local/bin/
+
+EXPOSE 1080 9090
+
+ENTRYPOINT ["mixnet-proxy"]
+CMD ["--help"]

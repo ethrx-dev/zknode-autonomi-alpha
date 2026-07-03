@@ -1,0 +1,26 @@
+[package]
+name = "storage-proved-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Winterfell STARK prover
+winterfell = "0.13.1"
+winter-prover = "0.13.1"
+winter-air = "0.13.1"
+winter-utils = "0.13.1"
+winter-math = "0.13.1"
+winter-crypto = "0.13.1"
+
+# Async HTTP server
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower-http = { version = "0.5", features = ["cors"] }
+
+# Hashing / serialization
+blake3 = "1"
+bincode = "1"
+hex = "0.4"
+clap = { version = "4", features = ["derive"] }
