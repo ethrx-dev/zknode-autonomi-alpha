@@ -36,16 +36,16 @@ The SCM4 integrates a Raspberry Pi CM4 with a Zymbit Hardware Security Module in
 ### Default Credentials
 
 ```
-Hostname: zymbit-dev
-Username: zymbit
-Password: zymbit
+Hostname: ######
+Username: ######
+Password: ######
 ```
 
 **Change password on first login:**
 
 ```bash
 passwd
-sudo passwd zymbit  # also change root
+sudo passwd ######  # also change root
 ```
 
 ### Verify Zymbit Hardware
