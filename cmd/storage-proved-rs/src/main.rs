@@ -2,6 +2,10 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tower_http::cors::{CorsLayer, AllowOrigin};
+use tower_http::set_header::SetResponseHeaderLayer;
+use axum::http::HeaderValue;
+use axum::http::header;
 
 mod prover;
 
@@ -37,11 +41,26 @@ async fn main() {
         chunk_dir: cli.dir,
     };
 
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list([
+            HeaderValue::from_static("http://127.0.0.1"),
+            HeaderValue::from_static("http://localhost"),
+        ]));
+
     let app = axum::Router::new()
         .route("/status", axum::routing::get(status_handler))
         .route("/challenge", axum::routing::get(challenge_handler))
         .route("/prove", axum::routing::post(prove_handler))
         .route("/verify", axum::routing::post(verify_handler))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(cors)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&cli.listen)

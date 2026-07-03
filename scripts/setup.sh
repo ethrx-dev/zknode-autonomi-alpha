@@ -78,13 +78,15 @@ echo ""
 
 echo "[4/4] Creating runtime configs..."
 
-# Proxy config — uses host networking (127.0.0.1)
+# Proxy config — bind to loopback only, generate API key
+PROXY_API_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null || openssl rand -hex 32 2>/dev/null || echo "change-me")
 cat > config/proxy/config.json << EOF
 {
-  "listen_addr": "0.0.0.0:1080",
-  "socks_addr": "0.0.0.0:1080",
-  "mgmt_addr": "0.0.0.0:9090",
-  "mixnet_gateway": "127.0.0.1:30004",
+  "socks_addr": "127.0.0.1:1080",
+  "mgmt_addr": "127.0.0.1:9090",
+  "mgmt_api_key": "$PROXY_API_KEY",
+  "thin_config_path": "/etc/mixnet-proxy/thinclient.toml",
+  "service_name": "echo",
   "wireguard_iface": "wg0",
   "ant_node_addr": "10.0.0.2"
 }

@@ -9,9 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
-    rns \
-    lxmf \
-    nomadnet
+    rns==0.8.7 \
+    lxmf==0.5.2 \
+    nomadnet==0.4.1
 
 RUN mkdir -p /etc/reticulum /var/lib/reticulum /var/log/reticulum
 

@@ -21,4 +21,4 @@ COPY --from=builder /dest/storage-proved /usr/local/bin/
 EXPOSE 9201
 
 ENTRYPOINT ["storage-proved"]
-CMD ["--listen", ":9201"]
+CMD ["--listen", "0.0.0.0:9201"]

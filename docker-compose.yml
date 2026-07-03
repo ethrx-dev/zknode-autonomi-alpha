@@ -180,7 +180,7 @@ services:
     volumes:
       - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
     ports:
-      - "9201:9201"
+      - "127.0.0.1:9201:9201"
     networks:
       - autonomi
     restart: unless-stopped
@@ -191,7 +191,9 @@ services:
   antd:
     image: ${IMAGE_ANTD}
     container_name: antd
-    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
     environment:
       - AUTONOMI_EVM_NETWORK=${AUTONOMI_EVM_NETWORK}
       - SECRET_KEY=${SECRET_KEY}

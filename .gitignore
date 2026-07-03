@@ -23,6 +23,11 @@ config/mixnet/*/*.sst
 # Environment files (contain secrets)
 .env
 .env.local
+
+# Private keys and secrets (all formats)
+config/mixnet/**/*.private.pem
+config/mixnet/**/*.pem
+**/*.private.pem
 config/keys/
 
 # OS files

@@ -167,8 +167,14 @@ cmd_start() {
 
 cmd_stop() {
     echo "Stopping zknode-autonomi..."
-    docker compose down -v
+    docker compose down
     echo -e "${GREEN}Stack stopped.${NC}"
+}
+
+cmd_stop_clean() {
+    echo "Stopping and cleaning zknode-autonomi (removes volumes)..."
+    docker compose down -v
+    echo -e "${GREEN}Stack stopped and cleaned.${NC}"
 }
 
 cmd_build() {
@@ -197,7 +203,7 @@ case "${1:-}" in
     --check|check)  cmd_check ;;
     --start|start)  cmd_setup; cmd_start ;;
     --stop|stop)    cmd_stop ;;
-    --clean|clean)  cmd_stop; echo "Cleaning data..."; rm -rf data/* config/mixnet config/proxy config/autonomi 2>/dev/null || true ;; 
+    --clean|clean)  cmd_stop_clean; echo "Cleaning data..."; rm -rf data/* config/mixnet config/proxy config/autonomi 2>/dev/null || true ;; 
     --build|build)  cmd_build ;;
     --export|export) cmd_export "${2:-}" ;;
     *)
@@ -205,8 +211,8 @@ case "${1:-}" in
         echo ""
         echo "  --check     Verify prerequisites"
         echo "  --start     Deploy and start the stack"
-        echo "  --stop      Stop the stack"
-        echo "  --clean     Stop and clean all data"
+        echo "  --stop      Stop the stack (preserves volumes)"
+        echo "  --clean     Stop, remove volumes, and clean all data"
         echo "  --build     Show build instructions"
         echo "  --export    Export images for air-gapped transfer"
         exit 1

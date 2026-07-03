@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"io"
@@ -34,6 +35,7 @@ var (
 type AppConfig struct {
 	SocksAddr      string `json:"socks_addr"`
 	MgmtAddr       string `json:"mgmt_addr"`
+	MgmtApiKey     string `json:"mgmt_api_key"`
 	ThinCfgPath    string `json:"thin_config_path"`
 	ServiceName    string `json:"service_name"`
 	WireGuardIface string `json:"wireguard_iface"`
@@ -51,8 +53,8 @@ type Status struct {
 
 func defaultConfig() AppConfig {
 	return AppConfig{
-		SocksAddr:      "0.0.0.0:1080",
-		MgmtAddr:       "0.0.0.0:9090",
+		SocksAddr:      "127.0.0.1:1080",
+		MgmtAddr:       "127.0.0.1:9090",
 		ThinCfgPath:    "/etc/mixnet-proxy/thinclient.toml",
 		ServiceName:    "echo",
 		WireGuardIface: "wg0",
@@ -123,7 +125,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("mgmt %s: %v", cfg.MgmtAddr, err)
 	}
-	go http.Serve(mgmtLn, mux)
+	go http.Serve(mgmtLn, securityHeaders(authMiddleware(mux)))
 	go func() { <-ctx.Done(); mgmtLn.Close() }()
 
 	for {
@@ -284,4 +286,27 @@ func storageProofHandler(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	w.Header().Set("Content-Type", "application/json")
 	io.Copy(w, resp.Body)
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "0")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if cfg.MgmtApiKey != "" {
+			key := r.Header.Get("X-API-Key")
+			if subtle.ConstantTimeCompare([]byte(key), []byte(cfg.MgmtApiKey)) != 1 {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

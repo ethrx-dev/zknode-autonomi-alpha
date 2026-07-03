@@ -60,12 +60,9 @@ impl StorageProver {
         if self.total_chunks == 0 {
             return 0;
         }
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .subsec_nanos() as usize;
-        nanos % self.total_chunks
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        rng.gen_range(0..self.total_chunks)
     }
 
     /// Generate a Merkle proof (path from leaf to root).

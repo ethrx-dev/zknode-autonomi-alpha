@@ -54,7 +54,7 @@ var (
 func main() {
 	dir := flag.String("dir", "/var/lib/ant-node/chunks", "chunk directory")
 	size := flag.Int64("chunk-size", 1024, "chunk segment size")
-	listen := flag.String("listen", ":9201", "listen address")
+	listen := flag.String("listen", "0.0.0.0:9201", "listen address")
 	flag.Parse()
 
 	chunkDir = *dir

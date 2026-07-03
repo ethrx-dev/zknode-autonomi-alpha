@@ -74,7 +74,8 @@ func sendRequest(thin *thin.ThinClient, httpRequestBytes []byte) ([]byte, error)
 	}
 	nodeId := hash.Sum256(target.MixDescriptor.IdentityKey)
 
-	timeoutCtx, _ := context.WithTimeout(context.TODO(), time.Duration(timeout)*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(context.TODO(), time.Duration(timeout)*time.Second)
+	defer cancel()
 	return thin.BlockingSendMessage(timeoutCtx, blob, &nodeId, target.RecipientQueueID)
 }
 
