@@ -144,13 +144,16 @@ zknode-autonomi/
 
 ---
 
-## Known Limitations
+## Known Limitations & Roadmap
 
-- **Host networking**: Mixnet containers share the host network (only one instance per port). For production isolation, switch to bridge networking with BindAddresses.
-- **Dirauth startup race**: All 3 authorities must be running to reach consensus. Mitigated by internal retry loops in container entrypoints.
-- **LMDB memory**: ant-node needs `vm.overcommit_memory=1` for LMDB mmap (enabled via privileged mode).
-- **walletshield**: Built but not included in compose — uses katzenpost v0.0.64 client config, incompatible with our v0.0.73-rc3 mixnet. Rebuilding with a version-aligned Dockerfile would fix this.
-- **Zymkey integration**: Hardware wallet keys stored in HSM; rewards address auto-set. Full HSM transaction signing requires ant-node code changes.
+| Issue | Status | Resolution |
+|-------|--------|------------|
+| **Host networking** | 🔶 Bridge networking planned | Mixnet containers use `network_mode: host`. Switch to bridge with BindAddresses in each node's katzenpost.toml for production multi-instance isolation. |
+| **Dirauth startup race** | ✅ Mitigated | Entrypoints use `while true; do ...; sleep 2; done` retry loops. All 3 auths converge within 2 epochs. |
+| **LMDB overcommit_memory** | 🔶 Privileged mode available | ant-node needs `vm.overcommit_memory=1` for LMDB mmap. Enable via `privileged: true` on the antd or ant-node container. |
+| **walletshield** | ✅ Fixed | Rebuilt with matching Sphinx geometry (PacketLength=3082). Added to compose at `:9200`. Connects to kpclientd on :64332. |
+| **Zymkey HSM signing** | 🔌 Planned | zymkey stores wallet key in slot 23/24. ant-node code changes needed for HSM-backed EVM transaction signing. Python SDK available (`zymkey`, `zymbitwalletsdk`). |
+| **Bridge network isolation** | 📋 Future | Each mixnet node gets a bridge network with unique BindAddress for production multi-tenant deployments. |
 
 ---
 

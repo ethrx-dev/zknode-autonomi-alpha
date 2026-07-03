@@ -152,6 +152,25 @@ services:
       - mix-client
 
   # ═══════════════════════════════════════════════════════════
+  # WalletShield — EVM RPC through mixnet (Arbitrum)
+  # ═══════════════════════════════════════════════════════════
+  walletshield:
+    image: zeros/walletshield:arm64
+    container_name: walletshield
+    command: >
+      -config /etc/walletshield/config.toml
+      -listen 127.0.0.1:9200
+      -thin
+      -log_level INFO
+    volumes:
+      - ./config/walletshield/config.toml:/etc/walletshield/config.toml:ro
+      - ./data/walletshield:/var/lib/walletshield
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - mix-client
+
+  # ═══════════════════════════════════════════════════════════
   # Storage Proof Daemon (Winterfell / Merkle proofs)
   # ═══════════════════════════════════════════════════════════
   storage-proved:
