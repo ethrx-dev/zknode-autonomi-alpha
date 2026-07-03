@@ -13,7 +13,7 @@ The SCM4 integrates a Raspberry Pi CM4 with a Zymbit Hardware Security Module in
 | **CPU** | Broadcom BCM2711, quad-core Cortex-A72 @ 1.5 GHz |
 | **RAM** | 8 GB LPDDR4-3200 |
 | **eMMC** | 32 GB (pre-encrypted, not field-replaceable) |
-| **HSM** | Zymbit security co-processor (I2C bus) |
+| **HSM** | Zymbit security co-processor (USB serial /dev/ttyACM7) |
 | **Boot** | Supervised Boot (verified boot chain) |
 | **Tamper** | Perimeter breach, accelerometer, voltage monitoring |
 | **Pinout** | 100% CM4 compatible |
@@ -51,11 +51,11 @@ sudo passwd ######  # also change root
 ### Verify Zymbit Hardware
 
 ```bash
-# Check I2C bus (zymkey should appear at address 0x30)
-sudo i2cdetect -y 1
+# Check USB serial device (zymkey on SCM4 uses USB ACM, not I2C)
+ls -la /dev/ttyACM* /dev/zscm_*
 
-# Check zymkey driver
-ls /dev/zymkey
+# Check zkifc systemd service
+systemctl status zkifc
 
 # Verify firmware
 python3 -c "import zymkey; print(zymkey.client.get_firmware_version())"
@@ -537,4 +537,30 @@ EOF
 - [Production Mode](https://docs.zymbit.com/tutorials/production-mode/)
 - [Hardware Wallet Tutorial](https://docs.zymbit.com/tutorials/digital-wallet/wallet-example/)
 - [API Documentation (Python/C/C++)](https://docs.zymbit.com/api/)
+
+---
+
+## 11. Docker Compose vs Systemd (zkifc)
+
+The `docker-compose.yml` originally defined a `zkifc` container that was **broken on the SCM4**:
+
+- Used `alpine:3.21` which lacks the `zkifc` binary
+- Mapped `/dev/zymkey` (I2C) but the SCM4 exposes the zymkey as USB serial (`/dev/ttyACM7`)
+- The host already runs `zkifc.service` via systemd, making the Docker container redundant
+
+**Correct approach:** The zymkey is managed by the host-level `zkifc.service` (systemd), running as user `zymbit`. Containers that need HSM access should bind-mount `/dev/ttyACM7` and `/var/lib/zymbit/`.
+
+```bash
+# Check HSM is running
+systemctl status zkifc
+
+# Verify device
+ls -la /dev/ttyACM7 /dev/zscm_7
+
+# Docker containers needing HSM should mount:
+# - /dev/ttyACM7:/dev/ttyACM7
+# - /var/lib/zymbit:/var/lib/zymbit:ro
+```
+
+The broken Docker `zkifc` container has been removed from the compose.
 - [SCM Troubleshooting](https://docs.zymbit.com/troubleshooting/scm/)

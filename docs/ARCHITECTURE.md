@@ -10,19 +10,21 @@
 │  │ (shell) │  │ apps     │  │ scripts  │                  │
 │  └────┬────┘  └──────────┘  └──────────┘                  │
 │       │ docker exec antd ant <command>                    │
+│       │ (ant-node runs as systemd --user, not Docker)     │
 ├───────┼───────────────────────────────────────────────────┤
 │       ▼          Service Orchestration                    │
 │  ┌────────────────────────────────────────┐               │
-│  │          Docker Compose (15 services)  │               │
-│  │  host network (mixnet) + bridge (auto) │               │
+│  │     Docker Compose (15 services)        │               │
+│  │  host network (mixnet) + bridge (auto)  │               │
+│  │  + systemd --user (ant-node bare metal) │               │
 │  └────────────────────────────────────────┘               │
 ├───────────────────────────────────────────────────────────┤
-│                  Storage Layer                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
-│  │ Autonomi │  │ mergerfs │  │ LUKS     │                 │
-│  │ Chunk DB │  │ (pool)   │  │ (zymkey) │                 │
-│  │ (LMDB)   │  │          │  │          │                 │
-│  └──────────┘  └──────────┘  └──────────┘                 │
+│               Storage + ZK Proof Layer                    │
+│  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐    │
+│  │ Autonomi │  │ storage- │  │ mixnet-proxy          │    │
+│  │ Chunk DB │  │ proved   │  │ (ZK proof API :9090)  │    │
+│  │ (LMDB)   │  │ :9201    │  │ → proxies to :9201    │    │
+│  └──────────┘  └──────────┘  └──────────────────────┘    │
 ├───────────────────────────────────────────────────────────┤
 │                  Transport Layer                          │
 │  ┌──────────────────────────────────────────────────────┐ │
@@ -40,7 +42,7 @@
 │               Hardware Abstraction                        │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
 │  │ SCM4/CM4 │  │ zymkey   │  │ USB 3.0  │  │ Ethernet │   │
-│  │ 8GB RAM  │  │ HSM I2C  │  │ Drives   │  │ Gigabit  │   │
+│  │ 4GB RAM  │  │ USB ACM7 │  │ Drives   │  │ Gigabit  │   │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -88,14 +90,22 @@ Autonomi peer (external)
 │  mix-2         127.0.0.1:30014           │
 │  mix-3         127.0.0.1:30017           │
 │  mix-gateway   127.0.0.1:30004           │
-│  mix-servicenode 127.0.0.1:30008         │
-│  mixnet-proxy  127.0.0.1:1080,9090       │
+│  mix-servicenode 127.0.0.1:30007       │
+│  mix-client      127.0.0.1:64332       │
+│  mixnet-proxy    127.0.0.1:1080,9090   │
+│  walletshield    127.0.0.1:9200        │
+│  storage-proved  127.0.0.1:9201 (port mapped from bridge)
 │                                          │
 ├──────────────────────────────────────────┤
 │  Bridge Network (zknode-autonomi-net)    │
 │                                          │
-│  ant-node      host-gateway:1080→proxy   │
 │  antd          (idle, docker exec)       │
+│                                          │
+├──────────────────────────────────────────┤
+│  Bare Metal (systemd --user)             │
+│                                          │
+│  ant-node      UDP :12000 (QUIC)         │
+│  zkifc         USB :/dev/ttyACM7 (HSM)   │
 └──────────────────────────────────────────┘
 ```
 

@@ -1,7 +1,7 @@
 # Live Node Status — Autonomi Testnet
 
-**Activated:** [redacted]
-**Host:** [redacted] (Raspberry Pi CM4, 4GB RAM, aarch64)
+**Activated:** 2026-07-03 21:20 UTC
+**Host:** zknode01 SCM4 (Raspberry Pi CM4, 4GB RAM, aarch64)
 **Management:** `systemd --user` service (auto-start on boot, auto-restart on failure)
 
 ---
@@ -9,7 +9,7 @@
 ## Node Identity
 
 ```
-Peer ID:      [redacted]
+Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
 Binary:       ant-node 0.14.2 (statically linked ARM64)
 Port:         UDP/QUIC :12000, IPv4-only mode
 Network:      Autonomi Testnet
@@ -20,7 +20,7 @@ Bootstrap:    7 peers (standard testnet bootstrap_peers.toml)
 ## Wallet
 
 ```
-Address:      [redacted]
+Address:      0xef902cC111D5435C5116c123771D9459FC77AD4B
 Balance:      ~0.04 ETH (Arbitrum Sepolia)
 Network:      Arbitrum Sepolia testnet
 Purpose:      Rewards address for storage payments
@@ -54,7 +54,7 @@ WorkingDirectory=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1
 ExecStart=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node \
     --root-dir %h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1 \
     --port 12000 \
-    --rewards-address [redacted] \
+    --rewards-address 0xef902cC111D5435C5116c123771D9459FC77AD4B \
     --evm-network arbitrum-sepolia \
     --network-mode testnet \
     --ipv4-only \
@@ -102,12 +102,69 @@ tail -f ~/zknode-autonomi/data/logs/ant-node.YYYY-MM-DD.log  # File logs (daily 
 
 | Metric | Value |
 |--------|-------|
-| DHT peers | ~100 connected |
+| DHT peers | ~230 connected |
 | NAT traversal coordinators | 5 bootstrap peers |
 | Replication protocol | `/rr/autonomi.ant.replication.v2` (active) |
-| Public IP | [redacted] (confirmed by multiple peers) |
+| Public IP | 24.31.26.231 (confirmed by multiple peers) |
 | Memory usage | ~20MB resident |
 | File descriptors | ~50 open |
+
+---
+
+## ZK Storage Proofs
+
+| Metric | Value |
+|--------|-------|
+| Status | 🟢 Active |
+| Chunks | 10 (test data, 4KB each) |
+| Merkle root | `a9cfc0c6...02ed36` |
+| Proof size | 264 bytes (BLAKE3 Merkle path) |
+| API | `http://127.0.0.1:9201` (storage-proved-rs) |
+| Proxy API | `http://127.0.0.1:9090/prove/bandwidth` → `verified: true` |
+
+**Endpoints:**
+```bash
+curl http://127.0.0.1:9201/status          # Merkle tree state
+curl http://127.0.0.1:9201/challenge       # Random proof challenge
+curl -X POST http://127.0.0.1:9201/prove \ # Generate Merkle proof
+  -H "Content-Type: application/json" -d '{"index":0}'
+curl http://127.0.0.1:9090/prove/bandwidth  # Bandwidth proof via proxy
+```
+
+The `storage-proved-rs` Docker container reads chunk files from `/mnt/autonomi/zknode-autonomi/chunks/`, builds a BLAKE3 Merkle tree, and serves proof generation/verification on port 9201 (mapped to host). The `mixnet-proxy` service forwards `/prove/challenge` and `/prove/storage` requests to storage-proved via localhost.
+
+---
+
+## HSM / Zymkey
+
+| Metric | Value |
+|--------|-------|
+| Status | 🟢 Active |
+| Service | `zkifc.service` (systemd, host) |
+| Device | `/dev/ttyACM7` (USB serial, symlink `/dev/zscm_7`) |
+| Uptime | 19+ hours |
+| Wallet | Stored at `/var/lib/zymbit/2712AF4B7AC2F93FD13F8B33BA15A44C36C52F2F1495246261BBC0FEE6D52475/` |
+| RTC sync | Working, NTP-ready |
+
+**Note:** The Docker compose `zkifc` container is **deprecated** — the zymkey is managed by the host-level systemd service. The compose container was removed because:
+- It used `alpine:3.21` which lacks the `zkifc` binary
+- It tried to map `/dev/zymkey` (I2C) but the actual device is USB serial (`/dev/ttyACM7`)
+- Host systemd service runs as user `zymbit` with proper permissions
+
+Zymbit packages installed: `libzk`, `libzymkeyssl`, `zkapputilslib`, `zkifc`, `zkpkcs11`, `zksaapps`, `zkbootrtc`.
+
+---
+
+## walletshield
+
+| Metric | Value |
+|--------|-------|
+| Status | 🟡 PKI syncing |
+| Port | TCP :9200 |
+| Service | `proxy` (CBORPluginKaetzchen, http-proxy-server) |
+| Image | `zeros/walletshield:arm64` (rebuilt with `ProxyHTTPService = "proxy"`) |
+
+walletshield routes EVM JSON-RPC through the mixnet to the `proxy` kaetzchen, which forwards to Arbitrum Sepolia RPC. Currently timing out on mixnet message send while PKI re-stabilizes after dirauth restarts. Service resolution works (no panic), just waiting for full consensus.
 
 ---
 
@@ -128,12 +185,19 @@ tail -f ~/zknode-autonomi/data/logs/ant-node.YYYY-MM-DD.log  # File logs (daily 
 | Peer count dropping | Check systemd logs: `journalctl --user -u ant-node -f`. Look for "dropping packet with invalid CID" (normal after restart). |
 | Binary won't start from host | Ensure binary is statically linked ARM64: `file ~/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node`. |
 | ant CLI daemon crash | The `ant node daemon start` crashes on the antd container due to bind mount permission conflicts. Use direct binary execution or the systemd service instead. |
+| storage-proved-rs panic (OOB) | Fixed in commit `0ea8e1e`. Rebuild with `docker build -f Dockerfile.storage-proved-rs`. |
+| walletshield "service not found" | Rebuild with `ProxyHTTPService = "proxy"` (commit `1456372`). Default upstream hardcodes `"http_proxy"`. |
+| walletshield "context deadline exceeded" | PKI syncing after dirauth restart. Wait ~40 min or restart all 3 dirauths simultaneously. |
 
 ---
 
 ## Related Files in Repo
 
 - `config/ant-node/ant-node.service` — Systemd unit file (reference)
+- `Dockerfile.walletshield` — Builds fixed walletshield with correct service name
+- `walletshield-fix/main.go` — Patched walletshield source
 - `README.md` — Full architecture and live node summary
+- `docs/ARCHITECTURE.md` — System layers and data flow
 - `docs/POC_DEPLOYMENT_PLAN.md` — Full deployment plan
 - `docs/DEMO_SCRIPT.md` — Verification steps
+- `docs/ZYMBIT_SETUP.md` — HSM setup (host systemd, not Docker)
