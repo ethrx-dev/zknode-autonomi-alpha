@@ -26,7 +26,7 @@
                     │   │  1 × servicenode (mixnet exit)     │ │
                     │   └────────────────────────────────────┘ │
                     │                                          │
-                    │   USB pool ── mergerfs ── LUKS (zymkey) │
+                    │    USB pool ── mergerfs ── LUKS (zymkey) │
                     └──────────────────────────────────────────┘
                                   │
                    mixnet exit   │   Autonomi P2P (QUIC)

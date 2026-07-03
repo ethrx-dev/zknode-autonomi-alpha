@@ -9,40 +9,40 @@ A self-contained private Autonomi storage node with traffic anonymized through a
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    zknode (SCM4 / CM4)                          │
-│  8GB RAM · aarch64 · zymkey HSM · USB 3.0 pool                 │
+│  8GB RAM · aarch64 · zymkey HSM · USB 3.0 pool                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────┐  SOCKS5  ┌─────────────────┐  PQ Mixnet      │
-│  │   ant-node    │◄────────►│  mixnet-proxy   │◄────────────────┤
-│  │  (Autonomi)   │  :1080   │  (Go/Rust)      │                 │
-│  │  :12000       │          │  :9090 mgmt API  │                 │
-│  └──────┬───────┘          └────────┬─────────┘                 │
-│         │                          │                            │
-│         │ chunk data               │ ZK proofs                  │
-│         ▼                          ▼                            │
+│                                                                 │
+│  ┌──────────────┐  SOCKS5  ┌─────────────────┐  PQ Mixnet       │
+│  │   ant-node   │◄────────►│  mixnet-proxy   │◄─────────────────┤
+│  │  (Autonomi)  │  :1080   │  (Go/Rust)      │                  │
+│  │  :12000      │          │  :9090 mgmt API │                  │
+│  └──────┬───────┘          └────────┬────────┘                  │
+│         │                           │                           │
+│         │ chunk data                │ ZK proofs                 │
+│         ▼                           ▼                           │
 │  ┌──────────────┐          ┌─────────────────┐                  │
-│  │  LMDB Chunk   │          │ storage-proved  │                  │
-│  │  Store        │◄────────►│ (Rust/Winterfell)│                 │
-│  │  /mnt/chunks  │  mmap    │  :9201 API      │                  │
-│  └──────────────┘          └────────┬─────────┘                 │
+│  │  LMDB Chunk  │          │ storage-proved  │                  │
+│  │  Store       │◄────────►│ (Rust/Winfell)  │                  │
+│  │  /mnt/chunks │  mmap    │  :9201 API      │                  │
+│  └──────────────┘          └────────┬────────┘                  │
 │                                     │                           │
 │                            ┌────────┴─────────┐                 │
-│                            │  zymkey HSM (I²C) │                │
-│                            │  HW Attestation   │                │
+│                            │ zymkey HSM (I²C) │                 │
+│                            │  HW Attestation  │                 │
 │                            └──────────────────┘                 │
-│                                                                  │
+│                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Katzenpost Post-Quantum Mixnet (host networking)         │   │
-│  │                                                           │   │
+│  │  Katzenpost Post-Quantum Mixnet (host networking)        │   │
+│  │                                                          │   │
 │  │  ┌──────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐  │   │
 │  │  │dirauth 1 │  │ mix-1  │  │gateway │  │ servicenode  │  │   │
-│  │  │dirauth 2 │◄►│ mix-2  │◄►│  :30004│◄►│  :30007      │  │   │
-│  │  │dirauth 3 │  │ mix-3  │  │        │  │  (echo/proxy) │  │   │
+│  │  │dirauth 2 │◄►│ mix-2  │◄►│  :30004│◄►│ :30007       │  │   │
+│  │  │dirauth 3 │  │ mix-3  │  │        │  │ (echo/proxy) │  │   │
 │  │  └──────────┘  └────────┘  └────────┘  └──────────────┘  │   │
-│  │                                                           │   │
+│  │                                                          │   │
 │  │  PKI epoch 238999 · MLKEM768 · BLAKE2b-256 · 3-hop       │   │
 │  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
