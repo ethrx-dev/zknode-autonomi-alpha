@@ -29,7 +29,7 @@
                     │    USB pool ── mergerfs ── LUKS (zymkey) │
                     └──────────────────────────────────────────┘
                                   │
-                   mixnet exit   │   Autonomi P2P (QUIC)
+                    mixnet exit   │   Autonomi P2P (QUIC)
                                   ▼
                       ┌──────────────────┐
                       │ Autonomi Network │
