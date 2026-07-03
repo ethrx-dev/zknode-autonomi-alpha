@@ -23,6 +23,7 @@ config/mixnet/*/*.sst
 # Environment files (contain secrets)
 .env
 .env.local
+config/keys/
 
 # OS files
 .DS_Store
