@@ -12,7 +12,7 @@
 
 ## Executive Summary
 
-We propose a living beta program to deploy **200 Secure Core Nodes** globally, forming the foundation of a private, secure, and sovereign P4P (Peer-to-Peer) wiki mesh network. This infrastructure enables uncensorable communication, data storage, and application hosting for communities worldwide — from local mesh networks to global p2p applications.
+We propose a living beta program to deploy **200 Secure Core Nodes** globally, forming the foundation of a private, secure, and sovereign P4P (Peer-for-Peer) wiki mesh network. This infrastructure enables uncensorable communication, data storage, and application hosting for communities worldwide — from local mesh networks to global p2p applications.
 
 The program is built on two hardware tracks — **DIY SCM4 Compute Module** for makers and **SEN400 Beta Node** for plug-and-play deployment — and leverages a formal collaboration between **ZKNetwork** (mixnet privacy layer) and **Autonomi** (autonomous data storage network).
 
