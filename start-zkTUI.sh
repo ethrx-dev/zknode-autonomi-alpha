@@ -18,31 +18,17 @@ BACKTITLE="ZKNetwork P4P Wiki Mesh — $(hostname) — $(date)"
 
 # ── Dialog wrapper ────────────────────────────────────────────────────────────
 export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
-d() { dialog --stdout "$@"; }
-
 # ── Color scheme ──────────────────────────────────────────────────────────────
+export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
 cat > "$DIALOGRC" << 'EOF'
 use_colors = ON
 screen_color = (WHITE,BLUE,OFF)
 title_color = (WHITE,CYAN,ON)
 dialog_color = (WHITE,BLUE,OFF)
-shadow_color = (BLACK,BLACK,ON)
-button_color = (WHITE,CYAN,ON)
-tag_color = (YELLOW,CYAN,OFF)
-tag_key_color = (YELLOW,CYAN,OFF)
-check_color = (GREEN,CYAN,OFF)
-checkkey_color = (GREEN,CYAN,OFF)
-listitem_color = (WHITE,CYAN,OFF)
-menubox_color = (WHITE,BLUE,OFF)
-menubox_border_color = (WHITE,CYAN,ON)
-menusel_color = (WHITE,RED,ON)
+shadow_color = (BLACK,BLACK,OFF)
 inputbox_color = (WHITE,BLUE,OFF)
-inputbox_border_color = (WHITE,CYAN,ON)
-inputbox_text_color = (WHITE,BLUE,OFF)
-searchbox_color = (WHITE,BLUE,OFF)
-searchbox_title_color = (WHITE,CYAN,ON)
-gauge_color = (WHITE,BLUE,ON)
-textbox_color = (WHITE,BLUE,OFF)
+menubox_color = (WHITE,BLUE,OFF)
+menusel_color = (WHITE,RED,ON)
 EOF
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
