@@ -221,6 +221,38 @@ services:
     restart: unless-stopped
 
   # ═══════════════════════════════════════════════════════════
+  # llm-wiki — Git-backed markdown wiki engine (MCP/ACP)
+  # ═══════════════════════════════════════════════════════════
+  llm-wiki:
+    image: ${IMAGE_LLM_WIKI:-zeros/llm-wiki:arm64}
+    container_name: llm-wiki
+    command: ["serve", "--http", "0.0.0.0:18765", "--wiki-root", "/var/lib/llm-wiki"]
+    volumes:
+      - ./data/llm-wiki:/var/lib/llm-wiki
+    ports:
+      - "127.0.0.1:18765:18765"
+    networks:
+      - autonomi
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # NomadNet — Mesh page server over Reticulum
+  # ═══════════════════════════════════════════════════════════
+  nomadnet:
+    image: ${IMAGE_NOMADNET:-zeros/nomadnet:arm64}
+    container_name: nomadnet
+    command: ["--daemon", "--config", "/etc/nomadnet/config"]
+    volumes:
+      - ./config/nomadnet/config:/etc/nomadnet/config:ro
+      - ./config/nomadnet/pages:/var/lib/nomadnet/pages
+      - ./data/nomadnet:/var/lib/nomadnet
+      - ./data/reticulum:/var/lib/reticulum:ro
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - reticulum
+
+  # ═══════════════════════════════════════════════════════════
   # ZKChat — mixnet-native group chat (metadata-private)
   # ═══════════════════════════════════════════════════════════
   zkchat:

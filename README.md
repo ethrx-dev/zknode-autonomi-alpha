@@ -74,13 +74,16 @@ gunzip -c zknode-autonomi-images.tar.gz | docker load
 ### On build machine (cross-compile from amd64)
 
 ```bash
-# 1. Build all 7 images (cross-compile arm64 from amd64)
+# Build all 10 images (cross-compile arm64 from amd64)
 docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
 docker build --build-arg TARGETARCH=arm64 -f Dockerfile.ant-node -t zeros/ant-node:arm64 .
 docker build --build-arg TARGETARCH=arm64 -f Dockerfile.antd -t zeros/antd:arm64 .
 docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
 docker build --build-arg TARGETARCH=arm64 -f Dockerfile.storage-proved -t zeros/storage-proved:arm64 .
 docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/walletshield:arm64 .
+docker build --build-arg TARGETARCH=arm64 -f Dockerfile.llm-wiki -t zeros/llm-wiki:arm64 .
+docker build --build-arg TARGETARCH=arm64 -f Dockerfile.nomadnet -t zeros/nomadnet:arm64 .
+docker build --build-arg TARGETARCH=arm64 -f Dockerfile.wiki-export -t zeros/wiki-export:arm64 .
 ```
 
 ---
@@ -137,6 +140,8 @@ Replication:  Active (/rr/autonomi.ant.replication.v2)
 | antd | Autonomi CLI + node manager | bridge | 128MB |
 | ant-node | Autonomi storage node (systemd, bare metal) | host :12000 | ~20MB |
 | reticulum | Reticulum mesh networking (RNS + LXMF) | host | 128MB |
+| llm-wiki | Git-backed markdown wiki engine (MCP/ACP) :18765 | bridge | 64MB |
+| nomadnet | Mesh page server over Reticulum | host | 64MB |
 
 ---
 
@@ -183,7 +188,7 @@ Replication:  Active (/rr/autonomi.ant.replication.v2)
 zknode-autonomi/
 ├── .env                        # Environment config
 ├── .gitignore
-├── docker-compose.yml          # 14-service stack
+├── docker-compose.yml          # 17-service stack (15 existing + llm-wiki + nomadnet)
 ├── docker-compose.zymkey.yml   # Zymkey HSM override
 ├── Dockerfile.mixnet            # Katzenpost mixnet node (all binaries)
 ├── Dockerfile.ant-node          # Autonomi storage node
@@ -191,6 +196,9 @@ zknode-autonomi/
 ├── Dockerfile.mixnet-proxy      # SOCKS5 bridge (Go, thin client lib)
 ├── Dockerfile.storage-proved    # Merkle/Winterfell storage prover
 ├── Dockerfile.walletshield      # EVM RPC through mixnet
+├── Dockerfile.llm-wiki          # Markdown wiki engine (Rust, MCP/ACP)
+├── Dockerfile.nomadnet          # Mesh page server (Python)
+├── Dockerfile.wiki-export       # MediaWiki→markdown conversion
 ├── cmd/
 │   ├── mixnet-proxy/main.go     # Proxy source (thin client API)
 │   ├── storage-proved/main.go   # Go Merkle proof daemon
@@ -201,7 +209,11 @@ zknode-autonomi/
 │   ├── proxy/config.json        # SOCKS5 proxy config
 │   ├── walletshield/config.toml # WalletShield thin client config
 │   ├── autonomi/                # Autonomi node/CLI configs
-│   └── ant-node/                # Systemd service unit files
+│   ├── ant-node/                # Systemd service unit files
+│   ├── reticulum/config         # Reticulum mesh config
+│   └── nomadnet/
+│       ├── config               # NomadNet page server config
+│       └── pages/               # Micron-format mesh pages
 ├── scripts/
 │   ├── deploy.sh                # Deploy/start/stop/export
 │   ├── setup.sh                 # Init project structure
@@ -210,7 +222,8 @@ zknode-autonomi/
 │   ├── monitor.sh               # Stack monitoring
 │   ├── storage-layout.sh        # USB pool setup
 │   ├── setup-zymbit.sh          # Zymbit/SCM4 setup
-│   └── zymkey-attest.py         # Hardware attestation script
+│   ├── zymkey-attest.py         # Hardware attestation script
+│   └── wiki-export-pipeline.sh  # MediaWiki→markdown→Autonomi pipeline
 ├── docs/                        # Full documentation
 └── data/                        # Runtime data (gitignored)
 ```
@@ -230,6 +243,11 @@ zknode-autonomi/
 | **Zymkey HSM signing** | 🔌 Planned | zymkey stores wallet key in slot 23/24. ant-node code changes needed for HSM-backed EVM transaction signing. |
 | **kpclientd epoch sync** | 🔶 Workaround | Ping binary achieves 100% mixnet success. kpclientd PKI doc retrieval uses `currentDocument()` fallback — needs auth restarted at epoch start for full consensus with node descriptors. |
 | **Bridge network isolation** | 📋 Future | Each mixnet node on unique bridge network with BindAddress for production multi-tenant deployments. |
+| **llm-wiki engine** | ✅ Added | Single Rust binary, git-backed markdown wiki with MCP/ACP protocols. Docker image, compose service on :18765. See [Wiki Mesh Architecture](docs/WIKI_MESH_ARCHITECTURE.md). |
+| **NomadNet page server** | ✅ Added | Mesh-accessible micron page server over Reticulum. Serves wiki index, about, archive pages. |
+| **MediaWiki export pipeline** | 🔶 Script | `scripts/wiki-export-pipeline.sh` converts MediaWiki XML dumps to markdown with YAML frontmatter. Requires pandoc + mwparserfromhell. |
+| **Autonomi wiki archiving** | 🔶 Script | Export pipeline uploads full wiki snapshots to Autonomi via `ant file upload`. Pointer `p2p-foundation-wiki-latest`. |
+| **Mesh wiki replication** | 📋 Future | Multi-node syncing of wiki pages across zknodes on the mesh. |
 
 ---
 
@@ -243,6 +261,7 @@ zknode-autonomi/
 - [Zymbit/SCM4 Setup](docs/ZYMBIT_SETUP.md) — zymkey HSM, Bootware, LUKS
 - [Mixnet Integration](docs/MIXNET_INTEGRATION.md) — Integration design options
 - [Demo Script](docs/DEMO_SCRIPT.md) — 11-step demo walkthrough
+- [Wiki Mesh Architecture](docs/WIKI_MESH_ARCHITECTURE.md) — Decentralized wiki over Autonomi + Reticulum
 
 ---
 

@@ -1,0 +1,21 @@
+ARG TARGETARCH=arm64
+
+FROM --platform=linux/${TARGETARCH} python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pandoc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    mwparserfromhell \
+    pyyaml
+
+RUN mkdir -p /data /work
+
+VOLUME ["/data", "/work"]
+
+COPY scripts/wiki-export-pipeline.sh /usr/local/bin/wiki-export
+RUN chmod +x /usr/local/bin/wiki-export
+
+ENTRYPOINT ["/usr/local/bin/wiki-export"]
+CMD ["--help"]
