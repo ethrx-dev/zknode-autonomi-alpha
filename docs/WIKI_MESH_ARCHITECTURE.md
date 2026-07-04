@@ -21,9 +21,9 @@ The P4P Wiki Mesh is a multi-layer architecture for hosting, editing, and distri
 
 ```
                      ┌──────────────────────┐
-                     │   llm-wiki engine     │
-                     │  (single Rust binary) │
-                     │  git-backed markdown  │
+                     │  llm-wiki engine     │
+                     │ (single Rust binary) │
+                     │ git-backed markdown  │
                      └──────┬───────┬───────┘
                             │       │
               ┌─────────────┘       └─────────────┐
@@ -175,22 +175,22 @@ ant file upload
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    User Access Points                            │
+│                    User Access Points                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐   │
-│  │ NomadNet │  │ ant CLI  │  │llm-wiki │  │ NomadNavigator │   │
-│  │ TUI      │  │ (Docker) │  │ CLI     │  │ Desktop GUI    │   │
+│  │ NomadNet │  │ ant CLI  │  │llm-wiki  │  │ NomadNavigator │   │
+│  │ TUI      │  │ (Docker) │  │ CLI      │  │ Desktop GUI    │   │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └───────┬────────┘   │
 │       │             │             │                │            │
 ├───────┼─────────────┼─────────────┼────────────────┼────────────┤
-│       ▼             ▼             ▼                ▼             │
+│       ▼             ▼             ▼                ▼            │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                 Docker Compose (zknode)                   │   │
+│  │                 Docker Compose (zknode)                  │   │
 │  │                                                          │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐               │   │
-│  │  │reticulum │  │  antd    │  │ llm-wiki │               │   │
-│  │  │:37428    │  │ (bridge) │  │ :18765   │               │   │
-│  │  │nomadnet  │  │          │  │ MCP/ACP  │               │   │
-│  │  └────┬─────┘  └────┬─────┘  └──────────┘               │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                │   │
+│  │  │reticulum │  │  antd    │  │ llm-wiki │                │   │
+│  │  │:37428    │  │ (bridge) │  │ :18765   │                │   │
+│  │  │nomadnet  │  │          │  │ MCP/ACP  │                │   │
+│  │  └────┬─────┘  └────┬─────┘  └──────────┘                │   │
 │  │       │             │                                    │   │
 │  │       │    ┌────────┴────────┐                           │   │
 │  │       │    │ mixnet-proxy    │                           │   │
@@ -210,11 +210,11 @@ ant file upload
 │          │                                                      │
 ├──────────┼──────────────────────────────────────────────────────┤
 │          ▼                                                      │
-│  ┌─────────────────────────────────────┐                       │
-│  │       Reticulum Mesh                │                       │
-│  │  (LoRa, packet radio, WiFi, TCP)    │                       │
-│  │  No internet required               │                       │
-│  └─────────────────────────────────────┘                       │
+│  ┌─────────────────────────────────────┐                        │
+│  │       Reticulum Mesh                │                        │
+│  │  (LoRa, packet radio, WiFi, TCP)    │                        │
+│  │  No internet required               │                        │
+│  └─────────────────────────────────────┘                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
