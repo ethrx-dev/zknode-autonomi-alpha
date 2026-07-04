@@ -395,12 +395,25 @@ cmd_shell() {
 
 # ── ZKChat ────────────────────────────────────────────────────────────────────
 cmd_zkchat() {
-    $DIALOG --title " ${TITLE} — ZKChat " \
+    local action
+    action=$($DIALOG --title " ${TITLE} — ZKChat " \
         --menu "\nZKChat — Metadata-Private Group Chat\n" 0 0 0 \
-        "1" "Connect to ZKChat (mixnet proxy)" \
+        "1" "Show ZKChat connection info" \
         "2" "Send LXMF message via NomadNet" \
         "3" "Search wiki via mixnet" \
-        "4" "Back" 2>&1 >/dev/tty | return
+        "4" "Back" 2>&1 >/dev/tty) || return
+
+    case "$action" in
+        1)
+            $DIALOG --title " ZKChat Info " --msgbox "\nZKChat runs via Docker on the dev machine.\nProxy: SOCKS5 at 192.168.9.12:1080\n\nTo connect from CM4:\n  curl --proxy socks5h://192.168.9.12:1080 https://example.com" 0 0
+            ;;
+        2)
+            $DIALOG --title " Send LXMF " --msgbox "\nLXMF messages sent via NomadNet on the CM4.\n  identity: ~/nomadnet-new/identities/default\n  destination: <9cb6dbce94edf71b3f4897cc1e376d3a>\n\nInstall rnpath and use: rnpath send <dest> <msg>" 0 0
+            ;;
+        3)
+            cmd_llm_wiki
+            ;;
+    esac
 }
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
@@ -416,7 +429,7 @@ cmd_logs() {
         "hsm-attest" "HSM attestation" \
         "autonomi-wiki-sync" "Wiki sync" \
         "all" "All services (tail)" \
-        "2>&1 >/dev/tty) || return
+        2>&1 >/dev/tty) || return
 
     if [ "$svc" = "all" ]; then
         journalctl --user -u antnode@54851 -u antnode@54852 -u antnode@54853 \
