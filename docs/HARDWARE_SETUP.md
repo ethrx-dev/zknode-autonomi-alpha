@@ -141,7 +141,6 @@ sudo apt-get install libssl-dev:arm64 libsnappy-dev:arm64 liblz4-dev:arm64 libzs
 - **microSD wear**: bbolt databases cause frequent small writes. Use high-endurance microSD or USB SSD for data/.
 - **USB power**: External USB SSD may need powered hub if SCM4 USB port can't deliver enough current.
 - **Thermals**: 11 containers + RocksDB + LMDB under load may need active cooling (heatsink + fan).
-- **Zymkey for PoC**: The stack runs without zymkey. See [ZYMBIT_SETUP.md](ZYMBIT_SETUP.md) for enabling full HSM security.
 
 ---
 
