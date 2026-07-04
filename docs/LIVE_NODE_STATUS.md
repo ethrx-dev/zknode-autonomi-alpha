@@ -20,7 +20,7 @@ Bootstrap:    7 peers (standard testnet bootstrap_peers.toml)
 ## Wallet
 
 ```
-Address:      0xef902cC111D5435C5116c123771D9459FC77AD4B
+Address:      0xef902c...XXXXX...77AD4B
 Balance:      ~0.04 ETH (Arbitrum Sepolia)
 Network:      Arbitrum Sepolia testnet
 Purpose:      Rewards address for storage payments
@@ -54,7 +54,7 @@ WorkingDirectory=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1
 ExecStart=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node \
     --root-dir %h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1 \
     --port 12000 \
-    --rewards-address 0xef902cC111D5435C5116c123771D9459FC77AD4B \
+    --rewards-address 0xef902c...XXXXX...77AD4B \
     --evm-network arbitrum-sepolia \
     --network-mode testnet \
     --ipv4-only \

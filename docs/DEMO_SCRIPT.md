@@ -201,7 +201,7 @@ for i in RNS.Transport.interfaces:
 # Generate zymkey-attested storage proof
 python3 scripts/zymkey-attest.py \
   --merkle-root e55cb05aafa6f3d5b5f8f87bd7d989dd \
-  --node-address 0xef902cC111D5435C5116c123771D9459FC77AD4B
+  --node-address 0xef902c...XXXXX...77AD4B
 ```
 
 ### 10. Live ant-node Verification (SCM4 only)

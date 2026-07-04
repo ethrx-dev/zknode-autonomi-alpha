@@ -114,7 +114,7 @@ Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
 Version:      ant-node 0.14.2
 Network:      Autonomi Testnet, Arbitrum Sepolia
 Public IP:    24.31.26.231:12000 (QUIC/UDP)
-Wallet:       0xef902cC111D5435C5116c123771D9459FC77AD4B (0.04 ETH)
+Wallet:       0xef902c...XXXXX...77AD4B (0.04 ETH)
 Service:      systemd --user (enabled, Restart=always, RestartSec=10)
 DHT Peers:    ~100 connected
 Replication:  Active (/rr/autonomi.ant.replication.v2)
