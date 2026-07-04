@@ -53,13 +53,13 @@ A **global mesh of Secure Core Nodes** providing:
 | Component | Specification |
 |-----------|---------------|
 | **SoC** | Broadcom BCM2711 (Quad-core Cortex-A72, 1.8GHz) |
-| **RAM** | 4GB LPDDR4 |
+| **RAM** | 8GB LPDDR4 |
 | **Storage** | 32GB eMMC + optional NVMe (via PCIe) |
 | **HSM** | Zymkey ZK (I2C HAT) — secure key storage & attestation |
 | **FPGA (optional)** | Lattice iCE40 for hardware acceleration |
 | **Networking** | Gigabit Ethernet, WiFi 5, optional 4G/LTE HAT |
 | **Power** | 5V/3A USB-C, PoE HAT compatible |
-| **Cost** | ~$150-250 per node |
+| **Cost** | ~$250 per node |
 | **Enclosure** | 3D-printable or lasercut case |
 | **Assembly** | No soldering required — all HATs use GPIO headers |
 
@@ -98,9 +98,9 @@ Both tracks run identical software stacks — the difference is hardware capacit
 ├─────────────────────────────────────────────┤
 │          Reticulum Mesh Transport           │
 ├─────────────────────────────────────────────┤
-│     Zymkey HSM │ Encrypted Root FS         │
+│     Zymkey HSM │ Encrypted Root FS          │
 ├─────────────────────────────────────────────┤
-│         Raspberry Pi CM4 / SEN400          │
+│         Raspberry Pi CM4 / SEN400           │
 │              ARM64 Linux                    │
 └─────────────────────────────────────────────┘
 ```
@@ -257,7 +257,7 @@ We invite the **P2P Foundation** to:
 
 ### Minimum Requirements (DIY SCM4)
 
-- Raspberry Pi CM4 (4GB RAM)
+- Raspberry Pi SCM4 (8GB RAM)
 - 32GB eMMC
 - Zymkey ZK HAT
 - Gigabit Ethernet
