@@ -19,17 +19,8 @@ BACKTITLE="ZKNetwork P4P Wiki Mesh — $(hostname) — $(date)"
 # ── Dialog wrapper ────────────────────────────────────────────────────────────
 export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
 # ── Color scheme ──────────────────────────────────────────────────────────────
-export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
-cat > "$DIALOGRC" << 'EOF'
-use_colors = ON
-screen_color = (WHITE,BLUE,OFF)
-title_color = (WHITE,CYAN,ON)
-dialog_color = (WHITE,BLUE,OFF)
-shadow_color = (BLACK,BLACK,OFF)
-inputbox_color = (WHITE,BLUE,OFF)
-menubox_color = (WHITE,BLUE,OFF)
-menusel_color = (WHITE,RED,ON)
-EOF
+# Use dialog's built-in --colors (enables \Z markup in strings)
+# No custom DIALOGRC — use terminal defaults for compatibility
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 prog() {
@@ -506,7 +497,7 @@ cmd_llm_wiki() {
 # ── Main Loop ─────────────────────────────────────────────────────────────────
 main() {
     # Trap to clean up
-    trap 'rm -f "$DIALOGRC"; clear; exit' INT TERM EXIT
+    trap 'clear; exit' INT TERM EXIT
 
     # Ensure TERM is set for dialog
     if [ -z "${TERM:-}" ] || [ "$TERM" = "dumb" ]; then
