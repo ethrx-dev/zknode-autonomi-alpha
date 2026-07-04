@@ -6,11 +6,14 @@ FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-    git \
+    git patch \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY katzenpost /src/katzenpost
+COPY patches/fix-decoy-sender-nil-pointer.patch /tmp/
+
+RUN cd /src/katzenpost && patch -p1 < /tmp/fix-decoy-sender-nil-pointer.patch
 
 RUN cd /src/katzenpost/cmd/kpclientd && \
     go mod edit -replace github.com/katzenpost/katzenpost=/src/katzenpost && \
