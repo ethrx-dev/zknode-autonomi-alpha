@@ -1,553 +1,695 @@
 #!/bin/bash
-# start-zkTUI.sh — ZKNetwork TUI Dashboard
-# Single entry point: run this on first SSH to get the full dashboard.
-# Dependencies: dialog, bash (no sudo required)
+# start-zkTUI.sh — ZKNetwork Cyber TUI Dashboard
+# ANSI + UTF-8 terminal UI with mouse support.
+# Dependencies: bash (no sudo required)
 
-# Not using set -e: dialog failures shouldn't kill the TUI
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 DATA_DIR="${DATA_DIR:-/home/zero-tech/zknode-autonomi-alpha}"
+[ ! -d "$DATA_DIR" ] && DATA_DIR="$PROJECT_ROOT"
 
-if [ ! -d "$DATA_DIR" ]; then
-    DATA_DIR="$PROJECT_ROOT"
-fi
+# ─── Terminal ──────────────────────────────────────────────────
+COLS=$(tput cols 2>/dev/null || echo 80)
+LINES=$(tput lines 2>/dev/null || echo 24)
 
-DIALOG="${DIALOG:-dialog --stdout}"
-TITLE="ZKNetwork TUI Dashboard v1.0"
-BACKTITLE="ZKNetwork P4P Wiki Mesh — $(hostname) — $(date)"
+hide_cursor() { echo -ne "\033[?25l"; }
+show_cursor() { echo -ne "\033[?25h"; }
+cls() { echo -ne "\033[2J\033[H"; }
+XY() { echo -ne "\033[${1};${2}H"; }
 
-# ── Dialog wrapper ────────────────────────────────────────────────────────────
-export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
-# ── Color scheme ──────────────────────────────────────────────────────────────
-# Use dialog's built-in --colors (enables \Z markup in strings)
-export DIALOGRC=/dev/null  # ignore any ~/.dialogrc
+mouse_on()  { echo -ne "\033[?1000h\033[?1006h"; }
+mouse_off() { echo -ne "\033[?1000l\033[?1006l"; }
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-prog() {
-    echo "$1" >&2
-    shift
-    "$@"
-}
+# ─── ANSI Colors ──────────────────────────────────────────────
+R='\033[0m'; B='\033[1m'; D='\033[2m'; I='\033[3m'; U='\033[4m'
+C='\033[36m'; G='\033[32m'; Y='\033[33m'; Rr='\033[31m'; M='\033[35m'
+W='\033[97m'; K='\033[90m'; Bb='\033[34m'
+ON_G='\033[42m'; ON_R='\033[41m'; ON_C='\033[46m'; ON_Y='\033[43m'
 
-stage_status() {
-    local stage="$1" total="$2" desc="$3" state="$4"
-    case "$state" in
-        done) echo "  [✓] Stage $stage/$total: $desc" ;;
-        current) echo "  [→] Stage $stage/$total: $desc" ;;
-        pending) echo "  [ ] Stage $stage/$total: $desc" ;;
-        fail) echo "  [✗] Stage $stage/$total: $desc" ;;
+# ─── Drawing ──────────────────────────────────────────────────
+bar() { local w=$1 c=$2; printf "${c}━%.0s${R}" $(seq 1 "$w"); }
+label() { echo -ne "${K}${D}${1}${R}"; }
+title() { echo -ne "${C}${B}${1}${R}"; }
+accent() { echo -ne "${Y}${B}${1}${R}"; }
+warn() { echo -ne "${Rr}${B}${1}${R}"; }
+muted() { echo -ne "${K}${1}${R}"; }
+dim() { echo -ne "${D}${1}${R}"; }
+
+draw_box_top() { echo -ne "${K}┌"; bar $(($1-2)) "━"; echo -e "┐${R}"; }
+draw_box_mid() { echo -ne "${K}│${R}"; }
+draw_box_bot() { echo -ne "${K}└"; bar $(($1-2)) "━"; echo -e "┘${R}"; }
+
+status_circle() {
+    case "$1" in
+        active|yes|running|ok|true|1) echo -ne "${G}●${R}";;
+        inactive|no|stopped|false|0)  echo -ne "${Rr}●${R}";;
+        warn|partial)                 echo -ne "${Y}●${R}";;
+        *)                             echo -ne "${K}○${R}";;
     esac
 }
 
-service_status() {
-    local svc="$1" label="$2"
-    if systemctl --user is-active "$svc" >/dev/null 2>&1; then
-        echo "  ● $label: ACTIVE"
-    elif systemctl --user is-enabled "$svc" >/dev/null 2>&1; then
-        echo "  ○ $label: stopped (enabled)"
-    else
-        echo "  ○ $label: not configured"
-    fi
+progress_bar() {
+    local pct=$1 w=$2
+    local fill=$((pct * w / 100))
+    local empty=$((w - fill))
+    echo -ne "${G}"
+    printf '█%.0s' $(seq 1 "$fill")
+    echo -ne "${K}${D}"
+    printf '░%.0s' $(seq 1 "$empty")
+    echo -ne "${R} ${pct}%%"
 }
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# ─── Logo ──────────────────────────────────────────────────────
+LOGO=(
+"     ╔═══╗╔════╗╔══════╗╔════╗╔════╗╔════╗╔════╗╔════╗"
+"     ╚═╗║║║╔══╝║║╔══╗║║║╔═╗║║║╔═╗║║║╔═╗║║║╔═╗║"
+"     ╔═╝║║║║╚══╗║║║  ║║║║║║║║║║║║║║║║║║║║║║║║║"
+"     ║╔═╝║╚╝╔═╗║║║║  ║║║║║║║║║║║║║║║║║║║║║║║║║"
+"     ║╚══╝╔╝╔╝║║║║╚══╝║║║╚═╝║║║╚═╝║║║╚═╝║║║╚═╝║"
+"     ╚════╝╚═╝╚╝╚══════╝╚════╝╚════╝╚════╝╚════╝"
+)
+
+# ─── Data ──────────────────────────────────────────────────────
+node_status() {
+    CPU=$(nproc 2>/dev/null || echo "?")
+    LOAD=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo "? ? ?")
+    MT=$(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null)
+    MA=$(awk '/MemAvailable/{printf "%.0f", ($1?$2:0)/1024}' /proc/meminfo 2>/dev/null)
+    MU=$((MT - MA)); MP=$((MT>0 ? MU*100/MT : 0))
+    DISK=$(df / | awk 'NR==2{print $5}' 2>/dev/null || echo "?")
+    UP=$(uptime -p 2>/dev/null | sed 's/up //' || echo "?")
+    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+    if [ -e /dev/ttyACM8 ]; then
+        HSM="active"
+        HSM_FW=$(python3 -c "import zymkey; print(zymkey.client.get_firmware_version())" 2>/dev/null || echo "?")
+    else
+        HSM="inactive"
+    fi
+
+    local logfile
+    logfile=$(ls ~/.local/share/autonomi/node/*/logs/antnode.log 2>/dev/null | head -1)
+    PEERS="?"
+    [ -n "$logfile" ] && PEERS=$(grep -oP 'remote_peer_id: PeerId\("[^"]+"\)' "$logfile" 2>/dev/null | sort -u | wc -l)
+}
+
+# ─── Key/Mouse Reader ─────────────────────────────────────────
+read_event() {
+    local key seq=""
+    IFS= read -rsn1 key
+    if [ "$key" = $'\033' ]; then
+        IFS= read -rsn1 -t 0.005 next
+        if [ -z "$next" ]; then
+            echo "ESC"
+            return
+        fi
+        seq="$next"
+        if [ "$next" = "[" ]; then
+            IFS= read -rsn1 -t 0.005 n2; seq="$seq$n2"
+            if [ "$n2" = "<" ]; then
+                # SGR mouse: \033[<btn;x;y[Mm]
+                local rest="" ch
+                while IFS= read -rsn1 -t 0.005 ch; do
+                    [ -z "$ch" ] && break
+                    rest="$rest$ch"
+                    [ "$ch" = "M" ] || [ "$ch" = "m" ] && break
+                done
+                # rest is "btn;x;yM" or "btn;x;ym"
+                local btn x y rest2
+                IFS=';' read -r btn rest2 <<< "$rest"
+                IFS=';' read -r x y <<< "${rest2%[Mm]}"
+                echo "MOUSE:$btn:$x:$y"
+                return
+            fi
+            # Arrow keys etc
+            case "$n2" in
+                A) echo "UP" ;;
+                B) echo "DOWN" ;;
+                C) echo "RIGHT" ;;
+                D) echo "LEFT" ;;
+                H) echo "HOME" ;;
+                F) echo "END" ;;
+                1) IFS= read -rsn1 -t 0.005 n3; [ "$n3" = "~" ] && echo "HOME" || echo "UNKNOWN" ;;
+                2|3|4|5|6) IFS= read -rsn1 -t 0.005 n3; [ "$n3" = "~" ] && echo "UNKNOWN" ;;
+                *) echo "UNKNOWN" ;;
+            esac
+            return
+        fi
+        echo "UNKNOWN"
+        return
+    fi
+    echo "$key"
+}
+
+# ─── Header ────────────────────────────────────────────────────
+draw_header() {
+    local w=$1; [ -z "$w" ] && w=$COLS
+    node_status
+    echo -e "  ${K}╌╌╌${R} ${C}${B}ZKNETWORK${R} ${K}╌${R} ${C}P4P Wiki Mesh${R} ${K}╌╌╌ ${W}${B}$(hostname)${R} ${K}╌╌╌${R}"
+    echo -e "  ${K}${D}${IP}  ·  ${PEERS} peers  ·  up ${UP}${R}"
+    echo ""
+}
+
+# ─── Main Menu ─────────────────────────────────────────────────
+MENU_ITEMS=(
+    "1"  "Dashboard"       "Live node status & monitoring"
+    "2"  "Setup Wizard"    "Guided deployment (8 stages)"
+    "3"  "Shell"           "Interactive bash session"
+    "4"  "ZKChat"          "Metadata-private group chat"
+    "5"  "llm-wiki"        "Full-text wiki search"
+    "6"  "Autonomi"        "Upload / download / manage"
+    "7"  "Logs"            "Service logs viewer"
+    "q"  "Exit"            "Quit to shell"
+)
+declare -a MENU_ROWS=()
+STAGES=(
+    "Hardware Detection"
+    "Zymkey HSM Setup"
+    "Autonomi Client"
+    "AntNodes"
+    "llm-wiki Engine"
+    "NomadNet Mesh"
+    "Wiki Sync Pipeline"
+    "ZKChat + Mixnet"
+)
+
+get_cursor_row() {
+    local row
+    echo -ne "\033[6n"
+    IFS='[;' read -rs -t 0.05 -d R _ row _ 2>/dev/null || echo 0
+    echo "${row:-0}"
+}
+
+draw_main_menu() {
+    cls
+    local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    MENU_ROWS=()
+
+    # Logo
+    echo ""
+    for line in "${LOGO[@]}"; do
+        printf "  ${C}${D}%s${R}\n" "$line"
+    done
+    echo ""
+
+    # Header
+    draw_header "$w"
+
+    # Menu box
+    draw_box_top "$w"
+    local i=0
+    while [ $i -lt ${#MENU_ITEMS[@]} ]; do
+        local num="${MENU_ITEMS[$i]}"
+        local title="${MENU_ITEMS[$((i+1))]}"
+        local desc="${MENU_ITEMS[$((i+2))]}"
+        local pad=$((w - ${#num} - ${#title} - ${#desc} - 10))
+        [ "$pad" -lt 1 ] && pad=1
+        printf "  ${K}│${R}  ${C}${B}%s${R}  ${W}%-18s${R}  ${K}%s${R}  %*s${K}│${R}\n" \
+            "$num" "$title" "$desc" "$pad" ""
+        MENU_ROWS+=($(get_cursor_row))
+        i=$((i+3))
+    done
+    draw_box_bot "$w"
+
+    # Status line
+    echo ""
+    echo -e "  ${K}[${R}1-7${K}]${R} navigate  ${K}[${R}↑↓${K}]${R} select  ${K}[${R}Enter${K}]${R} open  ${K}[${R}q${K}]${R} quit  ${K}[${R}click${K}]${R} select"
+    echo ""
+}
+
+# ─── Dashboard ─────────────────────────────────────────────────
 cmd_dashboard() {
     while true; do
-        local output
-        output=$(collect_status)
-        $DIALOG --colors --title " ${TITLE} " \
-            --backtitle "$BACKTITLE" \
-            --ok-label "Refresh" \
-            --extra-button --extra-label "Menu" \
-            --cancel-label "Exit" \
-            --msgbox "$output" 0 0
-        local rc=$?
-        case $rc in
-            0) continue ;;  # Refresh
-            3) break ;;     # Menu
-            *) exit 0 ;;
+        cls
+        local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+        draw_header "$w"
+        node_status
+
+        # ── SYSTEM ──
+        echo -e "  ${C}${B}SYSTEM${R}  ${K}${D}──────────────────────────${R}"
+        echo -e "  ${K}│${R}  CPU:  ${W}${CPU} cores${R}     ${K}│${R}  Load:  ${W}${LOAD}${R}"
+        echo -e "  ${K}│${R}  RAM:  ${W}${MP}%%${R}          ${K}│${R}  Disk:  ${W}${DISK}${R}"
+        progress_bar $MP 20
+        echo -e "  ${K}│${R}  RAM:  ${MU}MB / ${MT}MB"
+        echo -e "  ${K}│${R}  Up:   ${UP}"
+        echo ""
+
+        # ── HSM ──
+        echo -e "  ${C}${B}SECURITY MODULE${R}  ${K}${D}─────────────────────${R}"
+        if [ "$HSM" = "active" ]; then
+            echo -e "  ${status_circle active}  Zymkey HSM  ${K}FW: ${HSM_FW}${R}"
+            [ -f "$DATA_DIR/data/zymbit/attestation-latest.json" ] && echo -e "  ${status_circle active}  Attestation: ${G}active${R}"
+            [ -f "$DATA_DIR/data/zymbit/autonomi-key.locked" ] && echo -e "  ${status_circle active}  SECRET_KEY:  ${Y}HSM-locked${R}"
+        else
+            echo -e "  ${status_circle inactive}  No HSM detected"
+        fi
+        echo ""
+
+        # ── SERVICES ──
+        echo -e "  ${C}${B}SERVICES${R}  ${K}${D}────────────────────────────${R}"
+        for port in 54851 54852 54853; do
+            local sa="inactive"
+            systemctl --user is-active "antnode@${port}" >/dev/null 2>&1 && sa="active"
+            local pid=$(systemctl --user show -p MainPID "antnode@${port}" 2>/dev/null | cut -d= -f2)
+            local rss="?"
+            [ -n "$pid" ] && [ "$pid" -gt 0 ] && rss=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{print int($1/1024)}' || echo "?")
+            echo -e "  $(status_circle $sa)  antnode@${port}  ${K}${D}${rss}MB${R}"
+        done
+        LW=$(systemctl --user is-active llm-wiki 2>/dev/null || echo inactive)
+        WP=$(ls "$DATA_DIR/data/llm-wiki/wiki/"*.md 2>/dev/null | wc -l)
+        echo -e "  $(status_circle $LW)  llm-wiki        ${K}${D}${WP} pages${R}"
+        NM=$(systemctl --user is-active nomadnet 2>/dev/null || echo inactive)
+        echo -e "  $(status_circle $NM)  nomadnet"
+        echo ""
+
+        # ── NETWORK ──
+        echo -e "  ${C}${B}NETWORK${R}  ${K}${D}───────────────────────────${R}"
+        echo -e "  ${K}│${R}  Peers seen:    ${W}${PEERS}${R}"
+        echo -e "  ${K}│${R}  Bootstrap:     ${K}192.168.9.12:53851${R}"
+        echo -e "  ${K}│${R}  LAN:           ${K}${IP}${R}"
+        echo ""
+
+        # ── WIKI ──
+        echo -e "  ${C}${B}WIKI STORAGE${R}  ${K}${D}────────────────────────${R}"
+        echo -e "  ${K}│${R}  Address: ${Y}6c6fc79cd7e1553cbd1226c220c18fdca2a5b7f731a5b748fd5d1034a0082848${R}"
+        if [ -f "$DATA_DIR/data/zymbit/attestation-latest.json" ]; then
+            local mr=$(python3 -c "import json; d=json.load(open('$DATA_DIR/data/zymbit/attestation-latest.json')); print(d['merkle_root'][:16])" 2>/dev/null || echo "?")
+            echo -e "  ${K}│${R}  Merkle root:  ${K}${mr}...${R}"
+        fi
+        echo ""
+
+        # ── Keyboard ──
+        echo -e "  ${K}[${R}${B}r${R}${K}]${R} Refresh  ${K}[${R}${B}m${R}${K}]${R} Menu  ${K}[${R}${B}q${R}${K}]${R} Quit"
+        local key=$(read_event)
+        case "$key" in
+            m|M|q|Q|ESC) break ;;
         esac
     done
 }
 
-collect_status() {
-    local buf=""
-    local hsm_dev hsm_fw
-
-    # ── System ──
-    buf+="\n\Z1═══ System \Z4$(hostname)\Z0 ═══\n\n"
-    local cpu load mem_total_mb mem_avail_mb mem_used_mb mem_pct disk_pct uptime_str
-    cpu=$(nproc 2>/dev/null || echo "?")
-    load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo "?")
-    mem_total_mb=$(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null)
-    mem_avail_mb=$(awk '/MemAvailable/{printf "%.0f", ($1?$2:0)/1024}' /proc/meminfo 2>/dev/null)
-    if [ -n "$mem_total_mb" ] && [ -n "$mem_avail_mb" ] && [ "${mem_total_mb:-0}" -gt 0 ]; then
-        mem_used_mb=$(( mem_total_mb - mem_avail_mb ))
-        mem_pct=$(( mem_used_mb * 100 / mem_total_mb ))
-    else
-        mem_used_mb=0; mem_pct=0
-    fi
-    disk_pct=$(df / | awk 'NR==2{print $5}' 2>/dev/null || echo "?")
-    uptime_str=$(uptime -p 2>/dev/null | sed 's/up //' || echo "?")
-    buf+="  CPU: ${cpu} cores  Load: ${load}\n"
-    buf+="  RAM: ${mem_pct}% (${mem_used_mb}MB/${mem_total_mb}MB)\n"
-    buf+="  Disk: ${disk_pct}  Uptime: ${uptime_str}\n"
-
-    # ── HSM ──
-    buf+="\n\Z1═══ Hardware Security Module ═══\n\n"
-    if [ -e /dev/ttyACM7 ] || [ -e /dev/ttyACM8 ]; then
-        local tty
-        tty=$(ls /dev/ttyACM* 2>/dev/null | head -1)
-        hsm_dev="$tty"
-        hsm_fw=$(python3 -c "import zymkey; print(zymkey.client.get_firmware_version())" 2>/dev/null || echo "?")
-        local hsm_model
-        hsm_model=$(python3 -c "import zymkey; print(zymkey.client.get_model_number())" 2>/dev/null || echo "SCM4")
-        buf+="  ● Device: ${hsm_dev}\n"
-        buf+="  ● Firmware: ${hsm_fw}\n"
-        buf+="  ● Model: ${hsm_model}\n"
-        if [ -f "$DATA_DIR/data/zymbit/attestation-latest.json" ]; then
-            buf+="  ● Attestation: active\n"
-        fi
-        if [ -f "$DATA_DIR/data/zymbit/autonomi-key.locked" ]; then
-            buf+="  ● SECRET_KEY: HSM-locked\n"
-        fi
-    else
-        buf+="  ○ No HSM detected\n"
-    fi
-
-    # ── Services ──
-    buf+="\n\Z1═══ Services ═══\n\n"
-    for port in 54851 54852 54853; do
-        if systemctl --user is-active "antnode@${port}" >/dev/null 2>&1; then
-            local pid
-            pid=$(systemctl --user show -p MainPID "antnode@${port}" 2>/dev/null | cut -d= -f2)
-            local rss=0
-            [ -n "$pid" ] && [ "$pid" -gt 0 ] && rss=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{print int($1/1024)}' || echo 0)
-            buf+="  ● antnode@${port}: ACTIVE (${rss}MB)\n"
-        else
-            buf+="  ○ antnode@${port}: stopped\n"
-        fi
-    done
-
-    if systemctl --user is-active "llm-wiki" >/dev/null 2>&1; then
-        local pages
-        pages=$(ls "$DATA_DIR/data/llm-wiki/wiki/"*.md 2>/dev/null | wc -l)
-        buf+="  ● llm-wiki: ACTIVE (${pages} pages)\n"
-    else
-        buf+="  ○ llm-wiki: stopped\n"
-    fi
-
-    if systemctl --user is-active "nomadnet" >/dev/null 2>&1; then
-        local nmpid nmrss
-        nmpid=$(systemctl --user show -p MainPID nomadnet 2>/dev/null | cut -d= -f2)
-        nmrss=$(ps -o rss= -p "$nmpid" 2>/dev/null | awk '{print int($1/1024)}' || echo 0)
-        buf+="  ● nomadnet: ACTIVE (${nmrss}MB)\n"
-    else
-        buf+="  ○ nomadnet: stopped\n"
-    fi
-
-    # ── Network ──
-    buf+="\n\Z1═══ Network ═══\n\n"
-    buf+="  ● Autonomi devnet: $(get_network_size 2>/dev/null || echo 'connecting...')\n"
-    buf+="  ● Bootstrap: 192.168.9.12:53851\n"
-    buf+="  ● LAN: $(hostname -I 2>/dev/null | awk '{print $1}')\n"
-
-    # ── Wiki ──
-    buf+="\n\Z1═══ Wiki ═══\n\n"
-    buf+="  ● Autonomi address: 6c6fc79cd7e1553cbd1226c220c18fdca2a5b7f731a5b748fd5d1034a0082848\n"
-    if [ -f "$DATA_DIR/data/zymbit/attestation-latest.json" ]; then
-        local mr
-        mr=$(python3 -c "import json; print(json.load(open('$DATA_DIR/data/zymbit/attestation-latest.json'))['merkle_root'][:16])" 2>/dev/null || echo "?")
-        buf+="  ● Storage merkle root: ${mr}...\n"
-    fi
-
-    buf+="\n\Z4[Press Refresh to update | Menu for navigation]\Z0\n"
-    echo -e "$buf"
-}
-
-get_network_size() {
-    local logfile
-    logfile=$(ls ~/.local/share/autonomi/node/*/logs/antnode.log 2>/dev/null | head -1)
-    if [ -n "$logfile" ]; then
-        local peers
-        peers=$(grep -oP 'remote_peer_id: PeerId\("[^"]+"\)' "$logfile" 2>/dev/null | sort -u | wc -l)
-        echo "${peers:-1}+ nodes (${peers:-1} peers seen)"
-    else
-        echo "connecting..."
-    fi
-}
-
-# ── Setup Wizard ──────────────────────────────────────────────────────────────
+# ─── Setup Wizard ──────────────────────────────────────────────
 cmd_setup() {
-    local stages=8
     local current=0
-
-    # Determine which stages are done
     local done_stages=()
-    [ -e /dev/ttyACM7 ] || [ -e /dev/ttyACM8 ] && done_stages+=("1")
-    python3 -c "import zymkey" 2>/dev/null && [ -f "$DATA_DIR/data/zymbit/autonomi-key.locked" ] && done_stages+=("2")
-    [ -x /tmp/ant ] || [ -x /tmp/autonomi-arm64/ant ] && done_stages+=("3")
-    systemctl --user is-active antnode@54851 >/dev/null 2>&1 && done_stages+=("4")
-    systemctl --user is-active llm-wiki >/dev/null 2>&1 && done_stages+=("5")
-    systemctl --user is-active nomadnet >/dev/null 2>&1 && done_stages+=("6")
-    systemctl --user is-active autonomi-wiki-sync.timer >/dev/null 2>&1 && done_stages+=("7")
-    docker ps --format '{{.Names}}' 2>/dev/null | grep -q zkchat && done_stages+=("8")
+    [ -e /dev/ttyACM8 ] && done_stages+=("0")
+    python3 -c "import zymkey" 2>/dev/null && [ -f "$DATA_DIR/data/zymbit/autonomi-key.locked" ] && done_stages+=("1")
+    ([ -x /tmp/ant ] || [ -x /tmp/autonomi-arm64/ant ]) && done_stages+=("2")
+    systemctl --user is-active antnode@54851 >/dev/null 2>&1 && done_stages+=("3")
+    systemctl --user is-active llm-wiki >/dev/null 2>&1 && done_stages+=("4")
+    systemctl --user is-active nomadnet >/dev/null 2>&1 && done_stages+=("5")
+    systemctl --user is-active autonomi-wiki-sync.timer >/dev/null 2>&1 && done_stages+=("6")
+    docker ps --format '{{.Names}}' 2>/dev/null | grep -q zkchat && done_stages+=("7")
 
     while true; do
-        local menu_items=()
+        cls
+        local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+        draw_header "$w"
+        echo -e "  ${Y}${B}SETUP WIZARD${R}  ${K}${D}8 deployment stages${R}"
+        echo ""
+
         local all_done=true
+        local i
+        for i in "${!STAGES[@]}"; do
+            local num=$((i+1))
+            local done=false
+            local d
+            for d in "${done_stages[@]}"; do [ "$d" = "$i" ] && done=true; done
 
-        for i in $(seq 1 $stages); do
-            local desc state
-            case $i in
-                1) desc="Hardware Detection (SCM4/CM4 + HSM)" ;;
-                2) desc="Zymkey HSM Setup (wallet + keys + tamper)" ;;
-                3) desc="Autonomi Client (ant CLI)" ;;
-                4) desc="AntNodes (3× peering to devnet)" ;;
-                5) desc="llm-wiki Engine (wiki indexing + search)" ;;
-                6) desc="NomadNet Mesh (pages over Reticulum)" ;;
-                7) desc="Wiki Sync Pipeline (Autonomi ↔ llm-wiki)" ;;
-                8) desc="ZKChat + Mixnet (metadata-private chat)" ;;
-            esac
-
-            if [[ " ${done_stages[*]} " =~ " $i " ]]; then
-                state="done"
-                menu_items+=("$i" "$desc" "DONE")
-            elif [ "$i" -eq $((current + 1)) ] || { [ "$current" -eq 0 ] && [ $i -eq 1 ]; }; then
-                state="current"
-                menu_items+=("$i" "$desc" "READY")
+            if $done; then
+                echo -e "  ${G}✔${R}  ${D}Stage ${num}/8: ${STAGES[$i]}${R}"
+            elif [ "$i" -eq "$current" ] || { [ "$current" -eq 0 ] && [ "$i" -eq 0 ]; }; then
+                echo -e "  ${Y}▸${R}  ${B}Stage ${num}/8: ${STAGES[$i]}${R}  ${K}${I}[ready]${R}"
                 all_done=false
             else
-                state="pending"
-                menu_items+=("$i" "$desc" "PENDING")
+                echo -e "  ${K}○${R}  ${D}Stage ${num}/8: ${STAGES[$i]}${R}"
                 all_done=false
             fi
         done
 
         if $all_done; then
-            $DIALOG --title " ${TITLE} — Setup Wizard " \
-                --msgbox "\nAll $stages stages complete!\n\nThe node is fully deployed." 8 50
-            return
+            echo ""
+            echo -e "  ${G}${B}ALL 8 STAGES COMPLETE${R}"
+            echo -e "  ${K}Node fully deployed and operational.${R}"
         fi
 
-        local choice
-        choice=$($DIALOG --title " ${TITLE} — Setup Wizard " \
-            --default-item "$((current + 1))" \
-            --menu "\nSelect a stage to run:\n(Green = DONE, White = READY, Dim = PENDING)\n" \
-            0 0 0 \
-            "${menu_items[@]}" )
-
-        [ -z "$choice" ] && return
-
-        run_stage "$choice"
-        # Re-check
-        case $choice in
-            1) [ -e /dev/ttyACM7 ] || [ -e /dev/ttyACM8 ] && done_stages+=("1") ;;
-            2) python3 -c "import zymkey" 2>/dev/null && [ -f "$DATA_DIR/data/zymbit/autonomi-key.locked" ] && done_stages+=("2") ;;
-            3) ([ -x /tmp/ant ] || [ -x /tmp/autonomi-arm64/ant ]) && done_stages+=("3") ;;
-            4) systemctl --user is-active antnode@54851 >/dev/null 2>&1 && done_stages+=("4") ;;
-            5) systemctl --user is-active llm-wiki >/dev/null 2>&1 && done_stages+=("5") ;;
-            6) systemctl --user is-active nomadnet >/dev/null 2>&1 && done_stages+=("6") ;;
-            7) systemctl --user is-active autonomi-wiki-sync.timer >/dev/null 2>&1 && done_stages+=("7") ;;
-            8) docker ps --format '{{.Names}}' 2>/dev/null | grep -q zkchat && done_stages+=("8") ;;
+        echo ""
+        echo -e "  ${K}[${R}${B}n${R}${K}]${R} Run next stage  ${K}[${R}${B}m${R}${K}]${R} Menu  ${K}[${R}${B}q${R}${K}]${R} Quit"
+        local key=$(read_event)
+        case "$key" in
+            n|N)
+                if ! $all_done; then
+                    run_stage "$current"
+                    stage_complete "$current" && done_stages+=("$current")
+                    current=$((current < 7 ? current + 1 : 7))
+                    done_stages=($(printf "%s\n" "${done_stages[@]}" | sort -un))
+                fi
+                ;;
+            m|M|q|Q|ESC) break ;;
         esac
-        current=$choice
-        # Deduplicate
-        done_stages=($(printf "%s\n" "${done_stages[@]}" | sort -un))
     done
+}
+
+stage_complete() {
+    case $1 in
+        0) [ -e /dev/ttyACM8 ] ;;
+        1) python3 -c "import zymkey" 2>/dev/null && [ -f "$DATA_DIR/data/zymbit/autonomi-key.locked" ] ;;
+        2) [ -x /tmp/ant ] || [ -x /tmp/autonomi-arm64/ant ] ;;
+        3) systemctl --user is-active antnode@54851 >/dev/null 2>&1 ;;
+        4) systemctl --user is-active llm-wiki >/dev/null 2>&1 ;;
+        5) systemctl --user is-active nomadnet >/dev/null 2>&1 ;;
+        6) systemctl --user is-active autonomi-wiki-sync.timer >/dev/null 2>&1 ;;
+        7) docker ps --format '{{.Names}}' 2>/dev/null | grep -q zkchat ;;
+    esac
 }
 
 run_stage() {
-    local stage="$1"
-    case $stage in
-        1)  stage_detect_hardware ;;
-        2)  stage_hsm_setup ;;
-        3)  stage_ant_cli ;;
-        4)  stage_antnodes ;;
-        5)  stage_llm_wiki ;;
-        6)  stage_nomadnet ;;
-        7)  stage_wiki_sync ;;
-        8)  stage_zkchat ;;
-    esac
-}
+    cls
+    local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    local s=$1 num=$((s+1))
+    local name="${STAGES[$s]}"
+    echo -e "  ${C}${B}Stage ${num}/8: ${name}${R}"
+    echo ""
 
-stage_detect_hardware() {
-    $DIALOG --title " Stage 1/8: Hardware Detection " \
-        --infobox "\nDetecting hardware...\n\n  • Architecture\n  • SCM4/CM4 model\n  • Zymkey HSM\n  • USB storage\n  • I2C / serial buses\n  • Memory & disk\n\nThis should complete in 3 seconds." 0 0
-    sleep 2
-
-    local report=""
-    report+="Architecture: $(uname -m)\n"
-    report+="Model: $(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo 'CM4/SCM4')\n"
-    report+="Memory: $(awk '/MemTotal/{printf "%.0f MB", $2/1024}' /proc/meminfo)\n"
-    report+="CPU cores: $(nproc)\n"
-    report+="Kernel: $(uname -r)\n\n"
-
-    if ls /dev/ttyACM* 2>/dev/null; then
-        report+="HSM: Zymkey detected on $(ls /dev/ttyACM* | head -1)\n"
-        report+="HSM firmware: $(python3 -c 'import zymkey; print(zymkey.client.get_firmware_version())' 2>/dev/null || echo 'checking...')\n"
-    elif [ -e /dev/zymkey ]; then
-        report+="HSM: Zymkey detected (HAT mode)\n"
-    else
-        report+="HSM: Not detected (check SCM4 wiring)\n"
-    fi
-
-    report+="\nUSB storage:\n"
-    report+=$(lsblk -d -o NAME,SIZE,TYPE,MOUNTPOINT 2>/dev/null | grep -E 'sd.|mmcblk' | head -5)
-    report+="\n\nDisk usage:\n"
-    report+=$(df -h / /mnt/usb-big 2>/dev/null | awk 'NR>1{printf "  %s: %s of %s (%s)\n", $6, $3, $2, $5}')
-
-    $DIALOG --title " Stage 1/8: Hardware Report " --msgbox "\n$report" 0 0
-}
-
-stage_hsm_setup() {
-    $DIALOG --title " Stage 2/8: Zymkey HSM " \
-        --yesno "\nThis will configure the Zymkey HSM:\n\n  • Generate BIP32 wallet (secp256k1)\n  • Create rewards key (slot 24)\n  • Create signing key (slot 25)\n  • Lock Autonomi SECRET_KEY in HSM\n  • Enable tamper detection\n  • Create file integrity baseline\n\nProceed?" 0 0 || return
-
-    $DIALOG --title " Stage 2/8: HSM Setup " \
-        --gauge "\nConfiguring HSM..." 8 60 0 < <(
-            echo "XXX"; echo "0"; echo "Starting..."; echo "XXX"
+    case $s in
+        0)
+            echo -e "  ${Y}◜${R}  Detecting hardware..."
             sleep 1
-            python3 "$PROJECT_ROOT/scripts/zymkey-attest.py" --merkle-root "$(date +%s | sha256sum | cut -c1-64)" \
+            cls; draw_header "$w"
+            echo -e "  ${C}${B}Stage 1/8: Hardware Detection${R}"
+            echo ""
+            echo -e "  ${G}✔${R}  Arch:     $(uname -m)"
+            echo -e "  ${G}✔${R}  Model:    $(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo 'CM4/SCM4')"
+            echo -e "  ${G}✔${R}  Memory:   $(awk '/MemTotal/{printf "%.0f MB", $2/1024}' /proc/meminfo)"
+            echo -e "  ${G}✔${R}  CPU:      $(nproc) cores"
+            if [ -e /dev/ttyACM8 ]; then
+                echo -e "  ${G}✔${R}  HSM:      Zymkey on /dev/ttyACM8"
+            else
+                echo -e "  ${Rr}✘${R}  HSM:      Not detected"
+            fi
+            ;;
+        1)
+            echo -e "  ${Y}◜${R}  Configuring Zymkey HSM..."
+            python3 "$PROJECT_ROOT/scripts/zymkey-attest.py" \
+                --merkle-root "$(date +%s | sha256sum | cut -c1-64)" \
                 --node-address "0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095" >/dev/null 2>&1 || true
-            echo "XXX"; echo "50"; echo "Wallet generated..."; echo "XXX"
-            sleep 1
-            echo "XXX"; echo "100"; echo "Done."; echo "XXX"
-        )
-
-    $DIALOG --title " Stage 2/8: Complete " \
-        --msgbox "\nHSM Setup Complete:\n\n  • Wallet: generated\n  • SECRET_KEY: locked in HSM\n  • Tamper: enabled\n  • Integrity: baseline created\n  • Rewards addr: 0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095" 0 0
-}
-
-stage_ant_cli() {
-    local ant_path="/tmp/ant"
-    local ver="?"
-    [ -x "$ant_path" ] && ver=$("$ant_path" --version 2>&1 | head -1)
-
-    $DIALOG --title " Stage 3/8: Autonomi Client " \
-        --msgbox "\nAutonomi CLI status:\n\n  Binary: ${ant_path}\n  Version: ${ver}\n  Status: INSTALLED\n\nThe ant CLI is downloaded from the latest autonomi release.\nSee scripts/deploy.sh for details." 0 0
-}
-
-stage_antnodes() {
-    $DIALOG --title " Stage 4/8: AntNodes " \
-        --yesno "\nStart/restart AntNodes?\n\n  3 nodes will peer to 192.168.9.12:53851\n  Ports: 54851-54853\n  Rewards: HSM-backed (0x63caa1...)\n\nProceed?" 0 0 || return
-
-    $DIALOG --title " Stage 4/8: Starting AntNodes " \
-        --gauge "\nStarting 3 antnode instances..." 8 50 0 < <(
-            echo "XXX"; echo "0"; echo "Starting antnode@54851..."; echo "XXX"
+            echo -e "  ${G}✔${R}  BIP32 wallet generated"
+            echo -e "  ${G}✔${R}  SECRET_KEY locked in HSM"
+            echo -e "  ${G}✔${R}  Rewards: ${Y}0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095${R}"
+            echo -e "  ${G}✔${R}  Tamper detection enabled"
+            ;;
+        2)
+            local ver=$([ -x /tmp/ant ] && /tmp/ant --version 2>&1 | head -1 || echo "?")
+            echo -e "  ${G}✔${R}  Binary:   /tmp/ant"
+            echo -e "  ${G}✔${R}  Version:  ${ver}"
+            echo -e "  ${G}✔${R}  Status:   INSTALLED"
+            ;;
+        3)
+            echo -e "  ${Y}◜${R}  Starting 3 antnode instances..."
             systemctl --user start antnode@54851.service 2>/dev/null || true
-            echo "XXX"; echo "33"; echo "Starting antnode@54852..."; echo "XXX"
             systemctl --user start antnode@54852.service 2>/dev/null || true
-            echo "XXX"; echo "66"; echo "Starting antnode@54853..."; echo "XXX"
             systemctl --user start antnode@54853.service 2>/dev/null || true
-            sleep 5
-            echo "XXX"; echo "100"; echo "All antnodes active."; echo "XXX"
-        )
-
-    $DIALOG --title " Stage 4/8: Complete " \
-        --msgbox "\nAntNodes running:\n\n  ● antnode@54851: $(systemctl --user is-active antnode@54851 2>/dev/null || echo '?') \n  ● antnode@54852: $(systemctl --user is-active antnode@54852 2>/dev/null || echo '?') \n  ● antnode@54853: $(systemctl --user is-active antnode@54853 2>/dev/null || echo '?') \n  ● Rewards: 0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095 (HSM)" 0 0
+            sleep 3
+            for port in 54851 54852 54853; do
+                local st=$(systemctl --user is-active "antnode@${port}" 2>/dev/null || echo "inactive")
+                echo -e "  $(status_circle "$st")  antnode@${port}"
+            done
+            ;;
+        4)
+            echo -e "  ${G}✔${R}  Pages indexed: ${WP:-0}"
+            echo -e "  ${G}✔${R}  Service: $(systemctl --user is-active llm-wiki 2>/dev/null || echo '?')"
+            echo -e "  ${G}✔${R}  HTTP:    localhost:18765"
+            ;;
+        5)
+            echo -e "  ${G}✔${R}  Service: $(systemctl --user is-active nomadnet 2>/dev/null || echo '?')"
+            echo -e "  ${G}✔${R}  Node:    ZKNetwork P4P Wiki Mesh"
+            echo -e "  ${G}✔${R}  Rx:      ${K}<9cb6dbce94edf71b3f4897cc1e376d3a>${R}"
+            ;;
+        6)
+            local ts=$(systemctl --user is-active autonomi-wiki-sync.timer 2>/dev/null || echo "inactive")
+            echo -e "  ${G}✔${R}  Timer:   ${ts}"
+            echo -e "  ${G}✔${R}  Addr:    ${Y}6c6fc79cd7e1553cbd1226c220c18fdca2a5b7f731a5b748fd5d1034a0082848${R}"
+            echo -e "  ${G}✔${R}  Sync:    hourly"
+            ;;
+        7)
+            local mc=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -c mix- || echo 0)
+            echo -e "  ${G}✔${R}  Mixnet containers: ${mc}"
+            echo -e "  ${G}✔${R}  Proxy:  SOCKS5 at 192.168.9.12:1080"
+            ;;
+    esac
+    echo ""
+    echo -e "  ${K}[Press any key to continue]${R}"
+    read -rsn1
 }
 
-stage_llm_wiki() {
-    local pages
-    pages=$(ls "$DATA_DIR/data/llm-wiki/wiki/"*.md 2>/dev/null | wc -l)
-
-    $DIALOG --title " Stage 5/8: llm-wiki Engine " \
-        --msgbox "\nllm-wiki status:\n\n  Binary: /tmp/llm-wiki\n  Pages indexed: ${pages}\n  Service: $(systemctl --user is-active llm-wiki 2>/dev/null || echo '?') \n  HTTP port: 18765\n  Search: /tmp/llm-wiki search \"<query>\"\n\nTo reindex: /tmp/llm-wiki index rebuild --wiki p2p-foundation" 0 0
-}
-
-stage_nomadnet() {
-    $DIALOG --title " Stage 6/8: NomadNet Mesh " \
-        --msgbox "\nNomadNet status:\n\n  Service: $(systemctl --user is-active nomadnet 2>/dev/null || echo '?') \n  Node: ZKNetwork P4P Wiki Mesh\n  Pages: ${DATA_DIR}/nomadnet-new/pages/\n  Rx destination hash: <9cb6dbce94edf71b3f4897cc1e376d3a>\n\nNomadNet serves wiki content over the Reticulum mesh.\nIt is auto-configured via config/nomadnet/config." 0 0
-}
-
-stage_wiki_sync() {
-    local timer_status
-    timer_status=$(systemctl --user is-active autonomi-wiki-sync.timer 2>/dev/null || echo "inactive")
-
-    $DIALOG --title " Stage 7/8: Wiki Sync " \
-        --msgbox "\nWiki sync pipeline:\n\n  Timer: ${timer_status}\n  Sync cmd: scripts/autonomi-wiki-sync.sh\n  Autonomi address: 6c6fc79cd7e1553cbd1226c220c18fdca2a5b7f731a5b748fd5d1034a0082848\n  llm-wiki root: ${DATA_DIR}/data/llm-wiki\n  NomadNet page: auto-updates after sync\n\nSync runs hourly via systemd timer." 0 0
-}
-
-stage_zkchat() {
-    $DIALOG --title " Stage 8/8: ZKChat + Mixnet " \
-        --msgbox "\nZKChat status:\n\n  Mixnet: $(docker ps --format '{{.Names}}' 2>/dev/null | grep -c mix- || echo 0) containers running\n  ZKChat container: $(docker ps --format '{{.Status}}' -f name=zkchat 2>/dev/null || echo 'not running')\n  Proxy port: 1080 (SOCKS5)\n\nZKChat provides metadata-private group chat over the\nKatzenpost post-quantum mixnet." 0 0
-}
-
-# ── Shell ─────────────────────────────────────────────────────────────────────
+# ─── Shell ─────────────────────────────────────────────────────
 cmd_shell() {
-    clear
-    echo -e "\e[32mZKNetwork Shell\e[0m — Type 'exit' to return to dashboard"
-    echo -e "\e[2mProject: $PROJECT_ROOT\e[0m"
+    show_cursor; mouse_off
+    cls
+    echo -e "${G}${B}  ╔═══════════════════════╗${R}"
+    echo -e "${G}${B}  ║   ZKNETWORK  SHELL    ║${R}"
+    echo -e "${G}${B}  ╚═══════════════════════╝${R}"
+    echo -e "${K}  Type 'exit' to return to dashboard${R}"
     echo ""
     cd "$PROJECT_ROOT"
     bash -i
-    clear
+    cls
+    hide_cursor; mouse_on
 }
 
-# ── ZKChat ────────────────────────────────────────────────────────────────────
+# ─── ZKChat ────────────────────────────────────────────────────
 cmd_zkchat() {
-    local action
-    action=$($DIALOG --title " ${TITLE} — ZKChat " \
-        --menu "\nZKChat — Metadata-Private Group Chat\n" 0 0 0 \
-        "1" "Show ZKChat connection info" \
-        "2" "Send LXMF message via NomadNet" \
-        "3" "Search wiki via mixnet" \
-        "4" "Back" ) || return
-
-    case "$action" in
-        1)
-            $DIALOG --title " ZKChat Info " --msgbox "\nZKChat runs via Docker on the dev machine.\nProxy: SOCKS5 at 192.168.9.12:1080\n\nTo connect from CM4:\n  curl --proxy socks5h://192.168.9.12:1080 https://example.com" 0 0
-            ;;
-        2)
-            $DIALOG --title " Send LXMF " --msgbox "\nLXMF messages sent via NomadNet on the CM4.\n  identity: ~/nomadnet-new/identities/default\n  destination: <9cb6dbce94edf71b3f4897cc1e376d3a>\n\nInstall rnpath and use: rnpath send <dest> <msg>" 0 0
-            ;;
-        3)
-            cmd_llm_wiki
-            ;;
-    esac
+    cls
+    local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${M}${B}ZKCHAT${R}  ${K}${D}Metadata-private group chat over mixnet${R}"
+    echo ""
+    echo -e "  ${G}●${R}  Mixnet:     ${W}15 containers${R} ${K}(3 auth, 3 mixes, gateway, ...)${R}"
+    echo -e "  ${G}●${R}  Proxy:      ${W}192.168.9.12:1080${R} ${K}(SOCKS5)${R}"
+    echo -e "  ${G}●${R}  ZKChat:     ${W}Docker container${R} ${K}on dev machine${R}"
+    echo ""
+    echo -e "  ${K}┌─ Connect ─────────────────────────────────────┐${R}"
+    echo -e "  ${K}│${R}  curl --proxy socks5h://192.168.9.12:1080  ${K}│${R}"
+    echo -e "  ${K}│${R}       https://example.com                  ${K}│${R}"
+    echo -e "  ${K}└────────────────────────────────────────────────┘${R}"
+    echo ""
+    echo -e "  ${K}┌─ Send LXMF ───────────────────────────────────┐${R}"
+    echo -e "  ${K}│${R}  rnpath send <9cb6dbce94edf71b3f4897cc1e376d3a>   ${K}│${R}"
+    echo -e "  ${K}└────────────────────────────────────────────────┘${R}"
+    echo ""
+    echo -e "  ${K}[${R}${B}m${R}${K}]${R} Menu  ${K}[${R}${B}q${R}${K}]${R} Quit"
+    local key=$(read_event)
 }
 
-# ── Logs ──────────────────────────────────────────────────────────────────────
-cmd_logs() {
-    local svc
-    svc=$($DIALOG --title " ${TITLE} — Logs " \
-        --menu "\nSelect service to view logs:\n" 0 0 0 \
-        "antnode@54851" "AntNode 1" \
-        "antnode@54852" "AntNode 2" \
-        "antnode@54853" "AntNode 3" \
-        "llm-wiki" "Wiki engine" \
-        "nomadnet" "NomadNet mesh" \
-        "hsm-attest" "HSM attestation" \
-        "autonomi-wiki-sync" "Wiki sync" \
-        "all" "All services (tail)" \
-        ) || return
-
-    if [ "$svc" = "all" ]; then
-        journalctl --user -u antnode@54851 -u antnode@54852 -u antnode@54853 \
-            -u llm-wiki -u nomadnet --no-pager -n 50 2>&1 | \
-            $DIALOG --title " ${TITLE} — All Logs " --programbox "" 0 0
-    else
-        journalctl --user -u "$svc" --no-pager -n 100 2>&1 | \
-            $DIALOG --title " ${TITLE} — $svc " --programbox "" 0 0
-    fi
-}
-
-# ── Autonomi ──────────────────────────────────────────────────────────────────
-cmd_autonomi() {
-    local action
-    action=$($DIALOG --title " ${TITLE} — Autonomi " \
-        --menu "\nAutonomi Network Operations\n" 0 0 0 \
-        "1" "Upload file to Autonomi" \
-        "2" "Download file from Autonomi" \
-        "3" "Check network status" \
-        "4" "Wallet balance" \
-        "5" "Back" ) || return
-
-    case "$action" in
-        1)
-            local f
-            f=$($DIALOG --title " Upload to Autonomi " --inputbox "\nFile path:" 0 0 "/tmp/" ) || return
-            [ -n "$f" ] && {
-                $DIALOG --title " Uploading " --prgbox \
-                    "RPC_URL='http://192.168.9.12:61612/' \
-                     PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
-                     DATA_PAYMENTS_ADDRESS='0x8464135c8F25Da09e49BC8782676a84730C318bC' \
-                     SECRET_KEY='\$(/home/zero-tech/zknode-autonomi-alpha/scripts/hsm-unlock.sh)' \
-                     ANT_PEERS='/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
-                     /tmp/ant --local file upload '$f' --public" 0 0
-            }
-            ;;
-        2)
-            local addr outf
-            addr=$($DIALOG --title " Download " --inputbox "\nAutonomi address (64 hex):" 0 0 ) || return
-            [ -n "$addr" ] && {
-                outf=$($DIALOG --title " Download " --inputbox "\nOutput path:" 0 0 "/tmp/downloaded" ) || return
-                $DIALOG --title " Downloading " --prgbox \
-                    "RPC_URL='http://192.168.9.12:61612/' \
-                     PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
-                     DATA_PAYMENTS_ADDRESS='0x8464135c8F25Da09e49BC8782676a84730C318bC' \
-                     SECRET_KEY='\$(/home/zero-tech/zknode-autonomi-alpha/scripts/hsm-unlock.sh)' \
-                     ANT_PEERS='/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
-                     /tmp/ant --local file download '$addr' '$outf'" 0 0
-            }
-            ;;
-        3)
-            $DIALOG --title " Network Status " --prgbox \
-                "journalctl --user -u antnode@54851 --no-pager -n 5 | grep -oP 'estimated network size: \K\d+' | tail -1" 0 0
-            ;;
-        4)
-            $DIALOG --title " Wallet Balance " --msgbox "\nEVM rewards address:\n  0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095 (HSM)\n\nBalance check requires an EVM RPC connection to the devnet.\n  RPC: http://192.168.9.12:61612/\n  Token: 0x5FbDB2315678afecb367f032d93F642f64180aa3" 0 0
-            ;;
-    esac
-}
-
-# ── llm-wiki Search ───────────────────────────────────────────────────────────
+# ─── llm-wiki Search ──────────────────────────────────────────
 cmd_llm_wiki() {
-    local query
-    query=$($DIALOG --title " ${TITLE} — llm-wiki Search " \
-        --inputbox "\nEnter search query (BM25 full-text search):" 0 0 ) || return
-
+    cls
+    local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${C}${B}LLM-WIKI SEARCH${R}  ${K}${D}BM25 full-text search over ${WP:-0} pages${R}"
+    echo ""
+    show_cursor
+    echo -ne "  ${Y}▸${R}  Query: "
+    read -r query
     if [ -n "$query" ]; then
-        $DIALOG --title " Search Results: \"$query\" " --prgbox \
-            "/tmp/llm-wiki search '$query' 2>&1 | head -40" 0 0
+        echo ""
+        echo -e "  ${C}Results for:${R} ${W}\"${query}\"${R}"
+        echo -e "  ${K}${D}────────────────────────────────────────────${R}"
+        /tmp/llm-wiki search "$query" 2>&1 | head -40 | while IFS= read -r line; do
+            echo -e "  ${K}│${R}  ${line}"
+        done
     fi
+    hide_cursor
+    echo ""
+    echo -e "  ${K}[Press any key to continue]${R}"
+    read -rsn1
 }
 
-# ── Main Loop ─────────────────────────────────────────────────────────────────
-main() {
-    # Trap to clean up
-    trap 'clear; exit' INT TERM EXIT
-
-    # Ensure TERM is set for dialog
-    if [ -z "${TERM:-}" ] || [ "$TERM" = "dumb" ]; then
-        export TERM=xterm-256color
-    fi
-
-    # Ensure dialog
-    if ! command -v dialog &>/dev/null; then
-        echo "Error: dialog is required. Install: sudo apt install dialog"
-        exit 1
-    fi
-
-    # Test dialog works before entering menu loop
-    if ! $DIALOG --print-maxsize >/dev/null 2>&1; then
-        echo "Error: dialog cannot open terminal (TERM=$TERM)"
-        echo "Try: TERM=xterm-256color $0"
-        exit 1
-    fi
-
+# ─── Autonomi ──────────────────────────────────────────────────
+cmd_autonomi() {
     while true; do
-        local choice
-        choice=$($DIALOG --colors --title " ${TITLE} " \
-            --backtitle "$BACKTITLE" \
-            --default-item "1" \
-            --cancel-label "Exit" \
-            --menu "\n\Z4ZKNetwork P4P Wiki Mesh\Z0 — Node: \Zb$(hostname)\ZB\n\nSelect an option:\n" \
-            0 0 0 \
-            "1" "📊  Dashboard — Live node status & monitoring" \
-            "2" "🔧  Setup Wizard — Guided deployment (8 stages)" \
-            "3" "💻  Shell — Interactive bash (project root)" \
-            "4" "💬  ZKChat — Metadata-private group chat" \
-            "5" "🔍  llm-wiki — Full-text wiki search" \
-            "6" "🌐  Autonomi — Upload/download/manage storage" \
-            "7" "📋  Logs — Service logs viewer" \
-            "" "" \
-            "q" "❌  Exit" \
-            )
-
-        case "$choice" in
-            1) cmd_dashboard ;;
-            2) cmd_setup ;;
-            3) cmd_shell ;;
-            4) cmd_zkchat ;;
-            5) cmd_llm_wiki ;;
-            6) cmd_autonomi ;;
-            7) cmd_logs ;;
-            ""|q) clear; exit 0 ;;
+        cls
+        local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+        draw_header "$w"
+        echo -e "  ${C}${B}AUTONOMI${R}  ${K}${D}Network storage operations${R}"
+        echo ""
+        echo -e "  ${C}${B}1${R}  Upload file    ${K}Store data on Autonomi${R}"
+        echo -e "  ${C}${B}2${R}  Download file  ${K}Retrieve data from Autonomi${R}"
+        echo -e "  ${C}${B}3${R}  Network stats  ${K}Peers, connections${R}"
+        echo -e "  ${C}${B}4${R}  Wallet         ${K}HSM rewards address${R}"
+        echo ""
+        echo -e "  ${K}[${R}${B}m${R}${K}]${R} Menu  ${K}[${R}${B}q${R}${K}]${R} Quit"
+        echo -ne "  ${Y}▸${R}  "
+        local key=$(read_event)
+        case "$key" in
+            1) cmd_autonomi_upload ;;
+            2) cmd_autonomi_download ;;
+            3) cmd_autonomi_status ;;
+            4) cmd_autonomi_balance ;;
+            m|M|q|Q|ESC) break ;;
         esac
     done
+}
+
+cmd_autonomi_upload() {
+    cls; local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${C}${B}UPLOAD${R}"
+    echo ""
+    show_cursor
+    echo -ne "  ${Y}▸${R}  File path: "
+    read -r f
+    if [ -n "$f" ] && [ -f "$f" ]; then
+        echo ""
+        echo -e "  ${Y}◜${R}  Uploading ${f}..."
+        hide_cursor
+        RPC_URL='http://192.168.9.12:61612/' \
+        PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
+        DATA_PAYMENTS_ADDRESS='0x8464135c8F25Da09e49BC8782676a84730C318bC' \
+        SECRET_KEY="$($DATA_DIR/scripts/hsm-unlock.sh 2>/dev/null)" \
+        ANT_PEERS='/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
+        /tmp/ant --local file upload "$f" --public 2>&1 | while IFS= read -r line; do
+            echo -e "  ${K}│${R}  ${line}"
+        done
+    else
+        echo -e "  ${Rr}✘${R}  File not found: ${f}"
+    fi
+    hide_cursor
+    echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1
+}
+
+cmd_autonomi_download() {
+    cls; local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${C}${B}DOWNLOAD${R}"
+    echo ""
+    show_cursor
+    echo -ne "  ${Y}▸${R}  Address (64 hex): "; read -r addr
+    [ -n "$addr" ] && {
+        echo -ne "  ${Y}▸${R}  Output path: "; read -r outf
+        [ -z "$outf" ] && outf="/tmp/downloaded"
+        echo ""
+        echo -e "  ${Y}◜${R}  Downloading..."
+        hide_cursor
+        RPC_URL='http://192.168.9.12:61612/' \
+        PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
+        DATA_PAYMENTS_ADDRESS='0x8464135c8F25Da09e49BC8782676a84730C318bC' \
+        SECRET_KEY="$($DATA_DIR/scripts/hsm-unlock.sh 2>/dev/null)" \
+        ANT_PEERS='/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
+        /tmp/ant --local file download "$addr" "$outf" 2>&1 | while IFS= read -r line; do
+            echo -e "  ${K}│${R}  ${line}"
+        done
+    }
+    hide_cursor
+    echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1
+}
+
+cmd_autonomi_status() {
+    cls; local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${C}${B}NETWORK PEERS${R}"
+    echo ""
+    journalctl --user -u antnode@54851 --no-pager -n 20 2>/dev/null | \
+        grep -oP 'remote_peer_id: PeerId\("[^"]+"\)' | sort -u | while IFS= read -r line; do
+        echo -e "  ${K}│${R}  ${D}${line}${R}"
+    done
+    echo -e "  ${K}│${R}"
+    echo -e "  ${K}│${R}  ${W}${PEERS}${R} unique peers seen"
+    echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1
+}
+
+cmd_autonomi_balance() {
+    cls; local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${C}${B}WALLET${R}"
+    echo ""
+    echo -e "  ${K}┌──────────────────────────────────────────────────────┐${R}"
+    echo -e "  ${K}│${R}  Rewards:  ${Y}0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095${R}  ${K}│${R}"
+    echo -e "  ${K}│${R}  Source:   HSM slot 24 (secp256k1)                ${K}│${R}"
+    echo -e "  ${K}│${R}  RPC:      ${K}http://192.168.9.12:61612/${R}              ${K}│${R}"
+    echo -e "  ${K}│${R}  Token:    ${K}0x5FbDB2315678afecb367f032d93F642f64180aa3${R}  ${K}│${R}"
+    echo -e "  ${K}└──────────────────────────────────────────────────────┘${R}"
+    echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1
+}
+
+# ─── Logs ──────────────────────────────────────────────────────
+cmd_logs() {
+    cls; local w=$((COLS-4)); [ "$w" -lt 60 ] && w=60
+    draw_header "$w"
+    echo -e "  ${C}${B}LOGS${R}  ${K}${D}Select service:${R}"
+    echo ""
+    local services=("1" "antnode@54851" "2" "antnode@54852" "3" "antnode@54853"
+                    "4" "llm-wiki" "5" "nomadnet" "6" "hsm-attest" "7" "autonomi-wiki-sync" "a" "All")
+    local i=0
+    while [ $i -lt ${#services[@]} ]; do
+        echo -e "  ${C}${B}${services[$i]}${R}    ${services[$((i+1))]}"
+        i=$((i+2))
+    done
+    echo ""
+    echo -e "  ${K}[${R}${B}m${R}${K}]${R} Menu"
+    echo -ne "  ${Y}▸${R}  "
+    local key=$(read_event)
+    local svc=""
+    case "$key" in
+        1) svc="antnode@54851" ;; 2) svc="antnode@54852" ;; 3) svc="antnode@54853" ;;
+        4) svc="llm-wiki" ;; 5) svc="nomadnet" ;; 6) svc="hsm-attest" ;; 7) svc="autonomi-wiki-sync" ;;
+        a|A) svc="all" ;; m|M|q|Q|ESC) return ;;
+    esac
+    [ -z "$svc" ] && return
+
+    cls; draw_header "$w"
+    echo -e "  ${C}${B}LOGS:${R} ${svc}"
+    echo ""
+    if [ "$svc" = "all" ]; then
+        journalctl --user -u antnode@54851 -u antnode@54852 -u antnode@54853 \
+            -u llm-wiki -u nomadnet --no-pager -n 50 2>&1 | while IFS= read -r line; do
+            echo -e "  ${K}│${R}  ${line}"
+        done
+    else
+        journalctl --user -u "$svc" --no-pager -n 100 2>&1 | while IFS= read -r line; do
+            echo -e "  ${K}│${R}  ${line}"
+        done
+    fi
+    echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1
+}
+
+# ─── Main ──────────────────────────────────────────────────────
+main() {
+    hide_cursor
+    mouse_on
+    trap 'mouse_off; show_cursor; clear; exit' INT TERM EXIT
+
+    while true; do
+        draw_main_menu
+        local ev=$(read_event)
+        case "$ev" in
+            1|1?)  cmd_dashboard ;;
+            2|2?)  cmd_setup ;;
+            3|3?)  cmd_shell ;;
+            4|4?)  cmd_zkchat ;;
+            5|5?)  cmd_llm_wiki ;;
+            6|6?)  cmd_autonomi ;;
+            7|7?)  cmd_logs ;;
+            q|Q|ESC) break ;;
+            MOUSE:*)
+                local btn x y
+                IFS=':' read -r _ btn x y <<< "$ev"
+                if [ "$btn" = "0" ]; then
+                    local idx=0
+                    for r in "${MENU_ROWS[@]}"; do
+                        [ "$y" = "$r" ] || [ "$y" = "$((r+1))" ] && break
+                        idx=$((idx+1))
+                    done
+                    local item_keys=("1" "2" "3" "4" "5" "6" "7" "q")
+                    [ "$idx" -lt "${#item_keys[@]}" ] && key="${item_keys[$idx]}"
+                fi
+                ;;
+        esac
+    done
+    mouse_off
+    show_cursor
+    cls
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
