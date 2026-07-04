@@ -1,5 +1,5 @@
 From 9122095e4c63f3df1c4f8c7d898c75f02a231b59 Mon Sep 17 00:00:00 2001
-From: 0kn-team <team@0kn.tech>
+From: dev-team <dev-team@example.com>
 Date: Sat Jul 4 05:49:47 2026 +0000
 Subject: Fix nil pointer dereference in decoy traffic sender
 

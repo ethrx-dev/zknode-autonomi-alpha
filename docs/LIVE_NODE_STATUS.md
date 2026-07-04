@@ -31,7 +31,7 @@ Purpose:      Rewards address for storage payments
 ```
 Unit:         ant-node.service (~/.config/systemd/user/)
 Type:         simple
-User:         zero-tech (uid 1001)
+User:         <node-user> (uid 1001)
 Restart:      always, 10s backoff
 Startup:      enabled (WantedBy=default.target)
 Stop-on-upgrade: true (systemd restarts after upgrade exit)

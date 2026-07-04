@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Air-gapped deployment flow:
 #   Build machine:   docker save ... | gzip > images.tar.gz
-#   Transfer to SCM4: scp/cp images.tar.gz zero-tech@192.168.9.118:~
+#   Transfer to SCM4: scp/cp images.tar.gz <node-user>@<node-ip>:~
 #   On SCM4:         ./scripts/deploy.sh --start
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

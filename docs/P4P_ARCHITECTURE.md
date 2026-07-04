@@ -114,10 +114,10 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.storage-proved -t zeros/
 
 ```bash
 # Stream images directly
-docker save zeros/mixnet-node:arm64 | gzip | ssh zero-tech@192.168.9.118 'gunzip -c | docker load'
+docker save zeros/mixnet-node:arm64 | gzip | ssh <node-user>@<node-ip> 'gunzip -c | docker load'
 
 # Project files
-rsync -avz ./ zero-tech@192.168.9.118:~/zknode-autonomi/ \
+rsync -avz ./ <node-user>@<node-ip>:~/zknode-autonomi/ \
   --exclude='.git' --exclude='katzenpost/' --exclude='data/'
 ```
 

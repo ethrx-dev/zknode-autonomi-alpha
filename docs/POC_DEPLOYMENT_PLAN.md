@@ -223,7 +223,7 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 - ant-node runs as **systemd --user service**, not as a Docker container
 - The compose `ant-node` service image was never built (cross-compile from source is slow)
 - Workaround: binary downloaded directly from Autonomi releases, installed at `~/zknode-autonomi/data/antd/`
-- No permission issues when running as the correct user (zero-tech, uid 1001)
+- No permission issues when running as the correct user (<node-user>, uid 1001)
 - The `antd` CLI daemon crashes due to bind mount UID conflicts in the container — this is bypassed
 
 ### Systemd Quick Start
