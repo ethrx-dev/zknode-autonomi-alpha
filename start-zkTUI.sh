@@ -96,16 +96,21 @@ collect_status() {
 
     # ── System ──
     buf+="\n\Z1═══ System \Z4$(hostname)\Z0 ═══\n\n"
-    local cpu load mem_total mem_used mem_pct disk_pct uptime_str
+    local cpu load mem_total_mb mem_avail_mb mem_used_mb mem_pct disk_pct uptime_str
     cpu=$(nproc 2>/dev/null || echo "?")
     load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo "?")
-    mem_total=$(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null)
-    mem_used=$(awk '/MemAvailable/{printf "%.0f", ($1?$2:0)/1024}' /proc/meminfo 2>/dev/null)
-    mem_pct=$(awk -v t="$mem_total" -v u="$mem_used" 'BEGIN{if(t>0) printf "%.0f", (t-u)/t*100; else print "?"}' 2>/dev/null)
+    mem_total_mb=$(awk '/MemTotal/{printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null)
+    mem_avail_mb=$(awk '/MemAvailable/{printf "%.0f", ($1?$2:0)/1024}' /proc/meminfo 2>/dev/null)
+    if [ -n "$mem_total_mb" ] && [ -n "$mem_avail_mb" ] && [ "${mem_total_mb:-0}" -gt 0 ]; then
+        mem_used_mb=$(( mem_total_mb - mem_avail_mb ))
+        mem_pct=$(( mem_used_mb * 100 / mem_total_mb ))
+    else
+        mem_used_mb=0; mem_pct=0
+    fi
     disk_pct=$(df / | awk 'NR==2{print $5}' 2>/dev/null || echo "?")
     uptime_str=$(uptime -p 2>/dev/null | sed 's/up //' || echo "?")
     buf+="  CPU: ${cpu} cores  Load: ${load}\n"
-    buf+="  RAM: ${mem_pct}% (${mem_used}G/${mem_total}G)\n"
+    buf+="  RAM: ${mem_pct}% (${mem_used_mb}MB/${mem_total_mb}MB)\n"
     buf+="  Disk: ${disk_pct}  Uptime: ${uptime_str}\n"
 
     # ── HSM ──
@@ -181,8 +186,15 @@ collect_status() {
 }
 
 get_network_size() {
-    journalctl --user -u antnode@54851.service --no-pager -n 5 2>/dev/null | \
-        grep -oP 'estimated network size: \K\d+' | tail -1 || echo "connecting..."
+    local logfile
+    logfile=$(ls ~/.local/share/autonomi/node/*/logs/antnode.log 2>/dev/null | head -1)
+    if [ -n "$logfile" ]; then
+        local peers
+        peers=$(grep -oP 'remote_peer_id: PeerId\("[^"]+"\)' "$logfile" 2>/dev/null | sort -u | wc -l)
+        echo "${peers:-1}+ nodes (${peers:-1} peers seen)"
+    else
+        echo "connecting..."
+    fi
 }
 
 # ── Setup Wizard ──────────────────────────────────────────────────────────────
