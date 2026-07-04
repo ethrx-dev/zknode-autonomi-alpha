@@ -12,12 +12,15 @@ if [ ! -d "$DATA_DIR" ]; then
     DATA_DIR="$PROJECT_ROOT"
 fi
 
-DIALOG="${DIALOG:-dialog}"
+DIALOG="${DIALOG:-dialog --stdout}"
 TITLE="ZKNetwork TUI Dashboard v1.0"
 BACKTITLE="ZKNetwork P4P Wiki Mesh — $(hostname) — $(date)"
 
+# ── Dialog wrapper ────────────────────────────────────────────────────────────
+export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
+d() { dialog --stdout "$@"; }
+
 # ── Color scheme ──────────────────────────────────────────────────────────────
-export DIALOGRC="${TMPDIR:-/tmp}/.dialogrc"
 cat > "$DIALOGRC" << 'EOF'
 use_colors = ON
 screen_color = (WHITE,BLUE,OFF)
@@ -80,7 +83,7 @@ cmd_dashboard() {
             --ok-label "Refresh" \
             --extra-button --extra-label "Menu" \
             --cancel-label "Exit" \
-            --msgbox "$output" 0 0 2>&1 >/dev/tty
+            --msgbox "$output" 0 0
         local rc=$?
         case $rc in
             0) continue ;;  # Refresh
@@ -255,7 +258,7 @@ cmd_setup() {
             --default-item "$((current + 1))" \
             --menu "\nSelect a stage to run:\n(Green = DONE, White = READY, Dim = PENDING)\n" \
             0 0 0 \
-            "${menu_items[@]}" 2>&1 >/dev/tty)
+            "${menu_items[@]}" )
 
         [ -z "$choice" ] && return
 
@@ -413,7 +416,7 @@ cmd_zkchat() {
         "1" "Show ZKChat connection info" \
         "2" "Send LXMF message via NomadNet" \
         "3" "Search wiki via mixnet" \
-        "4" "Back" 2>&1 >/dev/tty) || return
+        "4" "Back" ) || return
 
     case "$action" in
         1)
@@ -441,7 +444,7 @@ cmd_logs() {
         "hsm-attest" "HSM attestation" \
         "autonomi-wiki-sync" "Wiki sync" \
         "all" "All services (tail)" \
-        2>&1 >/dev/tty) || return
+        ) || return
 
     if [ "$svc" = "all" ]; then
         journalctl --user -u antnode@54851 -u antnode@54852 -u antnode@54853 \
@@ -462,12 +465,12 @@ cmd_autonomi() {
         "2" "Download file from Autonomi" \
         "3" "Check network status" \
         "4" "Wallet balance" \
-        "5" "Back" 2>&1 >/dev/tty) || return
+        "5" "Back" ) || return
 
     case "$action" in
         1)
             local f
-            f=$($DIALOG --title " Upload to Autonomi " --inputbox "\nFile path:" 0 0 "/tmp/" 2>&1 >/dev/tty) || return
+            f=$($DIALOG --title " Upload to Autonomi " --inputbox "\nFile path:" 0 0 "/tmp/" ) || return
             [ -n "$f" ] && {
                 $DIALOG --title " Uploading " --prgbox \
                     "RPC_URL='http://192.168.9.12:61612/' \
@@ -480,9 +483,9 @@ cmd_autonomi() {
             ;;
         2)
             local addr outf
-            addr=$($DIALOG --title " Download " --inputbox "\nAutonomi address (64 hex):" 0 0 2>&1 >/dev/tty) || return
+            addr=$($DIALOG --title " Download " --inputbox "\nAutonomi address (64 hex):" 0 0 ) || return
             [ -n "$addr" ] && {
-                outf=$($DIALOG --title " Download " --inputbox "\nOutput path:" 0 0 "/tmp/downloaded" 2>&1 >/dev/tty) || return
+                outf=$($DIALOG --title " Download " --inputbox "\nOutput path:" 0 0 "/tmp/downloaded" ) || return
                 $DIALOG --title " Downloading " --prgbox \
                     "RPC_URL='http://192.168.9.12:61612/' \
                      PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
@@ -506,7 +509,7 @@ cmd_autonomi() {
 cmd_llm_wiki() {
     local query
     query=$($DIALOG --title " ${TITLE} — llm-wiki Search " \
-        --inputbox "\nEnter search query (BM25 full-text search):" 0 0 2>&1 >/dev/tty) || return
+        --inputbox "\nEnter search query (BM25 full-text search):" 0 0 ) || return
 
     if [ -n "$query" ]; then
         $DIALOG --title " Search Results: \"$query\" " --prgbox \
@@ -519,9 +522,21 @@ main() {
     # Trap to clean up
     trap 'rm -f "$DIALOGRC"; clear; exit' INT TERM EXIT
 
+    # Ensure TERM is set for dialog
+    if [ -z "${TERM:-}" ] || [ "$TERM" = "dumb" ]; then
+        export TERM=xterm-256color
+    fi
+
     # Ensure dialog
     if ! command -v dialog &>/dev/null; then
         echo "Error: dialog is required. Install: sudo apt install dialog"
+        exit 1
+    fi
+
+    # Test dialog works before entering menu loop
+    if ! $DIALOG --print-maxsize >/dev/null 2>&1; then
+        echo "Error: dialog cannot open terminal (TERM=$TERM)"
+        echo "Try: TERM=xterm-256color $0"
         exit 1
     fi
 
@@ -542,7 +557,7 @@ main() {
             "7" "📋  Logs — Service logs viewer" \
             "" "" \
             "q" "❌  Exit" \
-            2>&1 >/dev/tty)
+            )
 
         case "$choice" in
             1) cmd_dashboard ;;
