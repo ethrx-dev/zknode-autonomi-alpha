@@ -1,0 +1,12 @@
+[Unit]
+Description=Zymkey HSM Attestation — sign storage merkle root
+Documentation=https://github.com/Alchemi1/zknode-autonomi-alpha
+After=zkifc.service
+Wants=zkifc.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/zero-tech/zknode-autonomi-alpha/scripts/hsm-attest.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hsm-attest

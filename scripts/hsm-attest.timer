@@ -1,0 +1,12 @@
+[Unit]
+Description=Zymkey HSM Attestation Timer — prove node identity hourly
+Documentation=https://github.com/Alchemi1/zknode-autonomi-alpha
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

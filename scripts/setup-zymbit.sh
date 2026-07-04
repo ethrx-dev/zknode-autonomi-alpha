@@ -47,13 +47,19 @@ cmd_check() {
         warn "I2C bus not found. Enable with: sudo raspi-config → Interface → I2C"
     fi
 
-    # zymkey device
+    # zymkey device (SCM4 uses USB serial, standalone zymkey HAT uses /dev/zymkey)
     if [ -e /dev/zymkey ]; then
-        step "Device node: /dev/zymkey ✓"
+        step "Device node: /dev/zymkey ✓ (HAT mode)"
+    elif ls /dev/ttyACM* 2>/dev/null | grep -q ttyACM; then
+        local tty
+        tty=$(ls /dev/ttyACM* 2>/dev/null | head -1)
+        step "Device node: $tty ✓ (SCM4 mode)"
+        echo "  Owner: $(stat -c '%U:%G' "$tty" 2>/dev/null || echo 'unknown')"
     else
-        err "Device node: /dev/zymkey MISSING"
-        echo "  Check I2C bus, wiring, and driver installation"
-        echo "  Is this an actual SCM4 or a device with zymkey attached?"
+        err "Zymkey device NOT FOUND"
+        echo "  SCM4: expected /dev/ttyACM* (USB serial)"
+        echo "  HAT:  expected /dev/zymkey (I2C)"
+        echo "  Run: ls /dev/ttyACM* /dev/zymkey 2>/dev/null"
         return 1
     fi
 
