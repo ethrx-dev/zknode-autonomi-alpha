@@ -3,7 +3,8 @@
 # Single entry point: run this on first SSH to get the full dashboard.
 # Dependencies: dialog, bash (no sudo required)
 
-set -euo pipefail
+# Not using set -e: dialog failures shouldn't kill the TUI
+set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 DATA_DIR="${DATA_DIR:-/home/zero-tech/zknode-autonomi-alpha}"
@@ -20,7 +21,7 @@ BACKTITLE="ZKNetwork P4P Wiki Mesh — $(hostname) — $(date)"
 export DIALOGRC="${TMPDIR:-/tmp}/.zkTUI-dialogrc"
 # ── Color scheme ──────────────────────────────────────────────────────────────
 # Use dialog's built-in --colors (enables \Z markup in strings)
-# No custom DIALOGRC — use terminal defaults for compatibility
+export DIALOGRC=/dev/null  # ignore any ~/.dialogrc
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 prog() {
