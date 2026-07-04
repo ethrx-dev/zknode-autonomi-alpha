@@ -101,7 +101,7 @@ def convert_page(title, wikitext, tags_global):
     md = fix_markdown(md, title)
 
     # Build YAML frontmatter
-    fm = {"title": title, "type": "page"}
+    fm = {"title": title, "type": "default"}
     if tags:
         fm["tags"] = sorted(set(t for t in tags if t))
         tags_global.update(fm["tags"])
