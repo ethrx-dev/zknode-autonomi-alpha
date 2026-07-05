@@ -5,7 +5,7 @@
 #
 # On failure, exits with non-zero (no fallback to plaintext).
 
-LOCKED_KEY="/home/zero-tech/zknode-autonomi-alpha/data/zymbit/autonomi-key.locked"
+LOCKED_KEY="/home/user/zknode-autonomi/data/zymbit/autonomi-key.locked"
 
 if [ ! -f "$LOCKED_KEY" ]; then
     echo "hsm-unlock: ERROR locked key not found at $LOCKED_KEY" >&2

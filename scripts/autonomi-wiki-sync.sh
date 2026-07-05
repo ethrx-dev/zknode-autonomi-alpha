@@ -8,16 +8,16 @@ set -euo pipefail
 # ── Configuration ──────────────────────────────────────────────────────────────
 LLM_WIKI_BIN="${LLM_WIKI_BIN:-/tmp/llm-wiki}"
 ANT_BIN="${ANT_BIN:-/tmp/autonomi-arm64/ant}"
-WIKI_ROOT="${WIKI_ROOT:-/home/zero-tech/zknode-autonomi-alpha/data/llm-wiki}"
+WIKI_ROOT="${WIKI_ROOT:-/home/user/zknode-autonomi/data/llm-wiki}"
 WIKI_NAME="${WIKI_NAME:-p2p-foundation}"
 
 # Autonomi network config
 AUTONOMI_ADDR="${AUTONOMI_ADDR:-6c6fc79cd7e1553cbd1226c220c18fdca2a5b7f731a5b748fd5d1034a0082848}"
-RPC_URL="${RPC_URL:-http://192.168.9.12:61612/}"
+RPC_URL="${RPC_URL:-http://198.51.100.1:61612/}"
 PAYMENT_TOKEN="${PAYMENT_TOKEN:-0x5FbDB2315678afecb367f032d93F642f64180aa3}"
 DATA_PAYMENTS="${DATA_PAYMENTS:-0x8464135c8F25Da09e49BC8782676a84730C318bC}"
 SECRET_KEY="${SECRET_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
-BOOTSTRAP_PEER="${BOOTSTRAP_PEER:-/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep}"
+BOOTSTRAP_PEER="${BOOTSTRAP_PEER:-/ip4/198.51.100.1/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep}"
 
 # ── Runtime ─────────────────────────────────────────────────────────────────────
 TMP_DIR=$(mktemp -d)
@@ -92,7 +92,7 @@ rebuild_index() {
 
 # ── Update NomadNet archive page ────────────────────────────────────────────────
 update_nomadnet_page() {
-    local pages_dir="${NOMADNET_PAGES_DIR:-/home/zero-tech/nomadnet-new/pages}"
+    local pages_dir="${NOMADNET_PAGES_DIR:-/home/user/nomadnet/pages}"
     local archive_page="$pages_dir/archive.mu"
 
     if [ -f "$archive_page" ]; then

@@ -295,7 +295,7 @@ docker compose -f docker-compose.yml up -d
 
 | Node | Type | Location | Status |
 |------|------|----------|--------|
-| zknode01 | SCM4 (DIY) | North America | Operational |
+| zknode | SCM4 (DIY) | North America | Operational |
 | *(200 target)* | Mix of DIY + SEN400 | Global | Planned |
 
 ---

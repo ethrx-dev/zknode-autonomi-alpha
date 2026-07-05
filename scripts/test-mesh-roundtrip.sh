@@ -21,14 +21,14 @@ fail() { FAIL=$((FAIL+1)); echo "  ✗ $1: $2"; }
 # ── Configuration ────────────────────────────────────────────────────────────────
 ANT_BIN="${ANT_BIN:-/tmp/autonomi-arm64/ant}"
 LLM_WIKI="${LLM_WIKI:-/tmp/llm-wiki}"
-WIKI_ROOT="${WIKI_ROOT:-/home/zero-tech/zknode-autonomi-alpha/data/llm-wiki}"
-NOMADNET_PAGES="${NOMADNET_PAGES:-/home/zero-tech/nomadnet-new/pages}"
+WIKI_ROOT="${WIKI_ROOT:-/home/user/zknode-autonomi/data/llm-wiki}"
+NOMADNET_PAGES="${NOMADNET_PAGES:-/home/user/nomadnet/pages}"
 
-RPC_URL="${RPC_URL:-http://192.168.9.12:61612/}"
+RPC_URL="${RPC_URL:-http://198.51.100.1:61612/}"
 PAYMENT_TOKEN="${PAYMENT_TOKEN:-0x5FbDB2315678afecb367f032d93F642f64180aa3}"
 DATA_PAYMENTS="${DATA_PAYMENTS:-0x8464135c8F25Da09e49BC8782676a84730C318bC}"
 SECRET_KEY="${SECRET_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
-BOOTSTRAP_PEER="${BOOTSTRAP_PEER:-/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep}"
+BOOTSTRAP_PEER="${BOOTSTRAP_PEER:-/ip4/198.51.100.1/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep}"
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT

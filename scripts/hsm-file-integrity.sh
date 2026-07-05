@@ -3,11 +3,11 @@
 # Stores baseline hashes locked in HSM. On each run, verifies integrity.
 
 CONFIG_DIRS=(
-    "/home/zero-tech/zknode-autonomi-alpha/config"
-    "/home/zero-tech/nomadnet-new/pages"
-    "/home/zero-tech/zknode-autonomi-alpha/data/llm-wiki/wiki"
+    "/home/user/zknode-autonomi/config"
+    "/home/user/nomadnet/pages"
+    "/home/user/zknode-autonomi/data/llm-wiki/wiki"
 )
-MANIFEST_DIR="/home/zero-tech/zknode-autonomi-alpha/data/zymbit"
+MANIFEST_DIR="/home/user/zknode-autonomi/data/zymbit"
 MANIFEST_LOCKED="$MANIFEST_DIR/file-integrity.locked"
 MANIFEST_PLAIN="$MANIFEST_DIR/file-integrity.txt"
 TMP_MANIFEST=$(mktemp)

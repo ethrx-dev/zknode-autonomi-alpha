@@ -1,7 +1,7 @@
 # Live Node Status — Autonomi Testnet
 
 **Activated:** 2026-07-03 21:20 UTC
-**Host:** zknode01 SCM4 (Raspberry Pi SCM4, 8GB RAM, aarch64)
+**Host:** zknode SCM4 (Raspberry Pi SCM4, 8GB RAM, aarch64)
 **Management:** `systemd --user` service (auto-start on boot, auto-restart on failure)
 
 ---
@@ -105,7 +105,7 @@ tail -f ~/zknode-autonomi/data/logs/ant-node.YYYY-MM-DD.log  # File logs (daily 
 | DHT peers | ~230 connected |
 | NAT traversal coordinators | 5 bootstrap peers |
 | Replication protocol | `/rr/autonomi.ant.replication.v2` (active) |
-| Public IP | 24.31.26.231 (confirmed by multiple peers) |
+| Public IP | NODE_PUBLIC_IP (confirmed by multiple peers) |
 | Memory usage | ~20MB resident |
 | File descriptors | ~50 open |
 
@@ -143,7 +143,7 @@ The `storage-proved-rs` Docker container reads chunk files from `/mnt/autonomi/z
 | Service | `zkifc.service` (systemd, host) |
 | Device | `/dev/ttyACM7` (USB serial, symlink `/dev/zscm_7`) |
 | Uptime | 19+ hours |
-| Wallet | Stored at `/var/lib/zymbit/2712AF4B7AC2F93FD13F8B33BA15A44C36C52F2F1495246261BBC0FEE6D52475/` |
+| Wallet | Stored at `/var/lib/zymbit/WALLET_STORAGE_HEX_PLACEHOLDER/` |
 | RTC sync | Working, NTP-ready |
 
 **Note:** The Docker compose `zkifc` container is **deprecated** — the zymkey is managed by the host-level systemd service. The compose container was removed because:

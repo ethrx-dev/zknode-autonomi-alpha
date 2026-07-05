@@ -110,13 +110,13 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.wiki-export -t zeros/wik
 
 ---
 
-## Live Node (zknode01 SCM4)
+## Live Node (zknode SCM4)
 
 ```
 Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
 Version:      ant-node 0.14.2
 Network:      Autonomi Testnet, Arbitrum Sepolia
-Public IP:    24.31.26.231:12000 (QUIC/UDP)
+Public IP:    NODE_PUBLIC_IP:12000 (QUIC/UDP)
 Wallet:       0xef902c...XXXXX...77AD4B (0.04 ETH)
 Service:      systemd --user (enabled, Restart=always, RestartSec=10)
 DHT Peers:    ~100 connected
@@ -234,7 +234,7 @@ zknode-autonomi/
 
 | Issue | Status | Resolution |
 |-------|--------|------------|
-| **Live testnet node** | ✅ Deployed | ant-node v0.14.2 running via `systemd --user` on zknode01 SCM4 since 2026-07-03. UDP :12000, Arbitrum Sepolia, ~100 DHT peers. See [Live Node Status](docs/LIVE_NODE_STATUS.md). |
+| **Live testnet node** | ✅ Deployed | ant-node v0.14.2 running via `systemd --user` on zknode SCM4 since 2026-07-03. UDP :12000, Arbitrum Sepolia, ~100 DHT peers. See [Live Node Status](docs/LIVE_NODE_STATUS.md). |
 | **Host networking** | 🔶 Planned | Mixnet containers share host network. Bridge networking with BindAddresses in katzenpost.toml for production multi-instance isolation. |
 | **Dirauth startup race** | ✅ Mitigated | Entrypoints use `while true; do ...; sleep 2; done` retry loops. All 3 auths converge within 2 epochs after clean restart. |
 | **LMDB overcommit_memory** | ✅ Fixed | `privileged: true` on antd container with `echo 1 > /proc/sys/vm/overcommit_memory` at startup. |
@@ -254,7 +254,7 @@ zknode-autonomi/
 ## Documentation
 
 - [P4P Reference Architecture](docs/P4P_ARCHITECTURE.md) — Complete technical reference
-- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on zknode01 SCM4
+- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on zknode SCM4
 - [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md) — Full deployment walkthrough
 - [Architecture](docs/ARCHITECTURE.md) — System layers and data flow
 - [Hardware Setup](docs/HARDWARE_SETUP.md) — SCM4 hardware, storage, USB pool

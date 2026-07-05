@@ -211,7 +211,7 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ### What Works
 
-- **ant-node v0.14.2** running on zknode01 SCM4 via `systemd --user`
+- **ant-node v0.14.2** running on zknode SCM4 via `systemd --user`
 - **Binary runs directly on host** — statically linked ARM64, no Docker dependency for ant-node
 - **Node is discoverable** — public IP 12.34.56.789:12000, confirmed by multiple DHT peers
 - **Replication active** — `/rr/autonomi.ant.replication.v2` protocol traffic flowing

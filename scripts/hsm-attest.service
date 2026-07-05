@@ -6,7 +6,7 @@ Wants=zkifc.service
 
 [Service]
 Type=oneshot
-ExecStart=/home/zero-tech/zknode-autonomi-alpha/scripts/hsm-attest.sh
+ExecStart=/home/user/zknode-autonomi/scripts/hsm-attest.sh
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=hsm-attest

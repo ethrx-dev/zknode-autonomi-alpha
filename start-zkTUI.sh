@@ -6,7 +6,7 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
-DATA_DIR="${DATA_DIR:-/home/zero-tech/zknode-autonomi-alpha}"
+DATA_DIR="${DATA_DIR:-/home/user/zknode-autonomi}"
 [ ! -d "$DATA_DIR" ] && DATA_DIR="$PROJECT_ROOT"
 
 # ─── Terminal ──────────────────────────────────────────────────
@@ -17,9 +17,6 @@ hide_cursor() { echo -ne "\033[?25l"; }
 show_cursor() { echo -ne "\033[?25h"; }
 cls() { echo -ne "\033[2J\033[H"; }
 XY() { echo -ne "\033[${1};${2}H"; }
-
-mouse_on()  { echo -ne "\033[?1000h\033[?1006h"; }
-mouse_off() { echo -ne "\033[?1000l\033[?1006l"; }
 
 # ─── ANSI Colors ──────────────────────────────────────────────
 R='\033[0m'; B='\033[1m'; D='\033[2m'; I='\033[3m'; U='\033[4m'
@@ -162,7 +159,6 @@ MENU_ITEMS=(
     "7"  "Logs"            "Service logs viewer"
     "q"  "Exit"            "Quit to shell"
 )
-declare -a MENU_ROWS=()
 STAGES=(
     "Hardware Detection"
     "Zymkey HSM Setup"
@@ -174,12 +170,6 @@ STAGES=(
     "ZKChat + Mixnet"
 )
 
-get_cursor_row() {
-    local row
-    echo -ne "\033[6n"
-    IFS='[;' read -rs -t 0.05 -d R _ row _ 2>/dev/null || echo 0
-    echo "${row:-0}"
-}
 
 draw_main_menu() {
     cls
@@ -207,7 +197,7 @@ draw_main_menu() {
         [ "$pad" -lt 1 ] && pad=1
         printf "  ${K}│${R}  ${C}${B}%s${R}  ${W}%-18s${R}  ${K}%s${R}  %*s${K}│${R}\n" \
             "$num" "$title" "$desc" "$pad" ""
-        MENU_ROWS+=($(get_cursor_row))
+        
         i=$((i+3))
     done
     draw_box_bot "$w"
@@ -266,7 +256,7 @@ cmd_dashboard() {
         # ── NETWORK ──
         echo -e "  ${C}${B}NETWORK${R}  ${K}${D}───────────────────────────${R}"
         echo -e "  ${K}│${R}  Peers seen:    ${W}${PEERS}${R}"
-        echo -e "  ${K}│${R}  Bootstrap:     ${K}192.168.9.12:53851${R}"
+        echo -e "  ${K}│${R}  Bootstrap:     ${K}198.51.100.1:53851${R}"
         echo -e "  ${K}│${R}  LAN:           ${K}${IP}${R}"
         echo ""
 
@@ -393,10 +383,10 @@ run_stage() {
             echo -e "  ${Y}◜${R}  Configuring Zymkey HSM..."
             python3 "$PROJECT_ROOT/scripts/zymkey-attest.py" \
                 --merkle-root "$(date +%s | sha256sum | cut -c1-64)" \
-                --node-address "0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095" >/dev/null 2>&1 || true
+                --node-address "0xNODE_ADDRESS_PLACEHOLDER" >/dev/null 2>&1 || true
             echo -e "  ${G}✔${R}  BIP32 wallet generated"
             echo -e "  ${G}✔${R}  SECRET_KEY locked in HSM"
-            echo -e "  ${G}✔${R}  Rewards: ${Y}0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095${R}"
+            echo -e "  ${G}✔${R}  Rewards: ${Y}0xNODE_ADDRESS_PLACEHOLDER${R}"
             echo -e "  ${G}✔${R}  Tamper detection enabled"
             ;;
         2)
@@ -435,7 +425,7 @@ run_stage() {
         7)
             local mc=$(docker ps --format '{{.Names}}' 2>/dev/null | grep -c mix- || echo 0)
             echo -e "  ${G}✔${R}  Mixnet containers: ${mc}"
-            echo -e "  ${G}✔${R}  Proxy:  SOCKS5 at 192.168.9.12:1080"
+            echo -e "  ${G}✔${R}  Proxy:  SOCKS5 at 198.51.100.1:1080"
             ;;
     esac
     echo ""
@@ -466,11 +456,11 @@ cmd_zkchat() {
     echo -e "  ${M}${B}ZKCHAT${R}  ${K}${D}Metadata-private group chat over mixnet${R}"
     echo ""
     echo -e "  ${G}●${R}  Mixnet:     ${W}15 containers${R} ${K}(3 auth, 3 mixes, gateway, ...)${R}"
-    echo -e "  ${G}●${R}  Proxy:      ${W}192.168.9.12:1080${R} ${K}(SOCKS5)${R}"
+    echo -e "  ${G}●${R}  Proxy:      ${W}198.51.100.1:1080${R} ${K}(SOCKS5)${R}"
     echo -e "  ${G}●${R}  ZKChat:     ${W}Docker container${R} ${K}on dev machine${R}"
     echo ""
     echo -e "  ${K}┌─ Connect ─────────────────────────────────────┐${R}"
-    echo -e "  ${K}│${R}  curl --proxy socks5h://192.168.9.12:1080  ${K}│${R}"
+    echo -e "  ${K}│${R}  curl --proxy socks5h://198.51.100.1:1080  ${K}│${R}"
     echo -e "  ${K}│${R}       https://example.com                  ${K}│${R}"
     echo -e "  ${K}└────────────────────────────────────────────────┘${R}"
     echo ""
@@ -544,11 +534,11 @@ cmd_autonomi_upload() {
         echo ""
         echo -e "  ${Y}◜${R}  Uploading ${f}..."
         hide_cursor
-        RPC_URL='http://192.168.9.12:61612/' \
+        RPC_URL='http://198.51.100.1:61612/' \
         PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
         DATA_PAYMENTS_ADDRESS='0x8464135c8F25Da09e49BC8782676a84730C318bC' \
         SECRET_KEY="$($DATA_DIR/scripts/hsm-unlock.sh 2>/dev/null)" \
-        ANT_PEERS='/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
+        ANT_PEERS='/ip4/198.51.100.1/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
         /tmp/ant --local file upload "$f" --public 2>&1 | while IFS= read -r line; do
             echo -e "  ${K}│${R}  ${line}"
         done
@@ -572,11 +562,11 @@ cmd_autonomi_download() {
         echo ""
         echo -e "  ${Y}◜${R}  Downloading..."
         hide_cursor
-        RPC_URL='http://192.168.9.12:61612/' \
+        RPC_URL='http://198.51.100.1:61612/' \
         PAYMENT_TOKEN_ADDRESS='0x5FbDB2315678afecb367f032d93F642f64180aa3' \
         DATA_PAYMENTS_ADDRESS='0x8464135c8F25Da09e49BC8782676a84730C318bC' \
         SECRET_KEY="$($DATA_DIR/scripts/hsm-unlock.sh 2>/dev/null)" \
-        ANT_PEERS='/ip4/192.168.9.12/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
+        ANT_PEERS='/ip4/198.51.100.1/udp/53851/quic-v1/p2p/12D3KooWNo9XnZxB4DvnJsaMhKuUUjaXfFKw1GHaY718ecsWK3Ep' \
         /tmp/ant --local file download "$addr" "$outf" 2>&1 | while IFS= read -r line; do
             echo -e "  ${K}│${R}  ${line}"
         done
@@ -605,9 +595,9 @@ cmd_autonomi_balance() {
     echo -e "  ${C}${B}WALLET${R}"
     echo ""
     echo -e "  ${K}┌──────────────────────────────────────────────────────┐${R}"
-    echo -e "  ${K}│${R}  Rewards:  ${Y}0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095${R}  ${K}│${R}"
+    echo -e "  ${K}│${R}  Rewards:  ${Y}0xNODE_ADDRESS_PLACEHOLDER${R}  ${K}│${R}"
     echo -e "  ${K}│${R}  Source:   HSM slot 24 (secp256k1)                ${K}│${R}"
-    echo -e "  ${K}│${R}  RPC:      ${K}http://192.168.9.12:61612/${R}              ${K}│${R}"
+    echo -e "  ${K}│${R}  RPC:      ${K}http://198.51.100.1:61612/${R}              ${K}│${R}"
     echo -e "  ${K}│${R}  Token:    ${K}0x5FbDB2315678afecb367f032d93F642f64180aa3${R}  ${K}│${R}"
     echo -e "  ${K}└──────────────────────────────────────────────────────┘${R}"
     echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1

@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/zero-tech/zknode-autonomi-alpha/scripts/autonomi-wiki-sync.sh
+ExecStart=/home/user/zknode-autonomi/scripts/autonomi-wiki-sync.sh
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=autonomi-wiki-sync

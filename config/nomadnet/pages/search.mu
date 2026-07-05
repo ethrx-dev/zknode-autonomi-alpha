@@ -9,7 +9,7 @@ This node runs llm-wiki on port 18765. Connect over the LAN
 or via the mixnet to perform searches:
 
    ```
-   curl http://192.168.9.118:18765/search?q=<query>
+   curl http://198.51.100.2:18765/search?q=<query>
    ```
 
 Or use the llm-wiki CLI directly on this node:

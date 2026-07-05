@@ -3,11 +3,11 @@
 # Called by systemd timer to prove node identity.
 # Output: /var/lib/zymbit/attestation-latest.json
 
-ATTEST_DIR="/home/zero-tech/zknode-autonomi-alpha/data/zymbit"
-NODE_ADDR="0x63caa14c583dbfd5fe436fe6f9af6cb9e76a2095"
+ATTEST_DIR="/home/user/zknode-autonomi/data/zymbit"
+NODE_ADDR="0xNODE_ADDRESS_PLACEHOLDER"
 
 # Compute Merkle root of wiki pages as storage commitment
-WIKI_ROOT="/home/zero-tech/zknode-autonomi-alpha/data/llm-wiki/wiki"
+WIKI_ROOT="/home/user/zknode-autonomi/data/llm-wiki/wiki"
 if [ -d "$WIKI_ROOT" ]; then
     MERKLE_ROOT=$(find "$WIKI_ROOT" -name '*.md' -type f -exec sha256sum {} + | sort | sha256sum | cut -d' ' -f1)
 else
