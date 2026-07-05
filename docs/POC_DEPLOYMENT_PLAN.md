@@ -70,12 +70,12 @@
 
 ```
 host net:  mix-dirauth-1/2/3 ─┐
-           mix-1/2/3         ├── 127.0.0.1:30001-30017
-           mix-gateway       │
-           mix-servicenode   │
-           mix-client        │  127.0.0.1:64332
-           mixnet-proxy      │  127.0.0.1:1080,9090
-           walletshield ─────┘  127.0.0.1:9200
+           mix-1/2/3          ├── 127.0.0.1:30001-30017
+           mix-gateway        │
+           mix-servicenode    │
+           mix-client         │  127.0.0.1:64332
+           mixnet-proxy       │  127.0.0.1:1080,9090
+           walletshield  ─────┘  127.0.0.1:9200
 
 bridge:    antd (autonomi network)
            storage-proved (autonomi network, :9201)
