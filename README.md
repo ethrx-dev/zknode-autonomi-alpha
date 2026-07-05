@@ -1,17 +1,16 @@
-# zknode-autonomi — P4P Reference Architecture
+# zknode-autonomi — P4P Sovereign Node
 
-**Post-Quantum Mixnet + ZK Storage Proving + Autonomi P2P Storage**
+**Post-quantum mixnet · ZK storage proofs · Autonomi P2P storage · Hardware-anchored identity**
 
-A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P2P Foundation's proof-of-useful-work movement.
+A self-contained **sovereign storage node** — one SCM4/CM4 running the full stack: an embedded Katzenpost mixnet for metadata-private transport, a live Autonomi storage node, hardware-bound ZK storage proofs via zymkey HSM, and a mesh wiki archive. All on a single board. No cloud, no VPS.
 
-> **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.2 serving on Arbitrum Sepolia since 2026-07-03. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
-
-**Hardware**: SCM4/CM4 (8GB RAM, aarch64) with zymkey HSM.  
-**Mixnet**: Katzenpost v0.0.73-rc3+ (MLKEM768 PQ wire KEM, BLAKE2b-256 hashing, 3-hop Sphinx).  
-**ZK Proofs**: Merkle storage proofs (BLAKE2b), bandwidth proofs, zymkey hardware attestation.  
-**Storage**: Autonomi ant-node v0.14.2 with LMDB chunk store — managed via systemd --user.
+> `STATUS` 🟢 Live on Autonomi testnet (Arbitrum Sepolia) since 2026-07-03
+> `HW` SCM4 · 8GB RAM · aarch64 · zymkey HSM · USB 3.0 pool
+> `MIXNET` Katzenpost v0.0.73+ · MLKEM768 · 3-hop Sphinx · 15 containers
+> `STORAGE` ant-node v0.14.2 · LMDB · systemd --user
 
 ---
+
 ## Architecture
 
 ```
@@ -47,105 +46,168 @@ A self-contained private Autonomi storage node with traffic routed through an em
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Layer 1**: Hardware (SCM4/CM4, zymkey HSM, USB drives)
-- **Layer 2**: Mixnet (Katzenpost: 3 dirauths + 3 mixes + gateway + servicenode + client daemon)
-- **Layer 3**: Proxy (SOCKS5 bridge: ant-node ↔ mixnet via official thin client library)
-- **Layer 4**: ZK Proofs (storage-proved Merkle trees, bandwidth proofs, zymkey attestations)
-- **Layer 5**: Storage (Autonomi ant-node with LMDB chunk store)
-- **Layer 6**: Application (ant CLI, wallet operations)
+| Layer | What | Docs |
+|-------|------|------|
+| 1 Hardware | SCM4/CM4, zymkey HSM, USB 3.0 pool | [Hardware Setup](docs/HARDWARE_SETUP.md) · [Zymbit Setup](docs/ZYMBIT_SETUP.md) |
+| 2 Mixnet | 3 dirauths + 3 mixes + gateway + servicenode + client | [Architecture](docs/ARCHITECTURE.md) · [Mixnet Integration](docs/MIXNET_INTEGRATION.md) |
+| 3 Proxy | SOCKS5 bridge: ant-node ↔ mixnet (thin client) | [`cmd/mixnet-proxy/`](cmd/mixnet-proxy/main.go) |
+| 4 ZK Proofs | Merkle tree · bandwidth proofs · HSM attestation | [Storage Proved](cmd/storage-proved-rs/) · [`scripts/zymkey-attest.py`](scripts/zymkey-attest.py) |
+| 5 Storage | Autonomi ant-node + LMDB chunk store | [Live Node Status](docs/LIVE_NODE_STATUS.md) |
+| 6 App | ant CLI, wallet ops, wiki mesh | [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md) |
+
+---
+
+## Walkthrough Index
+
+### Hardware & HSM
+
+| Resource | Description |
+|----------|-------------|
+| [HARDWARE_SETUP.md](docs/HARDWARE_SETUP.md) | SCM4 platform, USB pool, mergerfs, LUKS encryption |
+| [ZYMBIT_SETUP.md](docs/ZYMBIT_SETUP.md) | zymkey HSM provisioning, Bootware, one-way key binding |
+| [`scripts/setup-zymbit.sh`](scripts/setup-zymbit.sh) | One-shot SCM4 provisioner: health check, full setup, USB encrypt |
+| [`scripts/hsm-attest.sh`](scripts/hsm-attest.sh) | Periodically sign storage Merkle root with HSM |
+| [`scripts/hsm-unlock.sh`](scripts/hsm-unlock.sh) | Unlock Autonomi SECRET_KEY from HSM-bound blob |
+| [`scripts/hsm-file-integrity.sh`](scripts/hsm-file-integrity.sh) | HSM-locked file integrity manifest |
+| [`scripts/zymkey-attest.py`](scripts/zymkey-attest.py) | Python attestation generator/verifier |
+
+### Mixnet
+
+| Resource | Description |
+|----------|-------------|
+| [MIXNET_INTEGRATION.md](docs/MIXNET_INTEGRATION.md) | Design options: external, embedded, thin client |
+| [`config/mixnet/`](config/mixnet/) | Generated PKI + node configs (dirauth×3, mix×3, gateway, servicenode) |
+| [`scripts/deploy.sh`](scripts/deploy.sh) | Deploy/start/stop/clean/export the full stack |
+| [`scripts/monitor.sh`](scripts/monitor.sh) | Real-time status of all 15 containers |
+| [`scripts/setup.sh`](scripts/setup.sh) | Initialize project structure and data directories |
+| [`scripts/gen-mixnet-configs.sh`](scripts/gen-mixnet-configs.sh) | Regenerate all mixnet TOML configs |
+| [`start-zkTUI.sh`](start-zkTUI.sh) | ANSI TUI dashboard: status, logs, ZKChat, stage tracking |
+
+### Storage Node
+
+| Resource | Description |
+|----------|-------------|
+| [LIVE_NODE_STATUS.md](docs/LIVE_NODE_STATUS.md) | Current state of the live testnet node |
+| [POC_DEPLOYMENT_PLAN.md](docs/POC_DEPLOYMENT_PLAN.md) | Full walkthrough: from bare metal to running node |
+| [`config/ant-node/ant-node.service`](config/ant-node/ant-node.service) | systemd unit for bare-metal ant-node |
+| [`config/autonomi/`](config/autonomi/) | Autonomi node/CLI configuration files |
+| [`Dockerfile.ant-node`](Dockerfile.ant-node) | Docker build: ant-node binary |
+| [`Dockerfile.antd`](Dockerfile.antd) | Docker build: ant CLI + node manager |
+
+### ZK Proofs
+
+| Resource | Description |
+|----------|-------------|
+| [`cmd/storage-proved/main.go`](cmd/storage-proved/main.go) | Go Merkle proof daemon |
+| [`cmd/storage-proved-rs/`](cmd/storage-proved-rs/) | Rust Winterfell STARK prover (production target) |
+| [`Dockerfile.storage-proved`](Dockerfile.storage-proved) | Docker build: Go storage prover |
+| [`Dockerfile.storage-proved-rs`](Dockerfile.storage-proved-rs) | Docker build: Rust Winterfell prover |
+
+### SOCKS5 Proxy
+
+| Resource | Description |
+|----------|-------------|
+| [`cmd/mixnet-proxy/main.go`](cmd/mixnet-proxy/main.go) | ~300-line SOCKS5 ↔ mixnet bridge via thin client lib |
+| [`Dockerfile.mixnet-proxy`](Dockerfile.mixnet-proxy) | Docker build: proxy |
+| [`config/proxy/config.json`](config/proxy/config.json) | Proxy configuration |
+
+### Wallet / EVM
+
+| Resource | Description |
+|----------|-------------|
+| [`scripts/gen-wallet.sh`](scripts/gen-wallet.sh) | Generate standard EVM wallet (eth_keys) |
+| [`Dockerfile.walletshield`](Dockerfile.walletshield) | EVM RPC through mixnet |
+| [`config/walletshield/config.toml`](config/walletshield/config.toml) | WalletShield thin client config |
+| [`walletshield-fix/`](walletshield-fix/) | Patched walletshield source |
+
+### Mesh & Wiki
+
+| Resource | Description |
+|----------|-------------|
+| [WIKI_MESH_ARCHITECTURE.md](docs/WIKI_MESH_ARCHITECTURE.md) | Decentralized wiki over Autonomi + Reticulum |
+| [`Dockerfile.llm-wiki`](Dockerfile.llm-wiki) | Git-backed markdown wiki engine with MCP/ACP |
+| [`Dockerfile.nomadnet`](Dockerfile.nomadnet) | Mesh page server (micron format) over Reticulum |
+| [`Dockerfile.wiki-export`](Dockerfile.wiki-export) | MediaWiki XML → markdown conversion |
+| [`config/nomadnet/`](config/nomadnet/) | NomadNet config and micron pages |
+| [`config/reticulum/`](config/reticulum/) | Reticulum mesh config |
+| [`scripts/autonomi-wiki-sync.sh`](scripts/autonomi-wiki-sync.sh) | Download wiki from Autonomi, update llm-wiki |
+| [`scripts/wiki-export-pipeline.sh`](scripts/wiki-export-pipeline.sh) | MediaWiki → markdown → Autonomi upload |
+| [`scripts/test-mesh-roundtrip.sh`](scripts/test-mesh-roundtrip.sh) | Full mesh round-trip test: create → upload → download → import → serve |
+
+### Reference Docs
+
+| Document | Description |
+|----------|-------------|
+| [P4P_ARCHITECTURE.md](docs/P4P_ARCHITECTURE.md) | Complete technical reference for the P4P architecture |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System layers, data flow, component interconnects |
+| [POC_DEPLOYMENT_PLAN.md](docs/POC_DEPLOYMENT_PLAN.md) | Step-by-step deployment plan |
+| [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 11-step demo walkthrough |
+| [LIVE_NODE_STATUS.md](docs/LIVE_NODE_STATUS.md) | Live testnet node metrics |
+| [HARDWARE_SETUP.md](docs/HARDWARE_SETUP.md) | Hardware platform, USB storage, power |
+| [ZYMBIT_SETUP.md](docs/ZYMBIT_SETUP.md) | Zymkey HSM provisioning and boot security |
+| [MIXNET_INTEGRATION.md](docs/MIXNET_INTEGRATION.md) | Mixnet integration design options |
+| [WIKI_MESH_ARCHITECTURE.md](docs/WIKI_MESH_ARCHITECTURE.md) | Decentralized wiki mesh architecture |
 
 ---
 
 ## Quick Start
 
-### On SCM4 (from pre-built images)
-
 ```bash
-# 1. Load images (air-gapped transfer via SD card)
-gunzip -c zknode-autonomi-images.tar.gz | docker load
+# 1. Prerequisites check
+./scripts/deploy.sh --check
 
-# 2. Deploy
+# 2. Generate configs and data dirs
+./scripts/setup.sh
+
+# 3. Full Zymbit HSM setup (SCM4 only)
+sudo ./scripts/setup-zymbit.sh --full          # one-time
+./scripts/setup-zymbit.sh --encrypt-usb /dev/sda  # optional
+
+# 4. Generate EVM wallet (any machine, offline)
+./scripts/gen-wallet.sh --apply
+
+# 5. Deploy the stack
 ./scripts/deploy.sh --start
 
-# 3. Monitor
+# 6. Monitor
 ./scripts/monitor.sh
+./start-zkTUI.sh                              # ANSI dashboard
 ```
 
-### On build machine (cross-compile from amd64)
+Or if building images:
 
 ```bash
-# Build all 10 images (cross-compile arm64 from amd64)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.ant-node -t zeros/ant-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.antd -t zeros/antd:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.storage-proved -t zeros/storage-proved:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/walletshield:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.llm-wiki -t zeros/llm-wiki:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.nomadnet -t zeros/nomadnet:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.wiki-export -t zeros/wiki-export:arm64 .
+docker build --build-arg TARGETARCH=arm64 \
+  -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
+# Repeat for: ant-node, antd, mixnet-proxy, storage-proved, walletshield,
+#             llm-wiki, nomadnet, wiki-export
 ```
 
 ---
 
-## Commands
+## Components
 
-| Command | Description |
-|---------|-------------|
-| `./scripts/deploy.sh --check` | Verify prerequisites |
-| `./scripts/deploy.sh --start` | Deploy and start stack |
-| `./scripts/deploy.sh --stop` | Stop stack |
-| `./scripts/deploy.sh --clean` | Stop and remove all data |
-| `./scripts/deploy.sh --export` | Export images for air-gapped transfer |
-| `./scripts/monitor.sh` | Display stack status |
-| `./scripts/setup.sh` | Initialize configs and data dirs |
-| `./scripts/setup-zymbit.sh --check` | SCM4 zymkey health check |
-| `./scripts/setup-zymbit.sh --full` | Full Zymbit security setup |
-| `./scripts/setup-zymbit.sh --encrypt-usb /dev/sdX` | Encrypt USB drive with zymkey |
-| `./scripts/gen-wallet.sh --apply` | Generate standard EVM wallet (any machine) |
-| `./scripts/gen-wallet.sh` | Generate wallet, print address only |
-| `systemctl --user status ant-node` | Check live node status |
-| `systemctl --user restart ant-node` | Restart the ant-node service |
-| `journalctl --user -u ant-node -f` | Tail live node logs |
-
----
-
-## Live Node (zknode SCM4)
-
-```
-Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
-Version:      ant-node 0.14.2
-Network:      Autonomi Testnet, Arbitrum Sepolia
-Public IP:    NODE_PUBLIC_IP:12000 (QUIC/UDP)
-Wallet:       0xef902c...XXXXX...77AD4B (0.04 ETH)
-Service:      systemd --user (enabled, Restart=always, RestartSec=10)
-DHT Peers:    ~100 connected
-Replication:  Active (/rr/autonomi.ant.replication.v2)
-```
-
----
-
-## Service Status
-
-| Container | Role | Network | RAM |
-|-----------|------|---------|-----|
-| mix-dirauth-1/2/3 | Directory authorities (PKI consensus) | host | 256MB each |
-| mix-1/2/3 | Mix nodes (3-hop Sphinx routing) | host | 256MB each |
-| mix-gateway | Client entry point | host | 256MB |
-| mix-servicenode | Exit node (echo, proxy-kaetzchen) | host | 256MB |
-| mix-client | Client daemon (kpclientd, thin API :64332) | host | 128MB |
-| mixnet-proxy | SOCKS5 bridge + ZK proof API :9090 | host | 256MB |
-| walletshield | EVM RPC through mixnet :9200 | host | 128MB |
-| storage-proved | Merkle/Winterfell storage prover :9201 | bridge | 128MB |
+| Container | Role | Ports | RAM |
+|-----------|------|-------|-----|
+| mix-dirauth-1/2/3 | PKI directory authorities | 30001-30003 | 256MB |
+| mix-1/2/3 | Sphinx mix nodes | 30011-30016 | 256MB |
+| mix-gateway | Client entry point | 30004 | 256MB |
+| mix-servicenode | Exit node (echo, http proxy) | 30007 | 256MB |
+| mix-client | kpclientd thin client daemon | 64332 | 128MB |
+| mixnet-proxy | SOCKS5 bridge + ZK proof API | 1080, 9090 | 256MB |
+| walletshield | EVM RPC through mixnet | 9200 | 128MB |
+| storage-proved | Merkle/Winterfell storage prover | 9201 | 128MB |
 | antd | Autonomi CLI + node manager | bridge | 128MB |
-| ant-node | Autonomi storage node (systemd, bare metal) | host :12000 | ~20MB |
-| reticulum | Reticulum mesh networking (RNS + LXMF) | host | 128MB |
-| llm-wiki | Git-backed markdown wiki engine (MCP/ACP) :18765 | bridge | 64MB |
-| nomadnet | Mesh page server over Reticulum | host | 64MB |
+| ant-node | Autonomi storage node (bare metal) | 12000 | ~20MB |
+| reticulum | Reticulum mesh (RNS + LXMF) | bridge | 128MB |
+| llm-wiki | Git-backed markdown wiki engine | 18765 | 64MB |
+| nomadnet | Mesh page server over Reticulum | bridge | 64MB |
 
 ---
 
-## ZK Proof API
+## API Reference
+
+### ZK Proofs
 
 | Endpoint | Description |
 |----------|-------------|
@@ -155,119 +217,98 @@ Replication:  Active (/rr/autonomi.ant.replication.v2)
 | `GET :9201/status` | Merkle tree state (root, chunk count) |
 | `GET :9201/challenge` | Random challenge index |
 | `POST :9201/prove` | Generate Merkle proof for challenged index |
-| `python3 scripts/zymkey-attest.py` | Hardware attestation via zymkey HSM |
+
+### HSM Attestation
+
+```bash
+python3 scripts/zymkey-attest.py --merkle-root "<64-hex>"
+```
+
+### Wallet
+
+```bash
+./scripts/gen-wallet.sh          # print address only
+./scripts/gen-wallet.sh --apply  # generate and write to .env
+```
 
 ---
 
-## Storage Layout
-
-| Path | Tier | Purpose |
-|------|------|---------|
-| `./data/mixnet/` | microSD | Mixnet bbolt DBs, keys |
-| `./data/antd/` | microSD | Chunk index, metadata |
-| `./data/proxy/` | microSD | SURB cache |
-| `/mnt/trinity/autonomi/chunks/` | USB pool | LMDB chunk store (1-4 TB) |
-| `/mnt/trinity/autonomi/logs/` | USB pool | Rotating logs |
-| `/mnt/trinity/backup/` | USB pool | Weekly snapshots |
-
----
-
-## Prerequisites
-
-- Docker Engine 24+ with Compose v2
-- 8GB RAM (16GB recommended for large chunk DB)
-- aarch64/arm64 architecture (amd64 works via QEMU for development)
-- USB 3.0 drive(s) for chunk storage
-- Internet connection (for Autonomi peer connectivity)
-
----
-
-## File Structure
+## Directory Map
 
 ```
 zknode-autonomi/
-├── .env                        # Environment config
+├── .env                        # Environment config (gitignored — contains secrets)
 ├── .gitignore
-├── docker-compose.yml          # 17-service stack (15 existing + llm-wiki + nomadnet)
+├── docker-compose.yml          # 17-service stack
 ├── docker-compose.zymkey.yml   # Zymkey HSM override
-├── Dockerfile.mixnet            # Katzenpost mixnet node (all binaries)
-├── Dockerfile.ant-node          # Autonomi storage node
-├── Dockerfile.antd              # Autonomi CLI
-├── Dockerfile.mixnet-proxy      # SOCKS5 bridge (Go, thin client lib)
-├── Dockerfile.storage-proved    # Merkle/Winterfell storage prover
-├── Dockerfile.walletshield      # EVM RPC through mixnet
-├── Dockerfile.llm-wiki          # Markdown wiki engine (Rust, MCP/ACP)
-├── Dockerfile.nomadnet          # Mesh page server (Python)
-├── Dockerfile.wiki-export       # MediaWiki→markdown conversion
+├── Dockerfile.*                # 10 Dockerfiles (one per component)
+├── start-zkTUI.sh              # ANSI TUI dashboard
 ├── cmd/
-│   ├── mixnet-proxy/main.go     # Proxy source (thin client API)
-│   ├── storage-proved/main.go   # Go Merkle proof daemon
-│   ├── storage-proved-rs/       # Rust Winterfell STARK prover (WIP)
-│   └── zkclientd/main.go        # Fixed client daemon wrapper
+│   ├── mixnet-proxy/main.go    # SOCKS5 ↔ mixnet bridge
+│   ├── storage-proved/         # Go Merkle proof daemon
+│   ├── storage-proved-rs/      # Rust Winterfell STARK prover (WIP)
+│   └── zkclientd/main.go       # Fixed client daemon wrapper
 ├── config/
-│   ├── mixnet/                  # Generated PKI + node configs
-│   ├── proxy/config.json        # SOCKS5 proxy config
-│   ├── walletshield/config.toml # WalletShield thin client config
-│   ├── autonomi/                # Autonomi node/CLI configs
-│   ├── ant-node/                # Systemd service unit files
-│   ├── reticulum/config         # Reticulum mesh config
-│   └── nomadnet/
-│       ├── config               # NomadNet page server config
-│       └── pages/               # Micron-format mesh pages
+│   ├── mixnet/                 # Generated PKI + node TOML configs
+│   ├── proxy/config.json       # SOCKS5 proxy config
+│   ├── walletshield/           # WalletShield thin client config
+│   ├── autonomi/               # Autonomi node/CLI configs
+│   ├── ant-node/               # systemd service unit files
+│   ├── keys/                   # Generated keys (gitignored)
+│   ├── reticulum/config        # Reticulum mesh config
+│   └── nomadnet/               # NomadNet config + micron pages
 ├── scripts/
-│   ├── deploy.sh                # Deploy/start/stop/export
-│   ├── setup.sh                 # Init project structure
-│   ├── gen-mixnet-configs.sh    # Mixnet config generator
-│   ├── gen-wallet.sh            # EVM wallet generator (eth_keys)
-│   ├── monitor.sh               # Stack monitoring
-│   ├── storage-layout.sh        # USB pool setup
-│   ├── setup-zymbit.sh          # Zymbit/SCM4 setup
-│   ├── zymkey-attest.py         # Hardware attestation script
-│   └── wiki-export-pipeline.sh  # MediaWiki→markdown→Autonomi pipeline
-├── docs/                        # Full documentation
-└── data/                        # Runtime data (gitignored)
+│   ├── deploy.sh               # Deploy/start/stop/clean/export
+│   ├── setup.sh                # Init project structure
+│   ├── monitor.sh              # Stack monitoring
+│   ├── gen-mixnet-configs.sh   # Mixnet config generator
+│   ├── gen-wallet.sh           # EVM wallet generator
+│   ├── storage-layout.sh       # USB pool setup
+│   ├── setup-zymbit.sh         # Zymbit/SCM4 hardware setup
+│   ├── zymkey-attest.py        # HSM attestation script
+│   ├── hsm-*.sh                # HSM unlock, attest, file integrity
+│   ├── autonomi-wiki-sync.*    # Wiki sync service + timer + script
+│   ├── test-mesh-roundtrip.sh  # Full mesh round-trip test
+│   └── wiki-export-pipeline.sh # MediaWiki → markdown → Autonomi
+├── docs/
+│   ├── ARCHITECTURE.md         # System layers and data flow
+│   ├── P4P_ARCHITECTURE.md     # Complete technical reference
+│   ├── POC_DEPLOYMENT_PLAN.md  # Step-by-step deployment
+│   ├── LIVE_NODE_STATUS.md     # Live node metrics
+│   ├── HARDWARE_SETUP.md       # Hardware platform guide
+│   ├── ZYMBIT_SETUP.md         # HSM provisioning guide
+│   ├── MIXNET_INTEGRATION.md   # Mixnet integration options
+│   ├── DEMO_SCRIPT.md          # 11-step demo
+│   └── WIKI_MESH_ARCHITECTURE.md
+├── walletshield-fix/           # Patched walletshield source
+├── patches/                    # Katzenpost source patches
+└── data/                       # Runtime data (gitignored)
 ```
 
 ---
 
-## Known Limitations & Roadmap
+## Roadmap & Limitations
 
-| Issue | Status | Resolution |
-|-------|--------|------------|
-| **Live testnet node** | ✅ Deployed | ant-node v0.14.2 running via `systemd --user` on zknode SCM4 since 2026-07-03. UDP :12000, Arbitrum Sepolia, ~100 DHT peers. See [Live Node Status](docs/LIVE_NODE_STATUS.md). |
-| **Host networking** | 🔶 Planned | Mixnet containers share host network. Bridge networking with BindAddresses in katzenpost.toml for production multi-instance isolation. |
-| **Dirauth startup race** | ✅ Mitigated | Entrypoints use `while true; do ...; sleep 2; done` retry loops. All 3 auths converge within 2 epochs after clean restart. |
-| **LMDB overcommit_memory** | ✅ Fixed | `privileged: true` on antd container with `echo 1 > /proc/sys/vm/overcommit_memory` at startup. |
-| **walletshield** | ✅ Fixed | Rebuilt with matching Sphinx geometry (PacketLength=3082). Running in compose at `:9200` connected to kpclientd on :64332. |
-| **Rust Winterfell STARKs** | ✅ Fixed | `storage-proved-rs` built and deployed (109MB). Cross-compiled for arm64, serves Merkle proof API on :9201. |
-| **Zymkey HSM signing** | 🔌 Planned | zymkey stores wallet key in slot 23/24. ant-node code changes needed for HSM-backed EVM transaction signing. |
-| **kpclientd epoch sync** | 🔶 Workaround | Ping binary achieves 100% mixnet success. kpclientd PKI doc retrieval uses `currentDocument()` fallback — needs auth restarted at epoch start for full consensus with node descriptors. |
-| **Bridge network isolation** | 📋 Future | Each mixnet node on unique bridge network with BindAddress for production multi-tenant deployments. |
-| **llm-wiki engine** | ✅ Added | Single Rust binary, git-backed markdown wiki with MCP/ACP protocols. Docker image, compose service on :18765. See [Wiki Mesh Architecture](docs/WIKI_MESH_ARCHITECTURE.md). |
-| **NomadNet page server** | ✅ Added | Mesh-accessible micron page server over Reticulum. Serves wiki index, about, archive pages. |
-| **MediaWiki export pipeline** | 🔶 Script | `scripts/wiki-export-pipeline.sh` converts MediaWiki XML dumps to markdown with YAML frontmatter. Requires pandoc + mwparserfromhell. |
-| **Autonomi wiki archiving** | 🔶 Script | Export pipeline uploads full wiki snapshots to Autonomi via `ant file upload`. Pointer `p2p-foundation-wiki-latest`. |
-| **Mesh wiki replication** | 📋 Future | Multi-node syncing of wiki pages across zknodes on the mesh. |
-
----
-
-## Documentation
-
-- [P4P Reference Architecture](docs/P4P_ARCHITECTURE.md) — Complete technical reference
-- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on zknode SCM4
-- [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md) — Full deployment walkthrough
-- [Architecture](docs/ARCHITECTURE.md) — System layers and data flow
-- [Hardware Setup](docs/HARDWARE_SETUP.md) — SCM4 hardware, storage, USB pool
-- [Zymbit/SCM4 Setup](docs/ZYMBIT_SETUP.md) — zymkey HSM, Bootware, LUKS
-- [Mixnet Integration](docs/MIXNET_INTEGRATION.md) — Integration design options
-- [Demo Script](docs/DEMO_SCRIPT.md) — 11-step demo walkthrough
-- [Wiki Mesh Architecture](docs/WIKI_MESH_ARCHITECTURE.md) — Decentralized wiki over Autonomi + Reticulum
+| Area | Status | Notes |
+|------|--------|-------|
+| Autonomi testnet node | 🟢 Live | ant-node v0.14.2, Arbitrum Sepolia, ~100 peers |
+| Mixnet PKI consensus | 🟢 Running | 3 dirauths, 20-min epoch, all nodes registered |
+| ZK proof API | 🟢 Active | Merkle proofs, bandwidth proofs, HSM attestation |
+| SOCKS5 proxy | 🟢 Working | ant-node ↔ mixnet via thin client lib |
+| Zymkey HSM | 🟢 Active | One-way key, periodic attestation timer |
+| llm-wiki engine | 🟢 Added | Rust, git-backed, MCP/ACP protocols |
+| NomadNet pages | 🟢 Added | Mesh-accessible micron page server |
+| kpclientd epoch sync | 🔶 Workaround | Needs auth restart at epoch for full consensus |
+| Zymkey HSM signing | 🔌 Planned | HSM-backed EVM transaction signing |
+| Bridge networking | 📋 Future | Per-node bridge for production isolation |
+| Mesh wiki replication | 📋 Future | Multi-node syncing across zknodes |
+| Rust Winterfell STARKs | 🛠 WIP | `storage-proved-rs` — production prover |
 
 ---
 
 ## License
 
-Source code: AGPL-3.0-only (matches Katzenpost/ZKNetwork licensing).  
+Source code: AGPL-3.0-only (matches Katzenpost / ZKNetwork licensing).  
 Documentation: CC-BY-SA-4.0.
 
-**WARNING**: This is a Proof of Concept. Not production-hardened. Keys are generated for testing only.
+**⚠ Proof of Concept — not production-hardened. Keys generated for testing only.**
