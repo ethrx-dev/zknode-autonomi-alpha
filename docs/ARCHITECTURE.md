@@ -3,35 +3,42 @@
 ## System Layers
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Application Layer                          │
-│  ┌──────────────┐  ┌──────────┐  ┌──────────┐               │
-│  │ zknode-      │  │ zkchat   │  │ walletshield            │
-│  │ dashboard    │  │ (CLI/API)│  │ ETH RPC proxy │          │
-│  └──────┬───────┘  └────┬─────┘  └─────┬──────┘            │
-│         │               │              │                     │
-├─────────┼───────────────┼──────────────┼─────────────────────┤
-│         ▼               ▼              ▼                     │
-│             Service Orchestration                            │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │          Docker Compose (14 services)                 │    │
-│  │  host network (mixnet) + bridge + overlay             │    │
-│  └──────────────────────────────────────────────────────┘    │
-├──────────────────────────────────────────────────────────────┤
-│                    Transport Layer                            │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │  Katzenpost mixnet (host network, 127.0.0.1)        │    │
-│  │  dirauth×3 + mix×3 + gateway + servicenode + client  │    │
-│  │  3-hop onion routing, post-quantum Sphinx packets    │    │
-│  │  CBOR plugins: chatd (messaging), http_proxy (RPC)  │    │
-│  └──────────────────────────────────────────────────────┘    │
-├──────────────────────────────────────────────────────────────┤
-│               Security & Hardware Layer                       │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ SCM4/CM4 │  │ ZSCM HSM │  │ USB 3.0  │  │ LUKS     │    │
-│  │ 8GB RAM  │  │ (I2C)    │  │ SSD      │  │ (zymkey) │    │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                       Application Layer                          │
+│  ┌──────────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │ zknode-      │  │ zkchat   │  │ walletshield  │ llm-wiki│   │
+│  │ dashboard    │  │ (CLI/API)│  │ ETH RPC prox  │ (local) │   │
+│  └──────┬───────┘  └────┬─────┘  └─────┬──────┘  └────┬─────┘   │
+│         │               │              │              │          │
+│         ▼               ▼              ▼              ▼          │
+│                    Mesh & Storage Layer                           │
+│  ┌────────────────┐ ┌────────────────┐ ┌──────────────────┐     │
+│  │  Reticulum     │ │  Nomadnet      │ │  Autonomi        │     │
+│  │  (transport)   │ │  (chat/wiki)   │ │  ant-node +   │     │
+│  │  LoRa/Packet   │ │  over RNS      │ │  storage-proved   │     │
+│  └───────┬────────┘ └───────┬────────┘ └────────┬─────────┘     │
+├──────────┼──────────────────┼───────────────────┼────────────────┤
+│          ▼                  ▼                   ▼                │
+│              Service Orchestration                                │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │          Docker Compose (16+ services)                     │   │
+│  │  host network (mixnet) + bridge + overlay + systemd timer │   │
+│  └───────────────────────────────────────────────────────────┘   │
+├──────────────────────────────────────────────────────────────────┤
+│                       Transport Layer                              │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  Katzenpost mixnet (host network, 127.0.0.1)             │   │
+│  │  dirauth×3 + mix×3 + gateway + servicenode + client      │   │
+│  │  3-hop onion routing, post-quantum Sphinx packets        │   │
+│  │  CBOR plugins: chatd, http_proxy, courier (MLKEM768)     │   │
+│  └───────────────────────────────────────────────────────────┘   │
+├──────────────────────────────────────────────────────────────────┤
+│               Security & Hardware Layer                            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │ SCM4/CM4 │  │ ZSCM HSM │  │ USB 3.0  │  │ LUKS     │        │
+│  │ 8GB RAM  │  │ (I2C)    │  │ SSD      │  │ (zymkey) │        │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Data Flow: Encrypted Chat
@@ -94,8 +101,13 @@ Host Network (network_mode: host)
 ├── mix-client (kpclientd):64332
 ├── walletshield:9200
 ├── zknode-dashboard:8080
-├── mixnet-proxy:1080,9090,30004
-└── storage-proved (bridge network)
+├── mixnet-proxy:1080,9090
+├── kpclientd (standalone):64332
+├── storage-proved (bridge network)
+├── storage-proved-rs (bridge network)
+├── llm-wiki (bridge network)
+├── nomadnet (bridge network)
+└── reticulum (bridge network)
 ```
 
 ## Key Properties
@@ -119,11 +131,15 @@ mix-dirauth-1 ──▶ mix-dirauth-2 ──▶ mix-dirauth-3
         ┌───────┴───────┐
         ▼               ▼
    mix-gateway    mix-servicenode
-        │           │        │
-        │      chatd     http_proxy
-        │               (walletshield)
+        │           │     │       │
+        │      chatd  http_proxy  courier
+        │               (walletshield)  (MLKEM768)
         ▼               ▼
-   mix-client ──── walletshield
+   mix-client ──── walletshield ──▶ mixnet-proxy
+        │                              │
+        ├── zkchat (CLI/API)           └── ant-node
         │
-        ├── zkchat (CLI/API)
-        └── zknode-dashboard
+        └── zknode-dashboard ──▶ llm-wiki ──▶ nomadnet ──▶ reticulum
+                                     │
+                          autonomi-wiki-sync.timer
+```

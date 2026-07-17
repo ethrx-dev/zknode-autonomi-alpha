@@ -16,17 +16,20 @@ A self-contained anonymous Autonomi storage node that routes all P2P traffic thr
 MetaMask ──JSON-RPC──▶ walletshield ──mixnet──▶ upstream ETH RPC
                           │                   
 web UI ──▶ zknode-dashboard ──▶ zkchat ──mixnet──▶ group chat / DMs
-              │
-              ├──▶ docker API ──▶ mixnet containers
+              │                      │
+              │                      └──▶ llm-wiki (local LLM)
+              │                                 │
+              ├──▶ docker API ──▶ mixnet containers    └──▶ nomadnet ──▶ reticulum
               ├──▶ zymkey-api ──▶ ZSCM HSM
-              └──▶ ant node daemon
+              └──▶ ant node ──SOCKS5──▶ mixnet-proxy ──mixnet──▶ Autonomi P2P
 ```
 
 - **Layer 1**: Hardware (SCM4, ZSCM HSM, USB SSD)
 - **Layer 2**: Mixnet (Katzenpost: 3 dirauths + 3 mixes + gateway + servicenode)
-- **Layer 3**: Privacy-preserving apps (walletshield RPC proxy, zkchat messaging)
-- **Layer 4**: Storage (Autonomi ant-node with LMDB chunk store)
-- **Layer 5**: Dashboard (web UI for monitoring, chat, wallet, wiki)
+- **Layer 3**: Privacy-preserving apps (walletshield RPC proxy, zkchat messaging, courier MLKEM768)
+- **Layer 4**: Mesh networking (Reticulum transport, Nomadnet chat/wiki, llm-wiki proxy)
+- **Layer 5**: Storage (Autonomi ant-node with LMDB chunk store, storage-proved-rs proving)
+- **Layer 6**: Dashboard (web UI for monitoring, chat, wallet, wiki, health)
 
 ---
 
@@ -37,14 +40,20 @@ web UI ──▶ zknode-dashboard ──▶ zkchat ──mixnet──▶ group c
 | mix-dirauth-1/2/3 | Directory authorities (PKI consensus) | — |
 | mix-1/2/3 | Mix nodes (3-hop onion routing) | — |
 | mix-gateway | Client gateway | 64332 |
-| mix-servicenode | Mixnet exit node (chatd, http-proxy Kaetzchen) | — |
+| mix-servicenode | Mixnet exit node (chatd, http-proxy, courier Kaetzchen) | — |
 | mix-client | Thin client daemon (kpclientd) | 64332 |
 | walletshield | Ethereum JSON-RPC over mixnet | 9200 |
 | zkchat | CLI encrypted messaging (group + DM) | — |
-| zknode-dashboard | Web UI (monitoring, chat, wiki, ant) | 8080 |
-| mixnet-proxy | SOCKS5 bridge (ant-node ↔ mixnet) | 1080/30004 |
-| storage-proved | Autonomi storage proving node | — |
+| zknode-dashboard | Web UI (monitoring, chat, wiki, ant, health) | 8080 |
+| mixnet-proxy | SOCKS5 bridge (ant-node ↔ mixnet) | 1080/9090 |
+| storage-proved | Autonomi storage proving node (Go) | — |
+| storage-proved-rs | Autonomi storage proving node (Rust) | — |
+| llm-wiki | Local LLM for wiki search (Ollama) | — |
+| nomadnet | Mesh chat/wiki over Reticulum | — |
+| reticulum | LoRa/packet radio transport daemon | — |
+| kpclientd | Thin client daemon (standalone) | 64332 |
 | zymkey-api | ZSCM HSM HTTP API | 8765 |
+| courier | PKI-advertized post-quantum key exchange (MLKEM768) | — |
 
 ---
 
@@ -92,11 +101,18 @@ ssh -L 9200:127.0.0.1:9200 -N -f user@host
 
 ```
 zknode-autonomi/
-├── docker-compose.yml             # Full 14-service stack
+├── docker-compose.yml             # Full 16-service stack
 ├── docker-compose.zymkey.yml      # ZSCM HSM override
 ├── Dockerfile.mixnet              # Katzenpost mixnet node
 ├── Dockerfile.walletshield        # Ethereum RPC proxy
 ├── Dockerfile.mixnet-proxy        # SOCKS5 bridge
+├── Dockerfile.kpclientd           # Standalone thin client
+├── Dockerfile.llm-wiki            # Local LLM / wiki proxy
+├── Dockerfile.nomadnet            # Nomadnet mesh chat/wiki
+├── Dockerfile.reticulum           # Reticulum transport
+├── Dockerfile.storage-proved      # Storage proving (Go)
+├── Dockerfile.storage-proved-rs   # Storage proving (Rust)
+├── Dockerfile.wiki-export         # Wiki export pipeline
 ├── Dockerfile.antd                # Ant node daemon
 ├── Dockerfile.replica             # Replica node
 ├── config/
@@ -104,24 +120,54 @@ zknode-autonomi/
 │   │   ├── auth1-3/               # Directory authorities
 │   │   ├── mix1-3/                # Mix nodes
 │   │   ├── gateway1/              # Client gateway
-│   │   ├── servicenode1/          # Exit node (chatd, http-proxy)
+│   │   ├── servicenode1/          # Exit node (chatd, http-proxy, courier)
 │   │   ├── client/                # Thin client config
 │   │   └── servicenode-entrypoint.sh
 │   ├── walletshield/             # Thin client config
 │   ├── proxy/                     # SOCKS5 proxy config
 │   ├── autonomi/                  # Ant node configs
-│   └── reticulum/                 # Reticulum config
+│   ├── ant-node/                  # Ant node systemd service
+│   ├── nomadnet/                  # Nomadnet config + pages
+│   ├── llm-wiki/                  # LLM wiki service config
+│   └── reticulum/                 # Reticulum transport config
+├── cmd/
+│   ├── zkclientd/                 # Custom client daemon
+│   ├── storage-proved/            # Storage proving (Go)
+│   └── storage-proved-rs/         # Storage proving (Rust)
+├── walletshield-fix/              # Walletshield hotfix
+├── patches/                       # Katzenpost patches
+│   └── fix-decoy-sender-nil-pointer.patch
 ├── zknode-dashboard/              # Web UI
 │   ├── server/index.js            # Express backend
 │   ├── public/index.html          # Frontend
 │   └── Dockerfile
 ├── scripts/
+│   ├── backup/                    # Backup automation (systemd timers)
+│   │   ├── zknode-backup.sh
+│   │   ├── zknode-backup.service
+│   │   ├── zknode-backup.timer
+│   │   ├── zknode-backup-weekly.timer
+│   │   └── health-check.sh
+│   ├── recovery/
+│   │   └── zmnt-restore.sh        # Full recovery from USB backup
+│   ├── hsm-attest.service/timer   # HSM attestation timer
+│   ├── hsm-attest.sh              # HSM attestation script
+│   ├── hsm-file-integrity.sh      # File integrity via HSM
+│   ├── hsm-unlock.sh              # HSM unlock
+│   ├── autonomi-wiki-sync.service/timer
+│   ├── autonomi-wiki-sync.sh      # Wiki sync via Autonomi
+│   ├── convert-wiki.py            # Wiki format converter
+│   ├── wiki-export-pipeline.sh    # Wiki export pipeline
+│   ├── test-mesh-roundtrip.sh     # Mesh roundtrip test
+│   ├── walletshield-cli.sh        # Wallet CLI helper
 │   ├── deploy.sh                  # Deploy/start/stop
 │   ├── setup.sh                   # Init project structure
 │   ├── gen-mixnet-configs.sh      # Mixnet config generator
 │   ├── monitor.sh                 # Stack monitoring
 │   ├── setup-zymbit.sh            # Zymkey/HSM setup
 │   └── zymkey-attest.py           # HSM attestation
+├── start-zkTUI.sh                 # zkTUI launcher
+├── .github/workflows/build.yml    # CI/CD multi-arch builds
 ├── docs/                          # Documentation
 └── README.md
 ```
@@ -140,6 +186,17 @@ zknode-autonomi/
 | `./scripts/gen-mixnet-configs.sh` | Generate mixnet node configs |
 | `./scripts/setup-zymbit.sh --check` | HSM health check |
 | `./scripts/setup-zymbit.sh --full` | Full Zymbit security setup |
+| `./scripts/backup/zknode-backup.sh` | Manual backup run |
+| `./scripts/backup/health-check.sh` | JSON health status |
+| `./scripts/recovery/zmnt-restore.sh` | Full recovery from USB |
+| `./scripts/hsm-attest.sh` | HSM attestation (timer) |
+| `./scripts/hsm-unlock.sh` | HSM unlock |
+| `./scripts/hsm-file-integrity.sh` | File integrity check |
+| `./scripts/walletshield-cli.sh` | Wallet CLI (balance, send) |
+| `./scripts/wiki-export-pipeline.sh` | Wiki export pipeline |
+| `./scripts/autonomi-wiki-sync.sh` | Sync wiki via Autonomi |
+| `./scripts/test-mesh-roundtrip.sh` | Mesh connectivity test |
+| `./start-zkTUI.sh` | Terminal UI launcher |
 
 ---
 
@@ -154,6 +211,7 @@ zknode-autonomi/
 | `POST /api/chat/groups/create` | Create group |
 | `POST /api/chat/send` | Send direct message |
 | `GET /api/chat/poll` | Poll direct messages |
+| `GET /api/health` | Full service health (consensus, containers, disk, backup age) |
 | `GET /api/ant/wallet` | Ant node wallet address |
 | `GET /api/ant/balance` | ANT/ETH balance |
 | `GET /api/zymkey/eth-address` | ZSCM-derived ETH address |
@@ -180,6 +238,14 @@ zknode-autonomi/
 - [Zymbit/SCM4 Setup](docs/ZYMBIT_SETUP.md) — zymkey HSM, Bootware, LUKS, tamper, wallet
 - [Mixnet Integration](docs/MIXNET_INTEGRATION.md) — Integration design options
 - [Demo Script](docs/DEMO_SCRIPT.md) — Step-by-step demo walkthrough
+- [Roadmap](docs/ROADMAP.md) — Gap features, priorities, timeline
+- [Recovery](docs/RECOVERY.md) — SD card failure restore procedure
+- [Mesh Chat Bridge](docs/ARCHITECTURE-MESH-CHAT-BRIDGE.md) — Reticulum ↔ mixnet bridge design
+- [mixnet-proxy Debug](docs/DEBUG-MIXNET-PROXY.md) — Gateway connection troubleshooting
+- [P4P Architecture](docs/P4P_ARCHITECTURE.md) — Permissionless peer-to-peer mesh architecture
+- [Wiki Mesh](docs/WIKI_MESH_ARCHITECTURE.md) — Distributed wiki over mesh/Autonomi
+- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Current production node state
+- [P2P Foundation Proposal](docs/P2P_FOUNDATION_PROPOSAL.md) — Grant proposal draft
 
 ---
 
