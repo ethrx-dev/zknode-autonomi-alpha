@@ -1,0 +1,32 @@
+From 9122095e4c63f3df1c4f8c7d898c75f02a231b59 Mon Sep 17 00:00:00 2001
+From: dev-team <dev-team@example.com>
+Date: Sat Jul 4 05:49:47 2026 +0000
+Subject: Fix nil pointer dereference in decoy traffic sender
+
+diff --git a/client/listener.go b/client/listener.go
+index 270b766e..e6cdf348 100644
+--- a/client/listener.go
++++ b/client/listener.go
+@@ -534,6 +534,9 @@ func NewListener(client *Client, rates *Rates, egressCh chan *Request, logBacken
+ 	}
+ 
+ 	l.decoySender = newSender(l.PickNextRequest, egressCh, client.cfg.Debug.DisableDecoyTraffic, logBackend)
++	if rates != nil {
++		l.decoySender.UpdateRates(rates)
++	}
+ 
+ 	l.listener, err = client.cfg.Listen.Listen()
+ 	if err != nil {
+diff --git a/client/sender.go b/client/sender.go
+index e1406efa..620ba2a1 100644
+--- a/client/sender.go
++++ b/client/sender.go
+@@ -85,7 +85,7 @@ func (s *sender) UpdateConnectionStatus(isConnected bool) {
+ }
+ 
+ func (s *sender) UpdateRates(rates *Rates) {
+-	if rates.messageOrLoop <= 0 {
++	if rates == nil || rates.messageOrLoop <= 0 {
+ 		s.log.Warning("Invalid messageOrDrop rate, using default")
+ 		return
+ 	}

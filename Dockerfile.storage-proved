@@ -1,0 +1,24 @@
+ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
+
+FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+
+WORKDIR /src
+COPY cmd/storage-proved/ .
+RUN go mod init storage-proved && \
+    go mod tidy -e && \
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-buildid=" -o /dest/storage-proved .
+
+FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/storage-proved /usr/local/bin/
+
+EXPOSE 9201
+
+ENTRYPOINT ["storage-proved"]
+CMD ["--listen", "0.0.0.0:9201"]

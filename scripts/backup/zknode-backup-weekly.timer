@@ -1,0 +1,10 @@
+[Unit]
+Description=zknode weekly backup timer
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=7200
+
+[Install]
+WantedBy=timers.target

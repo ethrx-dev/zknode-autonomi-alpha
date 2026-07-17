@@ -1,0 +1,26 @@
+ARG TARGETARCH=arm64
+
+FROM --platform=linux/${TARGETARCH} python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    rns==0.8.7 \
+    lxmf==0.5.2 \
+    nomadnet==0.4.1
+
+RUN mkdir -p /etc/nomadnet /var/lib/nomadnet /var/log/nomadnet \
+    /var/lib/nomadnet/pages
+
+EXPOSE 37428/udp 4242/tcp
+
+VOLUME ["/var/lib/nomadnet"]
+
+COPY config/nomadnet/pages/ /var/lib/nomadnet/pages/
+
+ENTRYPOINT ["nomadnet"]
+CMD ["--daemon", "--config", "/etc/nomadnet/config"]
