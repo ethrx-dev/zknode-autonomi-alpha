@@ -1,0 +1,5 @@
+# antd (Autonomi Node Daemon) configuration
+[server]
+listen = ":8080"
+grpc_listen = ":50051"
+ant_node_endpoint = "ant-node:12000"

@@ -1,0 +1,3 @@
+[Networks]
+"ethereum" = "https://ethereum-rpc.publicnode.com"
+"ethereum/sepolia" = "https://ethereum-sepolia-rpc.publicnode.com"

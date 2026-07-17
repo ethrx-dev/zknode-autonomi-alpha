@@ -1,0 +1,97 @@
+services:
+  auth1:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/dirauth -f /var/lib/katzenpost/auth1/authority.toml
+    network_mode: host
+    cpus: 1.5
+  auth2:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/dirauth -f /var/lib/katzenpost/auth2/authority.toml
+    network_mode: host
+    cpus: 1.5
+  auth3:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/dirauth -f /var/lib/katzenpost/auth3/authority.toml
+    network_mode: host
+    cpus: 1.5
+  mix1:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/server -f /var/lib/katzenpost/mix1/katzenpost.toml
+    network_mode: host
+    cpus: 1
+  mix2:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/server -f /var/lib/katzenpost/mix2/katzenpost.toml
+    network_mode: host
+    cpus: 1
+  mix3:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/server -f /var/lib/katzenpost/mix3/katzenpost.toml
+    network_mode: host
+    cpus: 1
+  gateway1:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/server -f /var/lib/katzenpost/gateway1/katzenpost.toml
+    network_mode: host
+    cpus: 1
+  servicenode1:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/server -f /var/lib/katzenpost/servicenode1/katzenpost.toml
+    network_mode: host
+    cpus: 1
+  courier:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/courier -c /var/lib/katzenpost/servicenode1/courier/courier.toml
+    network_mode: host
+    cpus: 0.5
+  kpclientd:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/kpclientd -c /var/lib/katzenpost/client/client.toml
+    network_mode: host
+    cpus: 0.5
+  replica1:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/replica -f /var/lib/katzenpost/replica1/replica.toml
+    network_mode: host
+    cpus: 1
+  replica2:
+    restart: unless-stopped
+    image: zk-server-node:fixed2
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /usr/local/bin/replica -f /var/lib/katzenpost/replica2/replica.toml
+    network_mode: host
+    cpus: 1

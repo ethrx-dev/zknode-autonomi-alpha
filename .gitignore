@@ -1,0 +1,38 @@
+# Runtime data
+data/
+.env
+
+# Logs
+*.log
+*.socket
+management_sock
+
+# Replica/DB artifacts
+replica.db/
+LOG.old.*
+
+# Docker
+node_modules/
+*.tar
+*.tar.gz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.bak
+*.bak2
+*.bak3
+*.corrupted
+*.corrupt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dashboard
+zknode-dashboard/server/chat-history.json
+zknode-dashboard/public/chat-history.json

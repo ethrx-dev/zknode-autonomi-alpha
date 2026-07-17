@@ -1,0 +1,58 @@
+ARG TARGETARCH=arm64
+
+FROM --platform=linux/${TARGETARCH} golang:latest AS builder
+
+ARG KATZENPOST_VERSION=v0.0.84
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    libsnappy-dev \
+    liblz4-dev \
+    libzstd-dev \
+    zlib1g-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN cd /tmp \
+    && git clone --branch v10.2.1 --depth 1 https://github.com/facebook/rocksdb.git \
+    && cd rocksdb \
+    && PORTABLE=1 make -j"$(nproc)" shared_lib \
+       EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2" \
+    && cp -a librocksdb.so* /usr/local/lib/ \
+    && cp -a include/* /usr/local/include/ \
+    && cd /tmp && rm -rf rocksdb
+
+RUN git clone --branch ${KATZENPOST_VERSION} --depth 1 \
+    https://github.com/katzenpost/katzenpost.git /src/katzenpost
+
+# Fix log.go type alias
+RUN echo "type Logger = logging.Logger" >> /src/katzenpost/core/log/log.go
+
+# Fix single-authority voting: allow 1 commit + 1 reveal (certificate mode)
+RUN sed -i "s|if len(d.SharedRandomReveal) != 0 {|if len(d.SharedRandomReveal) != 0 \&\& len(d.SharedRandomReveal) != 1 {|" /src/katzenpost/core/pki/document.go
+
+RUN mkdir /dest && \
+    cd /src/katzenpost && \
+    export GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
+           CGO_CFLAGS="-I/usr/local/include -I/usr/include" \
+           CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/aarch64-linux-gnu -lrocksdb -lsnappy -llz4 -lzstd -lz" && \
+    for cmd in dirauth server courier kpclientd ping fetch echo-plugin genconfig; do \
+        cd /src/katzenpost/cmd/$cmd && \
+        go build -trimpath -ldflags="-buildid=" -o /dest/$cmd . && \
+        echo "  built $cmd"; \
+    done
+
+FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libsnappy1v5 \
+    liblz4-1 \
+    libzstd1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/librocksdb.so* /usr/local/lib/
+COPY --from=builder /dest/* /usr/local/bin/
+
+RUN ldconfig

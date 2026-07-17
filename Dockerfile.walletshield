@@ -1,0 +1,39 @@
+FROM --platform=linux/arm64 golang:latest AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 https://github.com/ZeroKnowledgeNetwork/opt.git /src/opt
+
+RUN find /src/opt -name "*.go" -exec sed -i 's|github.com/katzenpost/katzenpost/client2/|github.com/katzenpost/katzenpost/client/|g' {} + && \
+    find /src/opt -name "*.go" -exec sed -i 's|"github.com/katzenpost/katzenpost/client2"|client2 "github.com/katzenpost/katzenpost/client"|g' {} + && \
+    find /src/opt -name "*.go" -exec sed -i 's|\.ListenAddress|.Listen.Tcp.Address|g' {} + && \
+    find /src/opt -name "*.go" -exec sed -i 's|cfgThin\.Address|cfgThin.Dial.Tcp.Address|g' {} +
+
+RUN cd /src/opt && \
+    go mod edit -go 1.26.2 && \
+    go mod edit -droprequire github.com/katzenpost/circl && \
+    go get github.com/katzenpost/katzenpost@v0.0.73-rc3 && \
+    go mod tidy
+
+RUN cd /src/opt && \
+    go mod edit -require github.com/katzenpost/circl@v1.3.8-0.20260413165442-e2d217fd59f5
+
+RUN cd /src/opt/apps/walletshield && \
+    CGO_ENABLED=1 \
+    go build -trimpath -ldflags="-buildid=" -o /dest/walletshield .
+
+FROM --platform=linux/arm64 arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/walletshield /usr/local/bin/
+
+EXPOSE 9200
+
+ENTRYPOINT ["walletshield"]
+CMD ["-h"]

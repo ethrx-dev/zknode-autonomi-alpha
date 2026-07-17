@@ -1,0 +1,62 @@
+# docker-compose.zymkey.yml
+# Override file for zymkey HSM integration on SCM4
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.zymkey.yml up -d
+#
+# This adds:
+#   - zkifc: zymkey interface daemon with /dev/zymkey device access
+#   - ant-node: zymkey device access + locked LUKS keys for USB pool
+#   - mixnet-proxy: zymkey access for SURB cache signing
+#   - walletshield: zymkey access for wallet operations
+
+services:
+  # ─── zymkey Interface Daemon ───────────────────────────────
+  zkifc:
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    container_name: zkifc
+    devices:
+      - /dev/zymkey:/dev/zymkey
+      - /dev/i2c-1:/dev/i2c-1
+    volumes:
+      - /etc/zymbit:/etc/zymbit:ro
+      - /var/lib/zymbit:/var/lib/zymbit
+      - ./data/zymbit:/data/zymbit
+    network_mode: host
+    restart: unless-stopped
+    command:
+      - "sh"
+      - "-c"
+      - |
+        echo "zkifc: zymkey interface daemon"
+        echo "Device: $(ls /dev/zymkey 2>/dev/null || echo 'NOT FOUND')"
+        echo "Firmware: $(python3 -c "import zymkey; print(zymkey.client.get_firmware_version())" 2>/dev/null || echo 'API not available')"
+        while true; do sleep 3600; done
+    mem_limit: 64m
+    profiles:
+      - zymkey
+
+  # ─── Autonomi Storage Node (with zymkey) ───────────────────
+  ant-node:
+    devices:
+      - /dev/zymkey:/dev/zymkey
+    volumes:
+      - /etc/zymbit:/etc/zymbit:ro
+      - /var/lib/zymbit:/var/lib/zymbit
+      - ./data/zymbit:/var/lib/zymbit/data
+    environment:
+      - ZYMBIT_ENABLED=true
+      - ZYMBIT_TRINITY_KEY=/etc/zymbit/trinity_key.bin
+      - ZYMBIT_WALLET_NAME=zknode-wallet
+      - ANT_REWARDS_ADDRESS=0x0000000000000000000000000000000000000000
+
+  # ─── Mixnet Proxy (with zymkey for SURB signing) ─────────
+  mixnet-proxy:
+    devices:
+      - /dev/zymkey:/dev/zymkey
+    volumes:
+      - /etc/zymbit:/etc/zymbit:ro
+      - /var/lib/zymbit:/var/lib/zymbit
+      - ./data/zymbit:/var/lib/zymbit/data
+    environment:
+      - ZYMBIT_ENABLED=true

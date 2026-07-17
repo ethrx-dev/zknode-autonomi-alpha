@@ -1,0 +1,4 @@
+[Dial]
+  [Dial.Tcp]
+    Address = "localhost:64332"
+    Network = "tcp"

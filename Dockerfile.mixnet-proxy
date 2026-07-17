@@ -1,0 +1,39 @@
+ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
+
+FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+
+ARG KATZENPOST_VERSION=v0.0.73-rc3
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone Katzenpost for the client library
+RUN git clone --branch ${KATZENPOST_VERSION} --depth 1 \
+    https://github.com/katzenpost/katzenpost.git /src/katzenpost
+
+# Build the mixnet-proxy (Go cross-compile to arm64, pure Go - no CGO)
+WORKDIR /src/proxy
+COPY cmd/mixnet-proxy/ .
+RUN go mod init mixnet-proxy && \
+    go mod edit -replace github.com/katzenpost/katzenpost=/src/katzenpost && \
+    cat /src/katzenpost/go.sum >> go.sum 2>/dev/null || true && \
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-buildid=" -o /dest/mixnet-proxy .
+
+FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/mixnet-proxy /usr/local/bin/
+
+RUN mkdir -p /var/lib/mixnet-proxy
+
+EXPOSE 1080 9090
+
+ENTRYPOINT ["mixnet-proxy"]
+CMD ["--help"]
