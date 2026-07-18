@@ -1,38 +1,55 @@
-# Runtime data
+# Build artifacts
+katzenpost/
+cmd/mixnet-proxy/katzenpost/
+cmd/mixnet-proxy/target/
+cmd/storage-proved-rs/target/
+**/target/
+
+# Docker build cache
+.docker/
+
+# Data directories
 data/
+config/mixnet/auth1/*.db
+config/mixnet/auth2/*.db
+config/mixnet/auth3/*.db
+config/mixnet/auth1/*.log
+config/mixnet/auth2/*.log
+config/mixnet/auth3/*.log
+config/mixnet/*/katzenpost.log
+config/mixnet/*/*.db
+config/mixnet/*/*.sst
+
+# Environment files (contain secrets)
 .env
+.env.local
 
-# Logs
-*.log
-*.socket
-management_sock
+# Private keys and secrets (all formats)
+config/mixnet/**/*.private.pem
+config/mixnet/**/*.pem
+**/*.private.pem
+config/keys/
 
-# Replica/DB artifacts
-replica.db/
-LOG.old.*
-
-# Docker
-node_modules/
-*.tar
-*.tar.gz
-
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
-# Backup files
-*.bak
-*.bak2
-*.bak3
-*.corrupted
-*.corrupt
-
-# IDE
-.idea/
+# Editor files
 .vscode/
+.idea/
 *.swp
 *.swo
+zknode-autonomi-images.tar.gz
 
-# Dashboard
-zknode-dashboard/server/chat-history.json
-zknode-dashboard/public/chat-history.json
+# Reticulum runtime data
+config/reticulum/storage/
+
+# ZKNode dashboard (local monitoring)
+zknode-dashboard/
+
+# Backup files
+*.bak
+walletshield-fix/*.bak
+
+# Compiled binaries
+walletshield-fix/walletshield-arm64

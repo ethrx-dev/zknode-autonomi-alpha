@@ -342,9 +342,6 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         <button class="sidebar-btn" data-tab="services" onclick="switchTab('services')">
           <span class="icon">⬢</span><span style="flex:1">SERVICES</span>
         </button>
-        <button class="sidebar-btn" data-tab="autonomi" onclick="switchTab('autonomi')">
-          <span class="icon">⧉</span><span style="flex:1">AUTONOMI</span>
-        </button>
         <button class="sidebar-btn" data-tab="wallet" onclick="switchTab('wallet')">
           <span class="icon">⬡</span><span style="flex:1">WALLETSHIELD</span>
         </button>
@@ -464,49 +461,6 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           <div class="table-wrap" id="containerTable"><div class="p-4 text-xs text-gray-500">Loading...</div></div>
         </div>
 
-        <!-- Autonomi Tab -->
-        <div id="tab-autonomi" class="hidden">
-          <div class="mb-6">
-            <div class="flex items-center gap-2 mb-2">
-              <span style="color:var(--neon-green);font-size:0.7rem;letter-spacing:0.1em;">ROOT@ZKNODE // AUTONOMI</span>
-            </div>
-            <h2 class="text-2xl font-bold glowing" style="font-family:'Orbitron',sans-serif;">AUTONOMI NODE</h2>
-            <p class="text-gray-500 mt-2" style="font-size:0.75rem;">// DECENTRALIZED STORAGE NETWORK</p>
-          </div>
-
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="antStats">
-            <div class="stat-card"><span class="stat-label">NODE</span><div class="stat-value" id="antNodeStatus" style="font-size:1.2rem">-</div></div>
-            <div class="stat-card cyan"><span class="stat-label">DAEMON</span><div class="stat-value" id="antDaemonStatus" style="color:var(--neon-cyan);font-size:1rem">-</div></div>
-            <div class="stat-card"><span class="stat-label">CHUNKS</span><div class="stat-value" id="antChunks" style="font-size:1.2rem">-</div></div>
-            <div class="stat-card"><span class="stat-label">WALLET</span><div class="stat-value" id="antWallet" style="font-size:0.7rem">-</div></div>
-            <div class="stat-card"><span class="stat-label">BALANCE</span><div class="stat-value" id="antBalance" style="font-size:1rem">0 ETH</div></div>
-          </div>
-
-          <div class="flex gap-2 mb-4">
-            <button class="btn-primary" onclick="antNodeStart()"><span class="mr-2">></span>START NODE</button>
-            <button class="btn-danger" onclick="antNodeStop()"><span class="mr-2">></span>STOP NODE</button>
-            <button class="btn-secondary" onclick="antDaemonStart()"><span class="mr-2">></span>START DAEMON</button>
-            <button class="btn-danger" onclick="antDaemonStop()"><span class="mr-2">></span>STOP DAEMON</button>
-            <button class="btn-secondary btn-purple" onclick="antRefreshLogs()"><span class="mr-2">></span>REFRESH LOGS</button>
-          </div>
-
-          <div class="grid md:grid-cols-2 gap-4">
-            <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>NODE INFO</span></div>
-              <div class="terminal-body" id="antNodeInfo"><div class="text-xs text-gray-500">Loading...</div></div>
-            </div>
-            <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>STORAGE</span></div>
-              <div class="terminal-body" id="antStorageInfo"><div class="text-xs text-gray-500">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="terminal-card mt-4">
-            <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>NODE LOGS</span></div>
-            <div class="terminal-body" id="antLogViewer" style="max-height:300px;overflow-y:auto;font-family:monospace;font-size:0.65rem;line-height:1.4;"><div class="text-xs text-gray-500">Loading...</div></div>
-          </div>
-        </div>
-
         <!-- Walletshield Tab -->
         <div id="tab-wallet" class="hidden">
           <div class="mb-6">
@@ -575,16 +529,12 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             <p class="text-gray-500 mt-1" style="font-size:0.75rem;">// ENCRYPTED MIXNET GROUP MESSAGING</p>
           </div>
           <div class="flex gap-3" style="height:calc(100vh - 320px);min-height:400px;">
-            <div class="terminal-card" style="flex:0 0 320px;display:flex;flex-direction:column;">
+            <div class="terminal-card" style="flex:0 0 260px;display:flex;flex-direction:column;">
               <div class="terminal-header" style="flex-shrink:0;"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>GROUPS</span></div>
               <div style="padding:6px 8px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-shrink:0;">
                 <button class="zk-btn" onclick="chatCreateGroup()" title="Create Group">+</button>
                 <button class="zk-btn" onclick="chatRefreshGroups()" title="Refresh Groups">&#x21bb;</button>
-                <div style="display:flex;align-items:center;gap:4px;margin-left:auto;">
-                  <span style="font-size:0.55rem;color:var(--text-muted);">YOU:</span>
-                  <span id="chatIdentity" style="font-size:0.6rem;color:var(--neon-green);cursor:pointer;font-family:monospace;" onclick="chatCopyIdentity()" title="Click to copy identity"></span>
-                  <span id="chatIdentityCopyBadge" style="display:none;font-size:0.5rem;color:var(--neon-green);">✓</span>
-                </div>
+                <span id="chatIdentity" style="font-size:0.6rem;color:var(--neon-green);margin-left:auto;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="chatCopyIdentity()" title="Click to copy identity"></span>
               </div>
               <div id="chatGroupList" class="terminal-body" style="flex:1;overflow-y:auto;padding:4px;font-size:0.7rem;">
                 <div class="text-gray-500">Loading groups...</div>
@@ -622,32 +572,43 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             <div class="stat-card yellow"><span class="stat-label">INDEX</span><div class="stat-value" id="wikiIndexVal" style="color:var(--neon-yellow);font-size:0.9rem">-</div></div>
           </div>
 
-          <div class="grid md:grid-cols-3 gap-4" style="min-height:500px;">
+          <div class="grid md:grid-cols-1 gap-4" style="min-height:500px;">
             <!-- Search Panel -->
-            <div class="md:col-span-1 terminal-card">
+            <div class="terminal-card">
               <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>SEARCH</span></div>
               <div class="terminal-body">
                 <div class="flex gap-2 mb-3">
                   <input type="text" class="input" id="wikiSearchInput" placeholder="Search 497 pages..." oninput="debouncedSearch()" style="font-size:0.8rem;padding:8px 12px;">
                   <button class="btn-primary" onclick="doWikiSearch()" style="padding:8px 12px;font-size:0.7rem;white-space:nowrap;">GO</button>
                 </div>
-                <div id="wikiSearchResults" style="max-height:calc(100vh - 380px);overflow-y:auto;">
+                <div id="wikiSearchResults" style="max-height:calc(100vh - 480px);overflow-y:auto;">
                   <div class="text-xs text-gray-500">Type a query to search...</div>
                 </div>
               </div>
             </div>
 
             <!-- Content Panel -->
-            <div class="md:col-span-2 terminal-card">
+            <div class="terminal-card" style="flex:1;">
               <div class="terminal-header">
                 <div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div>
                 <span id="wikiViewTitle">WELCOME</span>
                 <span class="ml-auto flex gap-2">
                   <button class="btn-secondary" onclick="wikiShowList()" style="padding:4px 8px;font-size:0.6rem;">BROWSE</button>
                   <button class="btn-secondary" onclick="wikiShowStats()" style="padding:4px 8px;font-size:0.6rem;">STATS</button>
+                  <button class="btn-secondary" onclick="wikiNewPage()" style="padding:4px 8px;font-size:0.6rem;color:var(--neon-green);">+NEW</button>
+                  <button class="btn-secondary" onclick="wikiEditPage()" id="wikiEditBtn" style="padding:4px 8px;font-size:0.6rem;display:none;">EDIT</button>
                 </span>
               </div>
-              <div class="terminal-body" id="wikiViewContent" style="max-height:calc(100vh - 380px);overflow-y:auto;">
+              <div class="terminal-body" id="wikiViewContent" style="max-height:calc(100vh - 480px);overflow-y:auto;">
+              <div id="wikiEditor" style="display:none;">
+                <input type="text" id="wikiEditSlug" placeholder="Page slug (e.g. my-new-page)" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:4px;font-size:0.75rem;margin-bottom:6px;outline:none;"/>
+                <textarea id="wikiEditContent" placeholder="Write markdown content here..." style="width:100%;height:300px;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px;border-radius:4px;font-size:0.75rem;font-family:monospace;resize:vertical;outline:none;"></textarea>
+                <div style="display:flex;gap:6px;margin-top:6px;">
+                  <button class="btn-primary" onclick="wikiSavePage()" style="padding:6px 16px;font-size:0.7rem;">SAVE</button>
+                  <button class="btn-secondary" onclick="wikiCancelEdit()" style="padding:6px 16px;font-size:0.7rem;">CANCEL</button>
+                  <span id="wikiEditStatus" style="font-size:0.7rem;color:var(--neon-green);margin-left:auto;align-self:center;"></span>
+                </div>
+              </div>
                 <div class="text-xs text-gray-500">Search or browse the wiki to view pages.</div>
               </div>
             </div>
@@ -661,16 +622,40 @@ tr:hover td { background:rgba(0,255,136,0.02); }
               <span style="color:var(--neon-green);font-size:0.7rem;letter-spacing:0.1em;">ROOT@ZKNODE // MESH</span>
             </div>
             <h2 class="text-2xl font-bold glowing" style="font-family:'Orbitron',sans-serif;">RETICULUM / NOMADNET</h2>
-            <p class="text-gray-500 mt-2" style="font-size:0.75rem;">// LORA MESH NETWORK</p>
+            <p class="text-gray-500 mt-2" style="font-size:0.75rem;">// RNS TRANSPORT + WIFI MESH + P4P WIKI</p>
           </div>
-          <div class="grid md:grid-cols-2 gap-4">
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>RNS TRANSPORT</span></div>
+              <div class="terminal-body" id="meshRnsTransport"><div class="text-xs text-gray-500">Loading...</div></div>
+            </div>
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>WIFI MESH</span></div>
+              <div class="terminal-body" id="meshWifiStatus"><div class="text-xs text-gray-500">Loading...</div></div>
+            </div>
+            <div class="terminal-card" style="grid-row: span 2;">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>INTERFACES</span></div>
+              <div class="terminal-body" id="meshInterfaces" style="max-height:260px;overflow-y:auto;"><div class="text-xs text-gray-500">Loading...</div></div>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-3 gap-4 mt-4">
             <div class="terminal-card">
               <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>RETICULUM</span></div>
-              <div class="terminal-body" id="reticulumStatus"><div class="text-xs text-gray-500">Loading...</div></div>
+              <div class="terminal-body" id="meshReticulumStatus"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
               <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>NOMADNET</span></div>
-              <div class="terminal-body" id="nomadnetStatus"><div class="text-xs text-gray-500">Loading...</div></div>
+              <div class="terminal-body" id="meshNomadnetStatus"><div class="text-xs text-gray-500">Loading...</div></div>
+            </div>
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>P4P WIKI</span></div>
+              <div class="terminal-body" id="meshWikiStatus"><div class="text-xs text-gray-500">Loading...</div></div>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-1 gap-4 mt-4">
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>WIKI BROWSER</span></div>
+              <div class="terminal-body" id="meshWikiContent" style="max-height:400px;overflow-y:auto;"><div class="text-xs text-gray-500">Open a wiki page from the P4P tab to view here.</div></div>
             </div>
           </div>
         </div>
@@ -699,7 +684,6 @@ function switchTab(tab) {
     d.classList.toggle('hidden', d.id !== 'tab-' + tab);
   });
   if (tab === 'wiki') { wikiInit(); }
-  if (tab === 'autonomi') { antRefreshLogs(); antRefreshWallet(); }
 }
 
 function showToast(msg, type) {
@@ -873,6 +857,8 @@ function renderWikiResults() {
 }
 
 async function viewWikiPage(uri, title) {
+  currentEditSlug = uri.split("/").pop();
+  document.getElementById("wikiEditBtn").style.display = "inline-flex";
   document.getElementById('wikiViewTitle').textContent = title || 'LOADING...';
   document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;margin-right:6px;"></span>Loading page...</div>';
   const r = await api('/api/wiki/page/' + encodeURIComponent(uri));
@@ -898,6 +884,8 @@ async function viewWikiPage(uri, title) {
 }
 
 async function wikiShowList() {
+  document.getElementById("wikiEditBtn").style.display = "none";
+  currentEditSlug = "";
   document.getElementById('wikiViewTitle').textContent = 'BROWSE';
   document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;margin-right:6px;"></span>Loading page list...</div>';
   const r = await api('/api/wiki/list?page=1&pageSize=50');
@@ -914,6 +902,7 @@ async function wikiShowList() {
 }
 
 async function wikiShowStats() {
+  document.getElementById("wikiEditBtn").style.display = "none";
   document.getElementById('wikiViewTitle').textContent = 'WIKI STATS';
   document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;margin-right:6px;"></span>Loading stats...</div>';
   const s = await api('/api/wiki/stats');
@@ -928,6 +917,47 @@ async function wikiShowStats() {
     '</div>';
 }
 
+// ── Wiki edit functions ──
+let currentEditSlug = "";
+function wikiEditPage() {
+  document.getElementById("wikiViewContent").style.display = "none";
+  document.getElementById("wikiEditor").style.display = "block";
+  document.getElementById("wikiEditSlug").value = currentEditSlug;
+  document.getElementById("wikiEditSlug").readOnly = true;
+  document.getElementById("wikiEditContent").value = state.wiki.currentContent || "";
+  document.getElementById("wikiEditStatus").textContent = "EDITING: " + currentEditSlug;
+}
+function wikiNewPage() {
+  document.getElementById("wikiViewContent").style.display = "none";
+  document.getElementById("wikiEditor").style.display = "block";
+  document.getElementById("wikiEditSlug").value = "";
+  document.getElementById("wikiEditSlug").readOnly = false;
+  document.getElementById("wikiEditContent").value = "";
+  document.getElementById("wikiEditStatus").textContent = "NEW PAGE";
+  currentEditSlug = "";
+}
+function wikiCancelEdit() {
+  document.getElementById("wikiEditBtn").style.display = "none";
+  document.getElementById("wikiEditor").style.display = "none";
+  document.getElementById("wikiViewContent").style.display = "block";
+}
+async function wikiSavePage() {
+  const slug = document.getElementById("wikiEditSlug").value.trim();
+  const content = document.getElementById("wikiEditContent").value;
+  if (!slug) { document.getElementById("wikiEditStatus").textContent = "ERROR: slug required"; return; }
+  document.getElementById("wikiEditStatus").textContent = "SAVING...";
+  try {
+    const r = await api("/api/wiki/page/write", { slug, content, message: "Dashboard edit" });
+    if (r.error) { document.getElementById("wikiEditStatus").textContent = "ERROR: " + r.error; return; }
+    document.getElementById("wikiEditStatus").textContent = "COMMITTING...";
+    await api("/api/wiki/commit", { message: "Dashboard edit" });
+    document.getElementById("wikiEditStatus").textContent = "SAVED ✓";
+    currentEditSlug = slug;
+    setTimeout(() => { wikiCancelEdit(); wikiViewPage(slug); }, 800);
+  } catch(e) {
+    document.getElementById("wikiEditStatus").textContent = "ERROR: " + e.message;
+  }
+}
 // ── Markdown renderer (lightweight) ──
 
 function escapeHtml(t) {
@@ -1085,7 +1115,6 @@ async function refreshAll() {
   chatWidget.innerHTML = '<div class="space-y-2">' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot ' + (chatRunning ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (chatRunning ? 'glowing' : 'text-gray-500') + '">' + (chatRunning ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
     '</div>';
-  var zs = document.getElementById("zkchatStatus"); if (zs) zs.innerHTML = chatWidget.innerHTML;
 
   // Wiki widgets
   const wikiRunning = wiki.data && wiki.data.mcpOk;
@@ -1116,70 +1145,78 @@ async function refreshAll() {
     '<div class="flex justify-between"><span class="text-xs text-gray-500">RNSD</span><span class="flex items-center gap-1"><span class="dot ' + (retRunning ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (retRunning ? 'glowing' : 'text-gray-500') + '">' + (Array.isArray(retData) ? retData[0] : retData || 'UNKNOWN') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">NOMADNET</span><span class="text-xs text-white">' + ((ret.data?.nomadnet || 'UNKNOWN') + '').toUpperCase() + '</span></div>' +
     '</div>';
-  document.getElementById('reticulumStatus').innerHTML = retWidget.innerHTML;
-  document.getElementById('nomadnetStatus').innerHTML = '<div class="flex justify-between"><span class="text-xs text-gray-500">SERVICE</span><span class="text-xs '+(retRunning?'glowing':'text-gray-500')+'">'+((ret.data?.nomadnet||'UNKNOWN')+'').toUpperCase()+'</span></div>';
 
   // Ant / Autonomi
   const antWidget = document.getElementById('antWidget');
-  const daemonOk = ant && ant.daemon && ant.daemon.running;
-  const nodeOk = ant && ant.totalRunning > 0;
-  const hasStorage = ant && ant.storage && ant.storage.running;
-  const n = ant && ant.nodes && ant.nodes[0];
-  let html = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Daemon</span><span class="flex items-center gap-1"><span class="dot '+(daemonOk?'green pulse':'gray')+'"></span><span class="text-xs '+(daemonOk?'glowing':'text-gray-500')+'">'+(daemonOk?'RUNNING':'STOPPED')+'</span></span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Node</span><span class="flex items-center gap-1"><span class="dot '+(nodeOk?'green pulse':'gray')+'"></span><span class="text-xs '+(nodeOk?'glowing':'text-gray-500')+'">'+(n?n.status.toUpperCase():'OFFLINE')+'</span></span></div>' +
-    (n&&n.version ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Version</span><span class="text-xs text-white">'+n.version+'</span></div>' : '') +
-    (n&&n.pid ? '<div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+n.pid+'</span></div>' : '') +
-    (daemonOk&&ant.daemon.port ? '<div class="flex justify-between"><span class="text-xs text-gray-500">API Port</span><span class="text-xs text-white">'+ant.daemon.port+'</span></div>' : '') +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Storage</span><span class="flex items-center gap-1"><span class="dot '+(hasStorage?'green pulse':'gray')+'"></span><span class="text-xs '+(hasStorage?'glowing':'text-gray-500')+'">'+(hasStorage?ant.storage.totalChunks+' chunks':'OFFLINE')+'</span></span></div>' +
-    (hasStorage&&ant.storage.merkleRoot ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Merkle</span><span class="text-xs text-gray-400" style="font-size:0.6rem">'+ant.storage.merkleRoot.slice(0,16)+'...</span></div>' : '') +
-    '</div>';
-  antWidget.innerHTML = html;
+  const antRunning = ant.data && ant.data.running;
+  antWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(antRunning?'green pulse':'gray')+'"></span><span class="text-xs '+(antRunning?'glowing':'text-gray-500')+'">'+(antRunning?'RUNNING':'OFFLINE')+'</span></span></div></div>';
 
-  // Autonomi tab updates
-  document.getElementById('antNodeStatus').textContent = nodeOk ? n.status.toUpperCase() : 'OFFLINE';
-  document.getElementById('antNodeStatus').className = 'stat-value ' + (nodeOk ? 'glowing' : '');
-  document.getElementById('antDaemonStatus').textContent = daemonOk ? 'RUNNING' : 'STOPPED';
-  document.getElementById('antDaemonStatus').style.color = daemonOk ? 'var(--neon-cyan)' : 'var(--text-dim)';
-  document.getElementById('antChunks').textContent = hasStorage ? ant.storage.totalChunks : '-';
-  document.getElementById('antChunks').style.color = hasStorage ? 'var(--neon-green)' : 'var(--text-dim)';
-  let ni = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Name</span><span class="text-xs text-white">'+(n?n.name:'-')+'</span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Version</span><span class="text-xs text-white">'+(n?n.version:'-')+'</span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Status</span><span class="text-xs '+(nodeOk?'text-green-400':'text-gray-500')+'">'+(n?n.status.toUpperCase():'OFFLINE')+'</span></div>' +
-    (n&&n.pid ? '<div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+n.pid+'</span></div>' : '') +
-    (n&&n.uptime_secs ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Uptime</span><span class="text-xs text-white">'+fmtUptime(n.uptime_secs)+'</span></div>' : '') +
-    (daemonOk&&ant.daemon.port ? '<div class="flex justify-between"><span class="text-xs text-gray-500">API Port</span><span class="text-xs text-white">'+ant.daemon.port+'</span></div>' : '') +
-    '</div>';
-  document.getElementById('antNodeInfo').innerHTML = ni;
-  let si = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">Status</span><span class="flex items-center gap-1"><span class="dot '+(hasStorage?'green pulse':'gray')+'"></span><span class="text-xs '+(hasStorage?'glowing':'text-gray-500')+'">'+(hasStorage?'ONLINE':'OFFLINE')+'</span></span></div>' +
-    (hasStorage ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Total Chunks</span><span class="text-xs text-white">'+ant.storage.totalChunks+'</span></div>' : '') +
-    (hasStorage ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Chunk Size</span><span class="text-xs text-white">'+ant.storage.chunkSize+' bytes</span></div>' : '') +
-    (hasStorage&&ant.storage.merkleRoot ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Merkle Root</span><span class="text-xs text-gray-400" style="font-size:0.6rem">'+ant.storage.merkleRoot.slice(0,32)+'...</span></div>' : '') +
-    '</div>';
-  document.getElementById('antStorageInfo').innerHTML = si;
-
-  // Prover widget
   const provWidget = document.getElementById('proverWidget');
-  const provRunning = prov && prov.running;
+  const provRunning = prov.data && prov.data.running;
   provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(provRunning?'green pulse':'gray')+'"></span><span class="text-xs '+(provRunning?'glowing':'text-gray-500')+'">'+(provRunning?'ACTIVE':'IDLE')+'</span></span></div></div>';
 
-  // Zymbit widget
-  const zymWidget = document.getElementById('zymbitWidget');
-  const zymActive = zym && zym.zkifc === 'active';
-  const zscm = zym && zym.zscm;
-  zymWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?zym.zkifc.toUpperCase():'UNKNOWN')+'</span></span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym&&zym.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
-    (zscm ? '<div class="flex justify-between"><span class="text-xs text-gray-500">ZSCM</span><span class="text-xs text-green-400">'+(zscm.device?'CONNECTED':'MISSING')+'</span></div>' : '') +
-    (zscm&&zscm.model ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Model</span><span class="text-xs text-white">'+zscm.model+'</span></div>' : '') +
-    (zscm&&zscm.firmware ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Firmware</span><span class="text-xs text-white">'+zscm.firmware+'</span></div>' : '') +
-    (zscm&&zscm.serial ? '<div class="flex justify-between"><span class="text-xs text-gray-500">Serial</span><span class="text-xs text-gray-400" style="font-size:0.6rem">'+(zscm.serial.length>16?zscm.serial.slice(0,16)+'...':zscm.serial)+'</span></div>' : '') +
-    '</div>';
+  // Mesh tab
+  if (!document.getElementById('tab-mesh').classList.contains('hidden')) {
+    const [mesh, nomad, rnsRes] = await Promise.all([
+      api('/api/mesh/status'), api('/api/mesh/nomadnet'), api('/api/mesh/rns')
+    ]);
+    const r = mesh.data || mesh;
+    const n = nomad.data || nomad;
+    const d = rnsRes.data || rnsRes;
 
-  // Periodic wallet refresh
-  antRefreshWallet();
+    const transEl = document.getElementById('meshRnsTransport');
+    if (transEl) {
+      const tid = d.transport_id || null;
+      const up = d.uptime ? Math.floor(d.uptime) : 0;
+      const upStr = up > 3600 ? Math.floor(up/3600)+'h '+Math.floor((up%3600)/60)+'m' : up > 60 ? Math.floor(up/60)+'m '+up%60+'s' : up+'s';
+      const tx = d.traffic ? (d.traffic.txb/1024).toFixed(1) : 0;
+      const rx = d.traffic ? (d.traffic.rxb/1024).toFixed(1) : 0;
+      const ifCount = d.interfaces ? d.interfaces.length : 0;
+      transEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">TRANSPORT</span><span class="text-xs glowing">'+(tid?tid.slice(0,16)+'...':'N/A')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+upStr+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">INTERFACES</span><span class="text-xs text-white">'+ifCount+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">TX</span><span class="text-xs text-white">'+tx+' KB</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">RX</span><span class="text-xs text-white">'+rx+' KB</span></div></div>';
+    }
+
+    const wifiEl = document.getElementById('meshWifiStatus');
+    if (wifiEl) {
+      const w = d.wifi || {};
+      wifiEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">SSID</span><span class="text-xs glowing">'+(w.ssid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">MODE</span><span class="text-xs text-white">'+(w.type||'N/A')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHANNEL</span><span class="text-xs text-white">'+(w.channel||'N/A')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">TX POWER</span><span class="text-xs text-white">'+(w.txpower||'N/A')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">TCP PORT</span><span class="text-xs text-white">4242</span></div></div>';
+    }
+
+    const ifEl = document.getElementById('meshInterfaces');
+    if (ifEl) {
+      const ifs = d.interfaces || [];
+      if (ifs.length === 0) {
+        ifEl.innerHTML = '<div class="text-xs text-gray-500">No interfaces</div>';
+      } else {
+        let html = '<table style="width:100%;font-size:0.65rem;"><tr style="color:var(--text-secondary);"><th style="padding:4px 6px;">NAME</th><th style="padding:4px 6px;">TYPE</th><th style="padding:4px 6px;">ST</th><th style="padding:4px 6px;">PEERS</th><th style="padding:4px 6px;">TX</th><th style="padding:4px 6px;">RX</th></tr>';
+        for (const iface of ifs) {
+          const name = iface.name || iface.short_name || '?';
+          const shortName = name.length > 30 ? name.slice(0, 28)+'..' : name;
+          const type = iface.type || '?';
+          const st = iface.status === 'Up';
+          const peers = iface.peers || 0;
+          const tx = (iface.txb/1024).toFixed(1);
+          const rx = (iface.rxb/1024).toFixed(1);
+          html += '<tr><td style="padding:4px 6px;color:var(--neon-green);" title="'+name+'">'+shortName+'</td><td style="padding:4px 6px;color:var(--text-secondary);">'+type.slice(0,12)+'</td><td style="padding:4px 6px;"><span class="dot '+(st?'green pulse':'gray')+'"></span></td><td style="padding:4px 6px;">'+peers+'</td><td style="padding:4px 6px;">'+tx+'K</td><td style="padding:4px 6px;">'+rx+'K</td></tr>';
+        }
+        html += '</table>';
+        ifEl.innerHTML = html;
+      }
+    }
+
+    const retEl = document.getElementById('meshReticulumStatus');
+    if (retEl) retEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">SERVICE</span><span class="flex items-center gap-1"><span class="dot '+(r.rnsd==='running'?'green pulse':'gray')+'"></span><span class="text-xs '+(r.rnsd==='running'?'glowing':'text-gray-500')+'">'+(r.rnsd||'UNKNOWN').toUpperCase()+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(r.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">IDENTITY</span><span class="text-xs font-mono text-gray-400">'+(r.identity?r.identity.slice(0,16)+'...':'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PAGES</span><span class="text-xs text-white">'+(Array.isArray(r.pages)?r.pages.length:r.pages||0)+'</span></div></div>';
+    const nomEl = document.getElementById('meshNomadnetStatus');
+    if (nomEl) nomEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+((n.pages&&n.pages.length)?'green pulse':'yellow')+'"></span><span class="text-xs '+((n.pages&&n.pages.length)?'glowing':'text-gray-500')+'">'+((n.pages&&n.pages.length)?'ACTIVE':'IDLE')+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PAGES</span><span class="text-xs text-white">'+((n.pages&&n.pages.length)||'0')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">LOG</span><span class="text-xs text-gray-400">'+((n.recentLog&&n.recentLog.length)?n.recentLog.length+' lines':'-')+'</span></div></div>';
+    const wikiEl = document.getElementById('meshWikiStatus');
+    if (wikiEl) wikiEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">WIKI PAGES</span><span class="text-xs text-white">'+((r.wiki&&r.wiki.pages)||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+((r.wiki&&r.wiki.pages>0)?'green pulse':'yellow')+'"></span><span class="text-xs '+((r.wiki&&r.wiki.pages>0)?'glowing':'text-gray-500')+'">'+((r.wiki&&r.wiki.pages>0)?'PUBLISHED':'EMPTY')+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NOMADNET PAGES</span><span class="text-xs text-white">'+(r.nomadPages||0)+'</span></div></div>';
+  }
+
+  const zymWidget = document.getElementById('zymbitWidget');
+  const zymActive = zym.data && zym.data.zkifc === 'active';
+  zymWidget.innerHTML = '<div class="space-y-2">' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym.data?zym.data.zkifc.toUpperCase():'UNKNOWN')+'</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym.data&&zym.data.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
+    '</div>';
 }
 
 async function checkWsConnection() {
@@ -1230,8 +1267,6 @@ async function chatSelectGroup(groupId, groupName) {
   state.chat.activeGroupName = groupName;
   document.getElementById('chatActiveGroupTitle').textContent = `# ${groupName}`;
   document.querySelectorAll('.chat-group-item').forEach(el => el.classList.toggle('active', el.dataset.id === groupId));
-  const chatContainer = document.getElementById('chatMessages');
-  if (chatContainer) chatContainer.innerHTML = '<div class="text-gray-500" style="font-size:0.7rem;margin:auto;">Loading...</div>';
   await chatPollGroup();
   if (state.chat.pollTimer) clearInterval(state.chat.pollTimer);
   state.chat.pollTimer = setInterval(chatPollGroup, 8000);
@@ -1242,16 +1277,8 @@ async function chatPollGroup() {
   if (!state.chat.activeGroupId) return;
   const r = await api(`/api/chat/groups/poll?group_id=${state.chat.activeGroupId}`);
   const msgs = r.messages || [];
-  const container = document.getElementById('chatMessages');
-  if (r.error) {
-    console.error('chatPollGroup error:', r.error, 'group:', state.chat.activeGroupId);
-    container.innerHTML = `<div style="margin:auto;text-align:center;">
-      <div class="text-yellow-400" style="font-size:0.7rem;">⚠ GROUP MESSAGING UNAVAILABLE</div>
-      <div class="text-gray-500" style="font-size:0.65rem;margin-top:6px;">Group send/poll requires mixnet PKI registration. Direct messaging works.</div>
-    </div>`;
-    return;
-  }
   state.chat.messages = msgs;
+  const container = document.getElementById('chatMessages');
   if (!msgs.length) {
     container.innerHTML = '<div class="text-gray-500" style="font-size:0.7rem;margin:auto;">No messages yet. Send one!</div>';
     return;
@@ -1278,7 +1305,7 @@ async function chatSendMessage() {
     showToast('Message sent', 'success');
     setTimeout(chatPollGroup, 500);
   } else {
-    showToast('Group messaging needs PKI setup. Use DMs for now.', 'error');
+    showToast('Send failed: ' + (r.error || 'unknown'), 'error');
   }
 }
 
@@ -1344,29 +1371,19 @@ async function chatDoInvite() {
 }
 
 async function chatFetchIdentity() {
+  const r = await api('/api/chat/messages');
+  // Try to get identity from poll response metadata
   const e = document.getElementById('chatIdentity');
-  const badge = document.getElementById('chatIdentityCopyBadge');
   try {
-    const r = await api('/api/chat/identity');
-    if (r.identity) {
-      e.textContent = r.identity;
-      e.title = 'Click to copy: ' + r.identity;
-    } else {
-      e.textContent = 'no identity';
-    }
-  } catch {
-    e.textContent = 'unavailable';
-  }
-  if (badge) badge.style.display = 'none';
+    const pollR = await api('/api/chat/poll');
+    e.textContent = 'identity';
+  } catch { e.textContent = 'zkchat'; }
 }
 
 function chatCopyIdentity() {
   const text = document.getElementById('chatIdentity').textContent;
-  const badge = document.getElementById('chatIdentityCopyBadge');
-  if (text && text.length === 32 && !text.includes(' ')) {
+  if (text && text !== 'identity' && text !== 'zkchat') {
     navigator.clipboard?.writeText(text);
-    if (badge) badge.style.display = 'inline';
-    setTimeout(() => { if (badge) badge.style.display = 'none'; }, 2000);
     showToast('Identity copied', 'success');
   }
 }
@@ -1377,96 +1394,9 @@ function escHtml(s) {
   return d.innerHTML;
 }
 
-// ── Autonomi Control Functions ──
-
-async function antNodeStart() {
-  const r = await fetch('/api/ant/node/start', { method: 'POST' });
-  const d = await r.json();
-  showToast(d.ok ? 'Node started' : 'Start failed: ' + d.message, d.ok ? 'success' : 'error');
-  refreshAll();
-}
-
-async function antNodeStop() {
-  const r = await fetch('/api/ant/node/stop', { method: 'POST' });
-  const d = await r.json();
-  showToast(d.ok ? 'Node stopping' : 'Stop failed: ' + d.message, d.ok ? 'success' : 'error');
-  refreshAll();
-}
-
-async function antDaemonStart() {
-  const r = await fetch('/api/ant/daemon/start', { method: 'POST' });
-  const d = await r.json();
-  showToast(d.ok ? 'Daemon started' : 'Start failed: ' + d.message, d.ok ? 'success' : 'error');
-  refreshAll();
-}
-
-async function antDaemonStop() {
-  const r = await fetch('/api/ant/daemon/stop', { method: 'POST' });
-  const d = await r.json();
-  showToast(d.ok ? 'Daemon stopping' : 'Stop failed: ' + d.message, d.ok ? 'success' : 'error');
-  refreshAll();
-}
-
-async function antRefreshLogs() {
-  const viewer = document.getElementById('antLogViewer');
-  viewer.innerHTML = '<div class="text-xs text-gray-500">Loading logs...</div>';
-  try {
-    const r = await fetch('/api/ant/logs?lines=50');
-    const d = await r.json();
-    if (d.logs && d.logs.length > 0) {
-      viewer.innerHTML = d.logs.map(l => '<div class="text-green-400">' + escHtml(l) + '</div>').join('');
-    } else {
-      viewer.innerHTML = '<div class="text-xs text-gray-500">No logs available</div>';
-    }
-  } catch (e) {
-    viewer.innerHTML = '<div class="text-xs text-red-400">Failed to load logs</div>';
-  }
-}
-
-async function antRefreshWallet() {
-  let address = null;
-  try {
-    const r = await fetch('/api/ant/wallet');
-    const d = await r.json();
-    const walletEl = document.getElementById('antWallet');
-    if (d.address) {
-      address = d.address;
-      walletEl.textContent = d.address.slice(0, 10) + '...' + d.address.slice(-4);
-      walletEl.title = 'ZSCM Hardware Wallet: ' + d.address;
-      walletEl.style.color = 'var(--neon-green)';
-    } else {
-      walletEl.textContent = 'No wallet';
-      walletEl.style.color = 'var(--text-dim)';
-    }
-  } catch { /* ignore */ }
-  // Also fetch balance
-  let ethBal = null;
-  try {
-    const b = await fetch('/api/ant/balance');
-    const bd = await b.json();
-    if (bd.eth !== undefined) {
-      ethBal = bd.eth;
-      document.getElementById('antBalance').textContent = bd.eth + ' ETH';
-      document.getElementById('antBalance').style.color = 'var(--neon-cyan)';
-    }
-  } catch { /* ignore */ }
-  // Update header wallet if ZSCM is active and no user-connected wallet
-  if (address && (!state.wallet.connected || state.wallet.type === 'zscm')) {
-    const wa = document.getElementById('walletArea');
-    const short = address.slice(0, 8) + '...' + address.slice(-6);
-    wa.innerHTML = '<div class="flex items-center gap-3">' +
-      '<div class="wallet-badge" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.4);">' +
-      '<span style="color:var(--neon-green);">⬡</span><span style="color:var(--neon-green);font-size:0.65rem;">ZSCM</span></div>' +
-      (ethBal ? '<span class="text-sm text-cyan-400 font-mono">' + ethBal + ' ETH</span>' : '') +
-      '<div class="wallet-addr"><span class="glowing" style="font-size:0.7rem;">' + short + '</span></div></div>';
-    state.wallet = { connected: true, address: address, type: 'zscm' };
-  }
-}
-
 document.addEventListener('DOMContentLoaded', function() {
   refreshAll();
   state.systemPoll = setInterval(refreshAll, 10000);
-  setTimeout(() => { antRefreshWallet(); antRefreshLogs(); }, 3000);
   // Initialize chat
   setTimeout(() => {
     chatRefreshGroups();

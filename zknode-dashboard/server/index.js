@@ -69,6 +69,11 @@ function isProcessAlive(pid) {
   return runShell(`docker run --rm --pid host alpine kill -0 ${pid} 2>&1`, 5000).ok;
 }
 
+function pgrep(name) {
+  const r = runShell(`pgrep -f "${name}" 2>/dev/null | head -1`, 5000);
+  return r.ok && r.data ? parseInt(r.data, 10) : null;
+}
+
 // ─── MCP Client for llm-wiki ─────────────────────────────────
 
 let mcpSessionId = null;
@@ -246,12 +251,22 @@ async function getMixnetStatus() {
   const containers = await getContainers();
   if (containers.error) return { error: containers.error };
   const authHosts = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
-  const authorities = authHosts.map(name => {
+  const authorities = authHosts.map((name, aidx) => {
     const c = containers.find(ct => ct.name === name);
     const running = c && c.state === 'running';
+    const da = `mix-dirauth-${aidx + 1}`;
+    const epoch = running ? runShell(`docker exec ${da} sh -c "grep 'Epoch:' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*Epoch: //;s/ .*//'"`, 5000) : null;
+    const consensus = running ? runShell(`docker exec ${da} sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*: //;s/ .*//'"`, 5000) : null;
+    const nodeCount = running ? runShell(`docker exec ${da} sh -c "grep 'ServiceNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'servicenode' | wc -l"`, 5000) : null;
+    const gwCount = running ? runShell(`docker exec ${da} sh -c "grep 'GatewayNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'gateway' | wc -l"`, 5000) : null;
     return {
-      host: `127.0.0.1:${30001 + authHosts.indexOf(name)}`,
-      data: running ? { Epoch: null, Nodes: null, Consensus: null } : { error: 'offline' }
+      host: `127.0.0.1:${30001 + aidx}`,
+      data: running ? {
+        Epoch: epoch?.ok ? epoch.data.trim() : null,
+        Consensus: consensus?.ok ? consensus.data.trim() : null,
+        ServiceNodes: nodeCount?.ok ? parseInt(nodeCount.data.trim()) || 0 : 0,
+        GatewayNodes: gwCount?.ok ? parseInt(gwCount.data.trim()) || 0 : 0
+      } : { error: 'offline' }
     };
   });
   const mixnetNames = ['mix-1', 'mix-2', 'mix-3', 'mix-gateway', 'mix-servicenode', 'mix-client',
@@ -478,26 +493,81 @@ app.post('/api/chat/groups/leave', (req, res) => {
 // ─── MESH ENDPOINTS ───────────────────────────────────────────
 
 app.get('/api/mesh/status', (req, res) => {
-  const nomadPid = 814;
-  const nomadRunning = isProcessAlive(nomadPid);
+  const nomadPid = pgrep('nomadnet');
+  const rnsPid = pgrep('rnsd');
+  const nomadRunning = !!nomadPid;
+  const rnsRunning = !!rnsPid;
   const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
   const config = runShell('cat /var/nomadnet/config 2>/dev/null');
+  const wikiPages = runShell('ls /home/zero-tech/wikis/p2p-infrastructure/wiki/ 2>/dev/null');
+  const nomadPages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
   res.json({
-    rnsd: nomadRunning ? 'nomadnet/reticulum process running' : 'not running',
-    identity: config.ok ? config.data.slice(0, 64) : (nomadRunning ? 'checking...' : null),
+    rnsd: rnsRunning ? 'running' : 'not running',
+    pid: rnsPid || nomadPid || null,
+    identity: config.ok ? config.data.slice(0, 64) : (rnsRunning ? 'checking...' : null),
     nomadnet: nomadRunning ? 'active' : 'inactive',
     pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
+    wiki: {
+      pages: wikiPages.ok ? wikiPages.data.split('\n').filter(Boolean).length : 0
+    },
+    nomadPages: nomadPages.ok ? nomadPages.data.split('\n').filter(Boolean).length : 0
   });
 });
 
 app.get('/api/mesh/nomadnet', (req, res) => {
+  const nomadPid = pgrep('nomadnet');
   const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
   const config = runShell('cat /var/nomadnet/config 2>/dev/null');
   const log = runShell('tail -10 /var/nomadnet/logfile 2>/dev/null');
   res.json({
+    nomadPid,
     pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
     config: config.ok ? config.data : null,
     recentLog: log.ok ? log.data.split('\n') : []
+  });
+});
+
+app.get('/api/mesh/rns', (req, res) => {
+  const status = runShell('/home/zero-tech/.local/bin/rnstatus -j 2>/dev/null', 5000);
+  const paths = runShell('/home/zero-tech/.local/bin/rnpath -t -j 2>/dev/null', 5000);
+  const wifi = runShell('/usr/sbin/iw dev wlan0 info 2>/dev/null', 3000);
+  const peers = runShell('/usr/sbin/iw dev wlan0 station dump 2>/dev/null', 3000);
+  let data = { interfaces: [], transport_id: null, uptime: 0, traffic: { txb: 0, rxb: 0 } };
+  if (status.ok) {
+    try { data = JSON.parse(status.data); } catch {}
+  }
+  let pathList = [];
+  if (paths.ok) {
+    try { pathList = JSON.parse(paths.data); } catch {}
+  }
+  const wifiLines = wifi.ok ? wifi.data.split('\n').filter(Boolean) : [];
+  const wifiInfo = {};
+  for (const line of wifiLines) {
+    const parts = line.split(/\s+/, 2);
+    if (parts.length >= 2) wifiInfo[parts[0].replace(':', '')] = parts[1];
+  }
+  res.json({
+    transport_id: data.transport_id || null,
+    network_id: data.network_id || null,
+    uptime: data.transport_uptime || 0,
+    traffic: { txb: data.txb || 0, rxb: data.rxb || 0 },
+    interfaces: (data.interfaces || []).map(iface => ({
+      name: iface.name || iface.short_name || 'Unknown',
+      type: iface.type || 'Unknown',
+      status: iface.status === true ? 'Up' : iface.status === false ? 'Down' : 'Unknown',
+      peers: iface.peers || iface.clients || 0,
+      bitrate: iface.bitrate || 0,
+      rxb: iface.rxb || 0,
+      txb: iface.txb || 0
+    })),
+    paths: pathList,
+    wifi: {
+      ssid: wifiInfo.ssid || null,
+      channel: wifiInfo.channel || null,
+      type: wifiInfo.type || null,
+      txpower: wifiInfo.txpower || null,
+      peers: peers.ok ? peers.data.trim() : null
+    }
   });
 });
 
@@ -535,10 +605,11 @@ app.get('/api/chat/identity', (req, res) => {
 });
 
 app.get('/api/reticulum', (req, res) => {
-  const running = isProcessAlive(814);
+  const rnsPid = pgrep('rnsd');
   const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
   res.json({
-    rnsd: running ? 'running' : 'not running',
+    rnsd: rnsPid ? 'running' : 'not running',
+    rnsPid,
     pages: pages.ok ? pages.data.split('\n').filter(Boolean).length : 0
   });
 });
@@ -694,7 +765,7 @@ app.get('/api/services', async (req, res) => {
       storage: { running: storage.running, totalChunks: storage.totalChunks }
     },
     prover: { running: storage.running },
-    reticulum: { rnsd: isProcessAlive(814) ? 'running' : 'not running' }
+    reticulum: { rnsd: pgrep('rnsd') ? 'running' : 'not running', rnsPid: pgrep('rnsd') }
   });
 });
 
