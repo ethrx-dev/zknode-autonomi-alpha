@@ -13,23 +13,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Clone ZKNetwork/opt for dependencies (go.mod/go.sum)
 RUN git clone --depth 1 https://github.com/ZeroKnowledgeNetwork/opt.git /src/opt
 
-# Override walletshield main.go with our fixed version (service=proxy)
+# Override walletshield main.go with our fixed version
 COPY walletshield-fix/main.go /src/opt/apps/walletshield/main.go
+
+# Copy forked thin client package to fix isConnected tracking
+COPY walletshield-fix/thin /src/opt/apps/walletshield/thin
 
 RUN cd /src/opt/apps/walletshield && \
     GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
     CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
     go build -trimpath -ldflags="-buildid=" -o /dest/walletshield .
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+FROM scratch
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /dest/walletshield /usr/local/bin/
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /dest/walletshield /walletshield
 
 EXPOSE 9200
 
-ENTRYPOINT ["walletshield"]
+ENTRYPOINT ["/walletshield"]
 CMD ["-h"]

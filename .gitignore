@@ -46,3 +46,10 @@ config/reticulum/storage/
 
 # ZKNode dashboard (local monitoring)
 zknode-dashboard/
+
+# Backup files
+*.bak
+walletshield-fix/*.bak
+
+# Compiled binaries
+walletshield-fix/walletshield-arm64

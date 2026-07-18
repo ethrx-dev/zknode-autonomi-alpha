@@ -178,7 +178,7 @@ ant file upload
 │                    User Access Points                           │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐   │
 │  │ NomadNet │  │ ant CLI  │  │ llm-wiki │  │ NomadNavigator │   │
-│  │   TUI    │  │ (Docker) │  │   CLI    │  │  Desktop GUI   │   │
+│  │   TUI    │  │ (Docker) │  │   CLI    │  │  Desktop GUI    │   │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └───────┬────────┘   │
 │       │             │             │                │            │
 ├───────┼─────────────┼─────────────┼────────────────┼────────────┤

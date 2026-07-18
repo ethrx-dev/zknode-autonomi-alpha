@@ -8,6 +8,9 @@ A self-contained **sovereign storage node** — one SCM4/CM4 running the full st
 > `HW` SCM4 · 8GB RAM · aarch64 · zymkey HSM · USB 3.0 pool
 > `MIXNET` Katzenpost v0.0.73+ · MLKEM768 · 3-hop Sphinx · 15 containers
 > `STORAGE` ant-node v0.14.2 · LMDB · systemd --user
+> `MESH` Reticulum v1.3.7 · WiFi IBSS · NomadNet · 4242/tcp
+> `DASHBOARD` Node.js web UI · port 8080 · live mixnet/mesh/ant/zymkey tabs
+> `WALLETSHIELD` Patched thin client · `FROM scratch` · 17MB · CORS proxy :9292
 
 ---
 
@@ -298,6 +301,11 @@ zknode-autonomi/
 | Zymkey HSM | 🟢 Active | One-way key, periodic attestation timer |
 | llm-wiki engine | 🟢 Added | Rust, git-backed, MCP/ACP protocols |
 | NomadNet pages | 🟢 Added | Mesh-accessible micron page server |
+| Dashboard web UI | 🟢 Added | Port 8080, mixnet/mesh/ant/zymkey/wiki tabs |
+| Reticulum mesh | 🟢 Active | rnsd systemd, WiFi IBSS (zknode-mesh), TCPServer :4242 |
+| AI chat pipeline | 🟢 Fixed | `Sender: []byte("ai")` — dashboard renders AI responses |
+| Walletshield fix | 🟢 Patched | Forked thin client, `FROM scratch`, CORS proxy :9292 |
+| P4P wiki editor | 🟢 Added | Inline browser editor with write+commit |
 | kpclientd epoch sync | 🔶 Workaround | Needs auth restart at epoch for full consensus |
 | Zymkey HSM signing | 🔌 Planned | HSM-backed EVM transaction signing |
 | Bridge networking | 📋 Future | Per-node bridge for production isolation |

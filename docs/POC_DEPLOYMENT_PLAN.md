@@ -36,7 +36,16 @@
                       └──────────────────┘
 ```
 
-**14 Docker containers, all on one SCM4. Mesh networking via host network mode. No VPS.**
+**14 Docker containers + host services, all on one SCM4. Mesh networking via host network mode. No VPS.**
+
+**New in this release:**
+- **Dashboard container** (zknode-dashboard) — web UI with live mixnet, mesh, ant, and zymkey status on port 8080
+- **Mesh tab** — Reticulum transport status, WiFi IBSS panel, live interface table, NomadNet pages, P4P wiki stats
+- **Reticulum mesh stack** — rnsd systemd service + NomadNet daemon + WiFi IBSS (zknode-mesh, channel 1)
+- **Walletshield fix** — forked thin client with proper `isConnected` tracking, built as `FROM scratch` (17MB)
+- **AI pipeline** — chatd sends AI responses with `Sender: []byte("ai")` for dashboard rendering
+- **CORS proxy** — rpc-proxy container at :9292 for MetaMask access to walletshield
+- **P4P wiki editable UI** — in-dashboard page editor with slug/textarea, commit-to-git workflow
 
 ---
 
@@ -57,8 +66,10 @@
 | 11 | walletshield | walletshield | host | 128MB | EVM RPC :9200 |
 | 12 | storage-proved | storage-proved-rs | bridge | 128MB | Winterfell prover :9201 |
 | 13 | antd | ant | bridge | 128MB | CLI + node manager |
+| 14 | zknode-dashboard | Node.js | host | 256MB | Web UI :8080 |
+| 15 | rpc-proxy | caddy/node | host | 64MB | CORS proxy :9292 |
 
-**Total: ~4 GB RAM** (fits in 8 GB with room for OS + USB I/O cache).
+**Total: ~4.5 GB RAM** (fits in 8 GB with room for OS + USB I/O cache).
 
 ---
 
@@ -150,7 +161,85 @@ Generated configs produce valid TOML with full SphinxGeometry, PKI keys, and vot
 
 ---
 
-## 7. Air-Gapped Deployment Flow
+## 7. Dashboard — Web UI
+
+A self-contained Node.js/Express dashboard on port 8080 provides live status for all zknode subsystems.
+
+### Dashboard Tabs
+
+| Tab | Endpoints | Shows |
+|-----|-----------|-------|
+| **Mixnet** | `/api/mixnet` | PKI epoch, consensus hash, node topology (from auth logs) |
+| **Mesh** | `/api/mesh/status`, `/api/mesh/nomadnet`, `/api/mesh/rns` | RNS transport, WiFi mesh, interfaces table, NomadNet pages, P4P wiki stats |
+| **Ant** | `/api/ant` | ant-node PID, port, uploads/downloads |
+| **Zymbit** | `/api/zymbit` | HSM device status, firmware, API health |
+| **Wiki** | `/api/wiki/*` | Wiki page browser, inline editor with write+commit |
+
+### Mesh Tab Panels
+
+```
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ RNS TRANSPORT   │ │ WIFI MESH       │ │ INTERFACES      │
+│ · Transport ID  │ │ · SSID          │ │ (span 2 rows)   │
+│ · Uptime        │ │ · Mode (IBSS)   │ │ Name · Type     │
+│ · Interfaces    │ │ · Channel       │ │ Status · Peers  │
+│ · TX/RX         │ │ · TX Power      │ │ TX · RX         │
+│                 │ │ · TCP Port 4242 │ │                 │
+├─────────────────┤ ├─────────────────┤ │                 │
+│ RETICULUM       │ │ NOMADNET        │ │                 │
+│ · Service (rnsd)│ │ · Status        │ │                 │
+│ · PID           │ │ · Pages         │ │                 │
+│ · Identity      │ │ · Recent Log    │ │                 │
+│ · Pages         │ │                 │ │                 │
+├─────────────────┴┴─────────────────┴┤                 │
+│ P4P WIKI (full width)               │                 │
+│ · Wiki pages · STATS · PUBLISHED    │                 │
+│ · NomadNet pages count              │                 │
+└─────────────────────────────────────┴─────────────────┘
+```
+
+### Reticulum Mesh API
+
+`/api/mesh/rns` returns live data from `rnstatus -j` + `iw dev wlan0 info`:
+
+```json
+{
+  "transport_id": "6560de0c545854a8448008a4bca1c1ba",
+  "uptime": 3600,
+  "traffic": { "txb": 0, "rxb": 0 },
+  "interfaces": [
+    {
+      "name": "AutoInterface",
+      "type": "UDP",
+      "status": "Up",
+      "peers": 3,
+      "rxb": 4096,
+      "txb": 2048
+    }
+  ],
+  "wifi": {
+    "ssid": "zknode-mesh",
+    "channel": "1",
+    "type": "IBSS",
+    "txpower": "20.00"
+  },
+  "paths": []
+}
+```
+
+### Wiki Editor UI
+
+The dashboard includes a full inline wiki page editor:
+
+- **+NEW** button creates a new page with slug prompt
+- **EDIT** button opens inline editor for any existing page
+- Title, slug, and markdown textarea fields
+- **SAVE** writes the page through MCP tools (`/api/wiki/page/write`, `/api/wiki/commit`)
+- Git commit hash returned after each save
+
+---
+
+## 8. Air-Gapped Deployment Flow
 
 ```bash
 # === ON BUILD MACHINE (amd64) ===
@@ -185,9 +274,12 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ---
 
-## 8. Verification Checklist
+## 9. Verification Checklist
 
 - [ ] All 15 containers running (`docker compose ps`)
+- [ ] Dashboard reachable: `curl http://192.168.9.118:8080` → 200
+- [ ] Mesh API: `curl http://192.168.9.118:8080/api/mesh/rns` → JSON with interfaces
+- [ ] Reticulum transport: `systemctl status rnsd` → active (running)
 - [ ] mix-dirauth-1/2/3 stable (retry loop keeps them up)
 - [ ] mixnet-proxy API: `curl http://127.0.0.1:9090/status` → `mixnet_connected: true`
 - [ ] Mixnet echo test: SOCKS5 "Hello!" returns in ~3s
@@ -198,7 +290,7 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ---
 
-## 9. Next Steps
+## 10. Next Steps
 
 1. ~~**Register ant-node on-chain** — wallet funded (0.04 ETH on Arbitrum Sepolia)~~ **DONE** — Node live on Autonomi Testnet since 2026-07-03. See [Live Node Status](LIVE_NODE_STATUS.md).
 2. **Bridge networking** — replace host networking for production multi-instance isolation
@@ -207,7 +299,7 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ---
 
-## 10. Actual Deployment Notes
+## 11. Actual Deployment Notes
 
 ### What Works
 
@@ -226,10 +318,61 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 - No permission issues when running as the correct user (<node-user>, uid 1001)
 - The `antd` CLI daemon crashes due to bind mount UID conflicts in the container — this is bypassed
 
+### Reticulum Mesh — Host Services
+
+Reticulum stack runs directly on the host (not in Docker) for direct WiFi interface access:
+
+| Service | Binary | Config | Status |
+|---------|--------|--------|--------|
+| `rnsd` | `rnsd -s` (Python) | `~/.reticulum/config` | systemd service (user zero-tech) |
+| `nomadnet` | `nomadnet --daemon` | `~/nomadnet-new/` | Manual start (no systemd unit) |
+| WiFi IBSS | `iw` + `iwconfig` | wlan0, SSID `zknode-mesh`, ch 1 | Interface mode set at boot |
+
+**RNS Config** (`~/.reticulum/config`):
+- `enable_transport = Yes`
+- `share_instance = Yes`
+- Interfaces: AutoInterface (UDP link-local), TCPServerInterface (:4242), AutoInterface with wifi_adhoc
+- Transport identity: `6560de0c545854a8448008a4bca1c1ba`
+
+**WiFi IBSS Setup** (executed once, persists until reboot):
+```bash
+sudo iw dev wlan0 set type ibss
+sudo ip link set wlan0 up
+sudo iw dev wlan0 ibss join zknode-mesh 2412
+```
+
+### Zymkey HSM — API Fix
+
+The `zymkey-api.service` needed device path correction. The SCM module presents as `/dev/zscm_1` (ttyACM1), not the default `/dev/zscm_8`:
+- Service file: `/etc/systemd/system/zymkey-api.service`
+- `ZYMKEY_DEV=/dev/zscm_1`
+- `ZYMKEY_API_PORT=8765`
+- Dashboard reads device status via `/dev/zscm_1` presence and API health check
+
+### Walletshield — Thin Client Fork
+
+The original `ZKNetwork/opt` walletshield used a thin client library incompatible with the v0.0.73 mixnet. Fix:
+- Forked `thin/` package with corrected `isConnected` field tracking
+- Built as `FROM scratch` (17MB vs 126MB)
+- Host port 9200, CORS proxy on port 9292 (`rpc-proxy` container)
+- MetaMask uses RPC URL `http://192.168.9.118:9292`
+
+### Dashboard — Container Notes
+
+The dashboard runs in Docker (`host` networking) and serves from:
+- `/home/zero-tech/zknode-autonomi/zknode-dashboard/server/index.js` — API endpoints
+- `/home/zero-tech/zknode-autonomi/zknode-dashboard/index.html` — Frontend
+
+**Known issue**: The dashboard code is in `.gitignore` (local monitoring only). Server is a Node.js Express app with shell-command-based data collection.
+
+### AI Chat Pipeline Fix
+
+Chatd (`cmd/chatd/main.go:366`) sends AI responses with `Sender: []byte("ai")` instead of empty bytes, so the hex sender `6169` is parseable by the dashboard message renderer.
+
 ### Systemd Quick Start
 
 ```bash
-# Install (on SCM4)
+# Install ant-node (on SCM4)
 mkdir -p ~/.config/systemd/user/
 cp config/ant-node/ant-node.service ~/.config/systemd/user/
 systemctl --user daemon-reload
@@ -240,3 +383,7 @@ systemctl --user enable --now ant-node
 systemctl --user status ant-node
 journalctl --user -u ant-node -f
 ```
+
+### Next Steps for SCM4 Recovery
+
+The SCM4 unit is currently in **Supervised Boot failure** state after a `config.txt` modification (`dtparam=spi=on`). The blue LED shows constant rapid blinking — SCM in Production Mode holding CM4 in reset due to Manifest signature mismatch. Contact Zymbit support for recovery guidance.
