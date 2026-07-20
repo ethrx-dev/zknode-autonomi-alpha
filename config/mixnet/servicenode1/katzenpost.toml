@@ -7,8 +7,10 @@ DataDir = "/var/lib/katzenpost/servicenode1"
 IsGatewayNode = false
 IsServiceNode = true
 Addresses = [
-    "tcp://127.0.0.1:30007",
+    "tcp://127.0.0.1:30010",
 ]
+AllowHostnameAddresses = true
+MetricsAddress = "127.0.0.1:30012"
 
 [[PKI.Voting.Authorities]]
 Identifier = "auth1"
@@ -106,7 +108,7 @@ GenerateOnly = false
   [[ServiceNode.CBORPluginKaetzchen]]
     Capability = "http_proxy"
     Endpoint = "http_proxy"
-    Disable = false
+    Disable = true
     Command = "/usr/local/bin/http-proxy-server"
     MaxConcurrency = 4
     [ServiceNode.CBORPluginKaetzchen.Config]

@@ -44,8 +44,7 @@ zknode-autonomi-images.tar.gz
 # Reticulum runtime data
 config/reticulum/storage/
 
-# ZKNode dashboard (local monitoring)
-zknode-dashboard/
+# ZKNode dashboard — tracked in p4p-wiki-merge branch
 
 # Backup files
 *.bak
