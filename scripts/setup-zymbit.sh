@@ -343,6 +343,19 @@ cmd_production() {
     warn "All security policies become permanent."
     warn "The device cannot be reprogrammed after locking."
     echo ""
+    warn "!!! CRITICAL: After locking, ANY change to /boot/config.txt will BRICK the device."
+    warn "!!! Supervised Boot checks the config.txt hash against the signed manifest."
+    warn "!!! Run 'sudo zbcli manifest --verify' before making any future boot changes."
+    echo ""
+
+    # Warn about config.txt changes
+    local config_hash
+    config_hash=$(sha256sum /boot/config.txt 2>/dev/null | cut -d' ' -f1 || echo "unknown")
+    if [ "$config_hash" != "unknown" ]; then
+        warn "Current /boot/config.txt hash: $config_hash"
+        warn "If this changes after locking, the device will be bricked."
+        echo ""
+    fi
 
     # Check current status
     local status
@@ -367,6 +380,9 @@ cmd_production() {
     python3 -c "import zymkey; zymkey.client.lock_binding()"
     step "Production mode enabled. Device is now locked."
     step "Status: $(python3 -c "import zymkey; print(zymkey.client.get_operational_status())")"
+    echo ""
+    warn "!!! REMEMBER: Never modify /boot/config.txt on this device."
+    warn "!!! If you must, update the manifest FIRST with: sudo zbcli update-config && sudo zbcli manifest --verify"
 }
 
 # ─── Full Setup ───────────────────────────────────────────

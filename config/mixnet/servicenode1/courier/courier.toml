@@ -6,7 +6,7 @@ ConnectTimeout = 60000
 HandshakeTimeout = 60000
 ReauthInterval = 300000
 MaxQueueSize = 0
-MetricsAddress = "127.0.0.1:30010"
+MetricsAddress = "127.0.0.1:30020"
 DisableDecoyTraffic = false
 
 [PKI]

@@ -9,7 +9,6 @@ IsServiceNode = true
 Addresses = [
     "tcp://127.0.0.1:30010",
 ]
-AllowHostnameAddresses = true
 MetricsAddress = "127.0.0.1:30012"
 
 [[PKI.Voting.Authorities]]

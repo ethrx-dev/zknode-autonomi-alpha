@@ -48,7 +48,7 @@ services:
       - ZYMBIT_ENABLED=true
       - ZYMBIT_TRINITY_KEY=/etc/zymbit/trinity_key.bin
       - ZYMBIT_WALLET_NAME=zknode-wallet
-      - ANT_REWARDS_ADDRESS=0x0000000000000000000000000000000000000000
+      - ANT_REWARDS_ADDRESS=CHANGE_ME_BEFORE_DEPLOY
 
   # ─── Mixnet Proxy (with zymkey for SURB signing) ─────────
   mixnet-proxy:
