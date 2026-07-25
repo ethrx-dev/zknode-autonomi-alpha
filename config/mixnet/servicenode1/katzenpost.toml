@@ -77,10 +77,6 @@ KEMName = ""
     Disable = false
     Command = "/usr/local/bin/chatd"
     MaxConcurrency = 4
-    [ServiceNode.CBORPluginKaetzchen.Config]
-      log_dir = "/var/lib/katzenpost/servicenode1"
-      log_level = "DEBUG"
-      store = "/var/lib/katzenpost/servicenode1/chatd"
 
 [Debug]
 NumSphinxWorkers = 2
@@ -105,9 +101,9 @@ DisableRateLimit = false
 GenerateOnly = false
 
   [[ServiceNode.CBORPluginKaetzchen]]
-    Capability = "http_proxy"
+    Capability = "proxy"
     Endpoint = "http_proxy"
-    Disable = true
+    Disable = false
     Command = "/usr/local/bin/http-proxy-server"
     MaxConcurrency = 4
     [ServiceNode.CBORPluginKaetzchen.Config]

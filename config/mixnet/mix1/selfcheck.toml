@@ -1,6 +1,6 @@
-Hostname = "zknode01"
-MeasuredAt = 2026-07-04T22:55:59.14556005Z
+Hostname = "zymbit-dev"
+MeasuredAt = 2026-07-21T09:06:13.237907058Z
 NumCPU = 4
-OpsPerSecPerCore = 140.86616463468164
-OpsPerSecSaturated = 200.6602887328987
-IterationTime = "7.098936ms"
+OpsPerSecPerCore = 320.76953895473395
+OpsPerSecSaturated = 676.6605596923387
+IterationTime = "3.117503ms"

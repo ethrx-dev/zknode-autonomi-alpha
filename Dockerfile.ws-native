@@ -1,0 +1,10 @@
+FROM --platform=linux/arm64 golang:latest AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends git build-essential pkg-config && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 https://github.com/ZeroKnowledgeNetwork/opt.git /opt
+COPY main.go /opt/apps/walletshield/main.go
+COPY thin /opt/apps/walletshield/thin
+WORKDIR /opt/apps/walletshield
+RUN go build -trimpath -o /dest/walletshield .
+FROM scratch
+COPY --from=builder /dest/walletshield /walletshield
+ENTRYPOINT ["/walletshield"]

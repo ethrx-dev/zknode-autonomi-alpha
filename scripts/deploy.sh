@@ -127,22 +127,24 @@ cmd_check() {
         failed=1
     fi
 
-    # Docker images
+    # Docker images (resolve variable references from .env)
     info "Required images:"
+    set -a; source "$PROJECT_ROOT/.env" 2>/dev/null || true; set +a
     while IFS= read -r img; do
         img=$(echo "$img" | tr -d ' ')
         [ -z "$img" ] && continue
-        if docker image inspect "$img" &>/dev/null; then
-            step "  $img"
+        resolved=$(eval echo "$img" 2>/dev/null)
+        if docker image inspect "$resolved" &>/dev/null; then
+            step "  $resolved"
         else
-            warn "  $img — NOT FOUND"
+            warn "  $resolved — NOT FOUND"
         fi
     done < <(cd "$PROJECT_ROOT" && grep -rh '^\s*image:' docker-compose.yml docker-compose.zymkey.yml 2>/dev/null | sed 's/.*image: *//' | tr -d '"' | sort -u)
 
-    # Data directories
-    for dir in /var/lib/katzenpost/auth{1,2,3} /var/lib/katzenpost/gateway1 \
-               /var/lib/katzenpost/servicenode1 /var/lib/katzenpost/servicenode1/courier \
-               /var/lib/katzenpost/servicenode1/chatd /var/lib/katzenpost/mix{1,2,3}; do
+    # Data directories (inside config/mixnet which is mounted as /var/lib/katzenpost in containers)
+    for dir in "$PROJECT_ROOT/config/mixnet/auth"{1,2,3} "$PROJECT_ROOT/config/mixnet/gateway1" \
+               "$PROJECT_ROOT/config/mixnet/servicenode1" "$PROJECT_ROOT/config/mixnet/courier" \
+               "$PROJECT_ROOT/config/mixnet/mix"{1,2,3}; do
         if [ -d "$dir" ]; then
             local perm=$(stat -c "%a" "$dir" 2>/dev/null)
             if [ "$perm" = "700" ] || [ "$perm" = "755" ]; then
@@ -173,11 +175,11 @@ cmd_check() {
 
 cmd_dirs() {
     step "Creating data directories with 700 permissions..."
-    for dir in /var/lib/katzenpost/auth1 /var/lib/katzenpost/auth2 \
-               /var/lib/katzenpost/auth3 /var/lib/katzenpost/gateway1 \
-               /var/lib/katzenpost/servicenode1 /var/lib/katzenpost/servicenode1/courier \
-               /var/lib/katzenpost/servicenode1/chatd \
-               /var/lib/katzenpost/mix1 /var/lib/katzenpost/mix2 /var/lib/katzenpost/mix3; do
+    for dir in "$PROJECT_ROOT/config/mixnet/auth1" "$PROJECT_ROOT/config/mixnet/auth2" \
+               "$PROJECT_ROOT/config/mixnet/auth3" "$PROJECT_ROOT/config/mixnet/gateway1" \
+               "$PROJECT_ROOT/config/mixnet/servicenode1" "$PROJECT_ROOT/config/mixnet/servicenode1/courier" \
+               "$PROJECT_ROOT/config/mixnet/servicenode1/chatd" \
+               "$PROJECT_ROOT/config/mixnet/mix1" "$PROJECT_ROOT/config/mixnet/mix2" "$PROJECT_ROOT/config/mixnet/mix3"; do
         mkdir -p "$dir"
         chmod 700 "$dir"
         step "  $dir"
@@ -234,7 +236,6 @@ cmd_group() {
 
     if [ "$zymkey" = "true" ]; then
         base="$base -f $PROJECT_ROOT/docker-compose.zymkey.yml"
-        extra="--profile zymkey"
     fi
 
     case "$group" in

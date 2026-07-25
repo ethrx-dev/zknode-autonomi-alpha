@@ -34,7 +34,7 @@ var (
 	ProxyHTTPService = "proxy"
 
 	// Note: UserForwardPayloadLength should match the same value passed to genconfig.
-	UserForwardPayloadLength = 2000
+	UserForwardPayloadLength = 3000
 )
 
 func sendRequest(thin *thinclt.ThinClient, httpRequestBytes []byte) ([]byte, error) {
@@ -302,12 +302,17 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	responsePayload = bytes.TrimRight(responsePayload, "\x00")
 
 	s.log.Infof("Response: %s", responsePayload)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responsePayload)))
 	for k, v := range resp.Header {
+		kLower := strings.ToLower(k)
+		if kLower == "content-type" || kLower == "content-length" || kLower == "date" || kLower == "host" || kLower == "transfer-encoding" || kLower == "connection" {
+			continue
+		}
 		for _, hv := range v {
 			w.Header().Add(k, hv)
 		}
