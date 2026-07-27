@@ -352,9 +352,9 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           <span class="icon">◉</span><span style="flex:1">P4P WIKI</span>
         </button>
         <button class="sidebar-btn" data-tab="autonomi" onclick="switchTab('autonomi')">
-          <span class="icon">⍉</span><span style="flex:1">AUTONOMI</span>
-        </button>
-        <button class="sidebar-btn" data-tab="mesh" onclick="switchTab('mesh')">
+           <span class="icon">⍉</span><span style="flex:1">AUTONOMI</span>
+         </button>
+                <button class="sidebar-btn" data-tab="mesh" onclick="switchTab('mesh')">
           <span class="icon">◎</span><span style="flex:1">MESH NET</span>
         </button>
       </nav>
@@ -621,6 +621,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         </div>
 
         <!-- Mesh Tab -->
+        <!-- Autonomi Tab -->
         <div id="tab-autonomi" class="hidden">
           <div class="mb-6">
             <div class="flex items-center gap-2 mb-2">
@@ -750,6 +751,7 @@ function switchTab(tab) {
     d.classList.toggle('hidden', d.id !== 'tab-' + tab);
   });
   if (tab === 'wiki') { wikiInit(); }
+  if (tab === 'autonomi') { setTimeout(updateAutonomi, 100); }
 }
 
 function showToast(msg, type) {
@@ -1144,6 +1146,41 @@ function renderMarkdown(md) {
 
 // ── Refresh dashboard ──
 
+async function antStartDaemon() {
+  const r = await api('/api/ant/daemon/start', { method: 'POST' });
+  showToast(r.ok ? 'Daemon started' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
+  setTimeout(updateAutonomi, 2000);
+}
+async function antStopDaemon() {
+  const r = await api('/api/ant/daemon/stop', { method: 'POST' });
+  showToast(r.ok ? 'Daemon stopped' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
+  setTimeout(updateAutonomi, 2000);
+}
+async function antStartNode() {
+  const r = await api('/api/ant/node/start', { method: 'POST' });
+  showToast(r.ok ? 'Node started' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
+  setTimeout(updateAutonomi, 2000);
+}
+async function antStopNode() {
+  const r = await api('/api/ant/node/stop', { method: 'POST' });
+  showToast(r.ok ? 'Node stopped' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
+  setTimeout(updateAutonomi, 2000);
+}
+
+async function updateAutonomi() {
+  const r = await api('/api/ant');
+  if (!r.daemon) return;
+  const d = r.daemon || {}, n = (r.nodes || [])[0] || {}, s = r.storage || {};
+  const de = document.getElementById('autonomiDaemon');
+  const ne = document.getElementById('autonomiNode');
+  const se = document.getElementById('autonomiStorage');
+  const ce = document.getElementById('autonomiConsole');
+  if (de) de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">'+(d.running?'RUNNING':'STOPPED')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(d.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div></div>';
+  if (ne) ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">'+(n.node_id||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">'+(n.name||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">'+(n.version||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs '+(n.status==='running'?'glowing':'text-yellow-400')+'">'+((n.status||'-').toUpperCase())+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(n.uptime_secs||0)+'</span></div></div>';
+  if (se) se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs '+(s.running?'glowing':'text-gray-500')+'">'+(s.running?'ACTIVE':'OFFLINE')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(s.total_chunks||0)+'</span></div></div>';
+  if (ce) ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: '+(d.running?'ONLINE':'OFFLINE')+'</div><div class="text-gray-700">> Nodes running: '+(r.nodes_running||0)+'</div><div class="text-gray-700">> Storage: '+(s.running?'ACTIVE':'OFFLINE')+'</div>';
+}
+
 async function refreshAll() {
   const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov] = await Promise.all([
     api('/api/system'), api('/api/containers'), api('/api/mixnet'),
@@ -1275,29 +1312,31 @@ async function refreshAll() {
 
   // Ant / Autonomi
   const antWidget = document.getElementById('antWidget');
-  const antDaemon = ant && ant.daemon;
-  const antStorage = ant && ant.storage;
-  if (antDaemon) {
+  const antRunning = ant && ant.daemon && ant.daemon.running;
+  if (ant && ant.daemon) {
+    const d = ant.daemon;
     antWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="dot '+(antDaemon.running?'green pulse':'gray')+'"></span><span class="text-xs '+(antDaemon.running?'glowing':'text-gray-500')+'">'+(antDaemon.running?'RUNNING':'STOPPED')+'</span></span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(antDaemon.nodes_running||0)+'/'+(antDaemon.nodes_total||0)+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(antDaemon.uptime_secs||0)+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(antDaemon.port||'-')+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">STORAGE</span><span class="text-xs '+(antStorage&&antStorage.running?'glowing':'text-gray-500')+'">'+(antStorage&&antStorage.running?'ACTIVE':'OFFLINE')+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="dot '+(d.running?'green pulse':'gray')+'"></span><span class="text-xs '+(d.running?'glowing':'text-gray-500')+'">'+(d.running?'RUNNING':'STOPPED')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STORAGE</span><span class="text-xs '+(ant.storage&&ant.storage.running?'glowing':'text-gray-500')+'">'+(ant.storage&&ant.storage.running?'ACTIVE':'OFFLINE')+'</span></div>' +
       '</div>';
   } else {
     antWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">OFFLINE</span></div></div>';
   }
 
   const provWidget = document.getElementById('proverWidget');
-  if (prov && prov.running) {
+  const provRunning = prov && prov.running;
+  if (prov) {
+    const p = prov;
     provWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot green pulse"></span><span class="text-xs glowing">ACTIVE</span></span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(prov.totalChunks||0)+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNK SIZE</span><span class="text-xs text-white">'+(prov.chunkSize||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(p.running?'green pulse':'gray')+'"></span><span class="text-xs '+(p.running?'glowing':'text-gray-500')+'">'+(p.running?'ACTIVE':'IDLE')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(p.total_chunks||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNK SZ</span><span class="text-xs text-white">'+(p.chunk_size||0)+'</span></div>' +
       '</div>';
   } else {
-    provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">IDLE</span></div></div>';
+    provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">OFFLINE</span></div></div>';
   }
 
   // Autonomi tab
@@ -1306,20 +1345,20 @@ async function refreshAll() {
     const ne = document.getElementById('autonomiNode');
     const se = document.getElementById('autonomiStorage');
     const ce = document.getElementById('autonomiConsole');
-    if (de && ant && ant.daemon) {
-      const d = ant.daemon;
-      de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">' + (d.running ? 'RUNNING' : 'STOPPED') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">' + (d.pid || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">' + (d.port || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(d.uptime_secs || 0) + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">' + (d.nodes_running || 0) + '/' + (d.nodes_total || 0) + '</span></div></div>';
+    if (de && ant.data) {
+      const d = ant.data.daemon || {};
+      de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">' + (d.running ? 'RUNNING' : 'STOPPED') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">' + (d.pid || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">' + (d.port || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(d.uptime_secs || 0) + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">' + (d.nodes_running || 0) + '/' + (d.nodes_total || 0) + '</span></div><div class="flex justify-center gap-2 mt-2">' + (d.running ? '<button class="btn-xs btn-danger" onclick="antStopDaemon()">STOP DAEMON</button>' : '<button class="btn-xs btn-primary" onclick="antStartDaemon()">START DAEMON</button>') + '</div></div>';
     }
     if (ne && ant.nodes && ant.nodes.length) {
       const n = ant.nodes[0];
-      ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">' + (n.node_id || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">' + (n.name || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">' + (n.version || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (n.status === 'running' ? 'glowing' : 'text-yellow-400') + '">' + (n.status || '-').toUpperCase() + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(n.uptime_secs || 0) + '</span></div></div>';
+      ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">' + (n.node_id || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">' + (n.name || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">' + (n.version || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (n.status === 'running' ? 'glowing' : 'text-yellow-400') + '">' + (n.status || '-').toUpperCase() + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(n.uptime_secs || 0) + '</span></div><div class="flex justify-center gap-2 mt-2">' + (n.status === 'running' ? '<button class="btn-xs btn-danger" onclick="antStopNode()">STOP NODE</button>' : '<button class="btn-xs btn-primary" onclick="antStartNode()">START NODE</button>') + '</div></div>';
     }
     if (se && ant.storage) {
       const s = ant.storage;
-      se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (s.running ? 'glowing' : 'text-gray-500') + '">' + (s.running ? 'ACTIVE' : 'OFFLINE') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">' + (s.totalChunks || 0) + '</span></div></div>';
+      se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (s.running ? 'glowing' : 'text-gray-500') + '">' + (s.running ? 'ACTIVE' : 'OFFLINE') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">' + (s.total_chunks || 0) + '</span></div></div>';
     }
-    if (ce && ant) {
-      ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: ' + (ant.daemon?.running ? 'ONLINE' : 'OFFLINE') + '</div><div class="text-gray-700">> Nodes running: ' + (ant.totalRunning || 0) + '</div><div class="text-gray-700">> Storage: ' + (ant.storage?.running ? 'ACTIVE' : 'OFFLINE') + '</div>';
+    if (ce) {
+      ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: ' + (ant?.daemon?.running ? 'ONLINE' : 'OFFLINE') + '</div><div class="text-gray-700">> Nodes running: ' + (ant?.totalRunning || 0) + '</div><div class="text-gray-700">> Storage: ' + (ant?.storage?.running ? 'ACTIVE' : 'OFFLINE') + '</div>';
     }
   }
 
@@ -1380,10 +1419,11 @@ async function refreshAll() {
   }
 
   const zymWidget = document.getElementById('zymbitWidget');
-  const zymActive = zym.data && zym.data.zkifc === 'active';
+  const zymActive = zym && zym.zkifc === 'active';
   zymWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym.data?zym.data.zkifc.toUpperCase():'UNKNOWN')+'</span></span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym.data&&zym.data.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?zym.zkifc.toUpperCase():'UNKNOWN')+'</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym&&zym.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs text-white" style="font-size:0.65rem;">0x8930ce...4d256</span></div>' +
     '</div>';
 }
 

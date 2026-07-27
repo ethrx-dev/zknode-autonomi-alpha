@@ -71,6 +71,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/katzenpost/katzenpost => /home/alchemical1/.zknfa/katzenpost
 
-replace github.com/ZeroKnowledgeNetwork/opt/apps/walletshield/thin => ./thin

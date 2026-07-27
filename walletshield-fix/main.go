@@ -34,7 +34,8 @@ var (
 	timeout          = 90 // (default) context timeout; must exceed MixMaxDelay * 2 * NrHops
 	ProxyHTTPService = "proxy"
 
-	UserForwardPayloadLength = 2000
+	// Note: UserForwardPayloadLength should match the same value passed to genconfig.
+	UserForwardPayloadLength = 3000
 )
 
 type proxyRequest struct {
@@ -323,6 +324,7 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	responsePayload = bytes.TrimRight(responsePayload, "\x00")
 
 	decompressed, err := decompressData(resp.Payload)
 	if err != nil {
@@ -334,9 +336,18 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 	s.log.Infof("Response: %s", decompressed)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(decompressed)))
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, string(decompressed))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responsePayload)))
+	for k, v := range resp.Header {
+		kLower := strings.ToLower(k)
+		if kLower == "content-type" || kLower == "content-length" || kLower == "date" || kLower == "host" || kLower == "transfer-encoding" || kLower == "connection" {
+			continue
+		}
+		for _, hv := range v {
+			w.Header().Add(k, hv)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	fmt.Fprintf(w, string(responsePayload))
 }
 
 func (s *Server) SendTestProbes(testProbeSendDelay int, testProbeCount int, testProbeResponseDelay int) {

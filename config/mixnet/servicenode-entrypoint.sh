@@ -22,8 +22,6 @@ else
   echo "ERROR: http-proxy-server not found in any location" >&2
   exit 1
 fi
-
-# Create chatd stub if it doesn't exist
 if [ ! -f /usr/local/bin/chatd ]; then
   cat > /usr/local/bin/chatd << 'CHATDUM'
 #!/bin/sh
@@ -32,5 +30,4 @@ while true; do sleep 3600; done
 CHATDUM
   chmod +x /usr/local/bin/chatd
 fi
-
 exec /usr/local/bin/server -f /var/lib/katzenpost/servicenode1/katzenpost.toml

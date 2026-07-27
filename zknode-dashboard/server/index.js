@@ -1,6 +1,6 @@
 import { request as httpRequest } from 'http';
-import { existsSync, mkdirSync, writeFileSync, accessSync, constants } from "fs";
-import { execSync } from 'child_process';
+import { existsSync, writeFileSync } from "fs";
+import { execSync, spawnSync } from 'child_process';
 import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -80,7 +80,7 @@ let mcpSessionId = null;
 let mcpSseReq = null;
 let mcpReady = false;
 
-function mcpHttp(method, path, headers, body, timeoutMs = 10000) {
+function mcpHttp(method, path, headers, body, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const opts = {
       hostname: '127.0.0.1', port: 18765, path, method,
@@ -190,7 +190,7 @@ async function mcpCall(method, params = {}) {
       'Accept': 'application/json, text/event-stream',
       'mcp-session-id': mcpSessionId
     }, msg);
-    if (resp.status === 400) {
+    if (resp.status === 400 || resp.body.includes('Session not found') || resp.body.includes('expired')) {
       mcpReady = false;
       connectMcp();
       return { error: 'Session expired, reconnecting' };
@@ -293,7 +293,9 @@ async function getStorageStatus() {
 }
 
 function getAntDaemonPort() {
-  return 12000;
+  try {
+    try { return parseInt(execSync('docker exec antd cat /root/.local/share/ant/daemon.port 2>/dev/null', { timeout: 3000, encoding: 'utf8' }).trim(), 10); } catch { return 12000; }
+  } catch { return null; }
 }
 
 async function getAntDaemonStatus() {
@@ -350,8 +352,7 @@ app.get('/api/wiki/list', async (req, res) => {
 
 app.get('/api/wiki/page/:slug', async (req, res) => {
   const { wiki } = req.query;
-  const args = { wiki: 'p4p', uri: req.params.slug };
-  if (wiki) args.wiki = wiki;
+  const args = { uri: req.params.slug, wiki: wiki || 'p4p' };
   const result = await mcpCall('tools/call', {
     name: 'wiki_content_read',
     arguments: args
@@ -395,15 +396,30 @@ app.post('/api/wiki/export/:slug', async (req, res) => {
 
 const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
 
-function zkchatCmd(args, timeout = 10000) {
-  const cmd = 'docker run --rm --network host -v /home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost -v /home/zero-tech/zknode01/bin:/usr/local/bin zeros/mixnet-node-fixed:v0.0.84 /usr/local/bin/zkchat ' + args + ' 2>&1';
-  const r = runShell(cmd, timeout);
-  if (!r.ok) {
-    const err = r.stderr || r.error || '';
-    const short = err.includes('Command failed') ? 'mixnet unavailable (connect to kpclientd failed)' : err;
-    return { ok: false, error: short };
+function zkchatCmd(args, timeout = 60000) {
+  try {
+    const dockerArgs = ['run', '--rm', '--network', 'host',
+      '-v', '/home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost',
+      '-v', '/home/zero-tech/zknode01/bin:/usr/local/bin',
+      'zeros/mixnet-node:arm64', '/usr/local/bin/zkchat'];
+    const parsed = [];
+    let cur = '';
+    let inQ = false;
+    for (const ch of args) {
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === ' ' && !inQ) { if (cur) { parsed.push(cur); cur = ''; } continue; }
+      cur += ch;
+    }
+    if (cur) parsed.push(cur);
+    for (const a of parsed) dockerArgs.push(a);
+    const r = spawnSync('docker', dockerArgs, { timeout, encoding: 'utf8', maxBuffer: 2097152 });
+    if (r.status === 0) return { ok: true, data: r.stdout.trim() };
+    const stderr = (r.stderr || '').trim();
+    const errMsg = stderr || r.error || 'command failed';
+    return { ok: false, error: errMsg.includes('connect') ? 'mixnet unavailable (connect to kpclientd failed)' : errMsg };
+  } catch (e) {
+    return { ok: false, error: e.message || 'unknown error' };
   }
-  return r;
 }
 
 app.get('/api/chat/poll', (req, res) => {
@@ -633,7 +649,7 @@ app.get('/api/reticulum', (req, res) => {
 });
 
 app.get('/api/zymbit', async (req, res) => {
-  const zymApi = await fetchUrl('http://127.0.0.1:8765/api/zymkey/status');
+  const zymApi = await fetchUrl('http://127.0.0.1:8765/api/zymkey/status', 3000);
   res.json({
     zkifc: existsSync('/run/zkstatus/zkifc_running') ? 'active' : 'inactive',
     devZymkey: (() => { try { accessSync('/dev/zymkey', constants.R_OK); return true; } catch { return false; }})(),
@@ -684,12 +700,12 @@ app.get('/api/ant', async (req, res) => {
 });
 
 app.post('/api/ant/daemon/start', async (req, res) => {
-  const r = runShell('ant node daemon start 2>&1');
+  const r = runShell('docker exec antd ant node daemon start 2>&1');
   res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
 });
 
 app.post('/api/ant/daemon/stop', async (req, res) => {
-  const r = runShell('ant node daemon stop 2>&1');
+  const r = runShell('docker exec antd ant node daemon stop 2>&1');
   res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
 });
 
