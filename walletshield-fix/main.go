@@ -4,8 +4,8 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
+	"compress/flate"
 	"context"
 	"flag"
 	"fmt"
@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/fxamacker/cbor/v2"
 
 	"github.com/katzenpost/hpqc/hash"
 	"github.com/katzenpost/hpqc/rand"
@@ -30,26 +31,42 @@ import (
 )
 
 var (
-	timeout          = 20 // (default) context timeout
+	timeout          = 90 // (default) context timeout; must exceed MixMaxDelay * 2 * NrHops
 	ProxyHTTPService = "proxy"
 
-	// Note: UserForwardPayloadLength should match the same value passed to genconfig.
 	UserForwardPayloadLength = 2000
 )
 
+type proxyRequest struct {
+	Payload []byte `cbor:"payload"`
+}
+
+type proxyResponse struct {
+	Payload []byte `cbor:"payload,omitempty"`
+	Error   string `cbor:"error,omitempty"`
+}
+
 func sendRequest(thin *thinclt.ThinClient, httpRequestBytes []byte) ([]byte, error) {
-	// Validate payload size
-	if len(httpRequestBytes) > UserForwardPayloadLength {
-		return nil, fmt.Errorf("payload size %d exceeds maximum %d bytes", len(httpRequestBytes), UserForwardPayloadLength)
+	compressed, err := compressData(httpRequestBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compress request: %w", err)
+	}
+	wrapped := &proxyRequest{Payload: compressed}
+	payload, err := cbor.Marshal(wrapped)
+	if err != nil {
+		return nil, fmt.Errorf("failed to CBOR encode request: %w", err)
+	}
+
+	if len(payload) > UserForwardPayloadLength {
+		return nil, fmt.Errorf("payload size %d exceeds maximum %d bytes", len(payload), UserForwardPayloadLength)
 	}
 
 	surbID := &[sConstants.SURBIDLength]byte{}
-	_, err := rand.Reader.Read(surbID[:])
+	_, err = rand.Reader.Read(surbID[:])
 	if err != nil {
 		panic(err)
 	}
 
-	// Debug: show PKI doc epoch
 	doc := thin.PKIDocument()
 	if doc == nil {
 		return nil, fmt.Errorf("PKI document is not available")
@@ -66,7 +83,7 @@ func sendRequest(thin *thinclt.ThinClient, httpRequestBytes []byte) ([]byte, err
 
 	timeoutCtx, cancel := context.WithTimeout(context.TODO(), time.Duration(timeout)*time.Second)
 	defer cancel()
-	return thin.BlockingSendMessage(timeoutCtx, httpRequestBytes, &nodeId, target.RecipientQueueID)
+	return thin.BlockingSendMessage(timeoutCtx, payload, &nodeId, target.RecipientQueueID)
 }
 
 type Server struct {
@@ -142,7 +159,6 @@ func main() {
 		panic("config flag must be set")
 	}
 
-	// logging
 	level, err := log.ParseLevel(logLevel)
 	if err != nil {
 		panic(err)
@@ -158,7 +174,6 @@ func main() {
 		time.Sleep(time.Duration(d) * time.Second)
 	}
 
-	// start client2 daemon
 	var d *client2.Daemon
 	var cfgThin *thinclt.Config
 	if !thinClientOnly {
@@ -183,7 +198,7 @@ func main() {
 		cfgThin = thinclt.FromConfig(cfg)
 
 		fmt.Println("Sleeping for 3 seconds to let the client daemon startup...")
-		time.Sleep(time.Second * 3) // XXX ugly hack but works: FIXME
+		time.Sleep(time.Second * 3)
 	} else {
 		cfgThin, err = thinclt.LoadFile(configPath)
 
@@ -206,7 +221,6 @@ func main() {
 		panic(err)
 	}
 
-	// http server
 	server := &Server{
 		log:        mylog,
 		thin:       thin,
@@ -215,7 +229,6 @@ func main() {
 		logLevel:   level.String(),
 	}
 
-	// Start event monitoring goroutine for auto-reconnect
 	go func() {
 		eventSink := thin.EventSink()
 		defer thin.StopEventSink(eventSink)
@@ -242,7 +255,6 @@ func main() {
 		http.HandleFunc("/", server.Handler)
 		err := http.ListenAndServe(listenAddr, nil)
 		if err != nil {
-			// Check if the error is related to the port being in use
 			if strings.Contains(err.Error(), "bind: address already in use") {
 				mylog.Errorf("Cannot start server: Listen port %s is already in use. Please check if another instance of walletshield is running or use another port.", listenAddr)
 			} else {
@@ -287,33 +299,44 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Parse the raw HTTP response
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(rawReply)), nil)
+	s.log.Debugf("Raw reply length: %d bytes", len(rawReply))
+	// Hex dump first 100 bytes
+	if len(rawReply) > 0 {
+		hexDump := fmt.Sprintf("%x", rawReply)
+		if len(hexDump) > 200 {
+			hexDump = hexDump[:200]
+		}
+		s.log.Debugf("Raw reply hex: %s", hexDump)
+	}
+
+	// Strip trailing null bytes (Sphinx packet padding)
+	trimmed := rawReply
+	for len(trimmed) > 0 && trimmed[len(trimmed)-1] == 0 {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+
+	// Decode proxyResponse
+	var resp proxyResponse
+	err = cbor.Unmarshal(trimmed, &resp)
 	if err != nil {
-		s.log.Errorf("Failed to parse response: %s", err)
+		s.log.Errorf("Failed to decode proxy response: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
 
-	responsePayload, err := io.ReadAll(resp.Body)
+	decompressed, err := decompressData(resp.Payload)
 	if err != nil {
-		s.log.Errorf("Failed to read response body: %s", err)
+		s.log.Errorf("Failed to decompress response: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	s.log.Infof("Response: %s", responsePayload)
+	s.log.Infof("Response: %s", decompressed)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responsePayload)))
-	for k, v := range resp.Header {
-		for _, hv := range v {
-			w.Header().Add(k, hv)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	fmt.Fprintf(w, string(responsePayload))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(decompressed)))
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, string(decompressed))
 }
 
 func (s *Server) SendTestProbes(testProbeSendDelay int, testProbeCount int, testProbeResponseDelay int) {
@@ -358,11 +381,37 @@ func (s *Server) SendTestProbes(testProbeSendDelay int, testProbeCount int, test
 		s.log.Infof("Probe packet transmitted/received/loss = %d/%d/%.1f%% | rtt min/avg/max = %.2f/%.2f/%.2f s",
 			packetsTransmitted, packetsReceived, packetLoss, rttMin, rttAvg, rttMax)
 
-		// probe indefinitely if testProbeCount is 0
 		if testProbeCount != 0 && packetsTransmitted >= testProbeCount {
 			os.Exit(0)
 		}
 
 		time.Sleep(time.Duration(testProbeSendDelay) * time.Second)
 	}
+}
+
+func compressData(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	writer, err := flate.NewWriter(&buf, flate.BestSpeed)
+	if err != nil {
+		return nil, err
+	}
+	_, err = writer.Write(data)
+	if err != nil {
+		return nil, err
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func decompressData(data []byte) ([]byte, error) {
+	reader := flate.NewReader(bytes.NewReader(data))
+	defer reader.Close()
+	decompressedData, err := io.ReadAll(reader)
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	return decompressedData, nil
 }

@@ -1,248 +1,299 @@
+networks:
+  autonomi:
+    driver: bridge
 services:
-  mix-dirauth-1:
-    image: ${IMAGE_MIXNET}
-    container_name: mix-dirauth-1
-    entrypoint:
-    - sh
-    - -c
-    command:
-    - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth1/authority.toml;
-      sleep 2; done
-    volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+  antd:
+    container_name: antd
+    image: zeros/antd:arm64
     network_mode: host
     restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
-  mix-dirauth-2:
-    image: ${IMAGE_MIXNET}
-    container_name: mix-dirauth-2
-    entrypoint:
-    - sh
-    - -c
-    command:
-    - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth2/authority.toml;
-      sleep 2; done
+    environment:
+    - HOME=/var/lib/antd
+    user: root
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
-    depends_on:
-    - mix-dirauth-1
-  mix-dirauth-3:
-    image: ${IMAGE_MIXNET}
-    container_name: mix-dirauth-3
-    entrypoint:
-    - sh
-    - -c
+    - /home/zero-tech/.local/share/ant:/var/lib/antd/.local/share/ant
+    - /var/lib/ant-node:/var/lib/ant-node
     command:
-    - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth3/authority.toml;
-      sleep 2; done
-    volumes:
-    - ./config/mixnet:/var/lib/katzenpost
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
-    depends_on:
-    - mix-dirauth-2
+    - |
+      mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs
+      B1=/var/lib/antd/node-1/ant-node
+      if [ ! -x "$$B1" ]; then
+        echo "antd: ERROR: node binary not found at $$B1"
+        exit 1
+      fi
+      echo "antd: starting ant-node..."
+      $$B1 \
+        --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
+        --root-dir /var/lib/antd/node-1 \
+        --port 12000 \
+        --log-output-dest stdout \
+        --stop-on-upgrade 2>&1 &
+      P1=$$!
+      echo "antd: ant-node started (PID $$P1)"
+      echo "antd: entering monitor loop"
+      while true; do
+        if ! kill -0 $$P1 2>/dev/null; then
+          echo "antd: node died, restarting..."
+          $$B1 \
+            --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
+            --root-dir /var/lib/antd/node-1 \
+            --port 12000 \
+            --log-output-dest stdout \
+            --stop-on-upgrade 2>&1 &
+          P1=$$!
+          echo "antd: ant-node restarted (PID $$P1)"
+        fi
+        sleep 30
+      done
   mix-1:
-    image: ${IMAGE_MIXNET}
-    container_name: mix-1
     command:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/mix1/katzenpost.toml
-    volumes:
-    - ./config/mixnet:/var/lib/katzenpost
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
+    container_name: mix-1
     depends_on:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-  mix-2:
     image: ${IMAGE_MIXNET}
-    container_name: mix-2
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-2:
     command:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/mix2/katzenpost.toml
-    volumes:
-    - ./config/mixnet:/var/lib/katzenpost
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
+    container_name: mix-2
     depends_on:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-  mix-3:
     image: ${IMAGE_MIXNET}
-    container_name: mix-3
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-3:
     command:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/mix3/katzenpost.toml
-    volumes:
-    - ./config/mixnet:/var/lib/katzenpost
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
+    container_name: mix-3
     depends_on:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-  mix-gateway:
     image: ${IMAGE_MIXNET}
-    container_name: mix-gateway
-    command:
-    - /usr/local/bin/server
-    - -f
-    - /var/lib/katzenpost/gateway1/katzenpost.toml
-    volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
-    depends_on:
-    - mix-1
-    - mix-2
-    - mix-3
-  mix-servicenode:
-    image: ${IMAGE_MIXNET}
-    container_name: mix-servicenode
-    entrypoint: ["/servicenode-entrypoint.sh"]
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
-    - /home/zero-tech/zknode01/bin/chatd:/usr/local/bin/chatd:ro
-    - ./config/mixnet/servicenode-entrypoint.sh:/servicenode-entrypoint.sh:ro
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: ${MIXNET_MEM_LIMIT}
-    depends_on:
-    - mix-1
-    - mix-2
-    - mix-3
   mix-client:
-    image: ${IMAGE_MIXNET}
-    container_name: mix-client
-    entrypoint:
-    - sh
-    - -c
     command:
     - kpclientd -c /var/lib/katzenpost/client/client.toml & PID=$!; echo 'Waiting
       for PKI doc...'; for i in $(seq 1 30); do /usr/local/bin/fetch -f /var/lib/katzenpost/client/thinclient.toml
       && break; sleep 2; done; echo 'PKI doc available'; wait $PID
-    volumes:
-    - /tmp/client.toml.orig:/var/lib/katzenpost/client/client.toml:ro
-    - ./config/mixnet:/var/lib/katzenpost
-    network_mode: host
-    restart: unless-stopped
-    mem_limit: 128m
+    container_name: mix-client
     depends_on:
     - mix-gateway
+    entrypoint:
+    - sh
+    - -c
+    image: ${IMAGE_MIXNET}
+    mem_limit: 128m
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-dirauth-1:
+    command:
+    - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth1/authority.toml;
+      sleep 2; done
+    container_name: mix-dirauth-1
+    entrypoint:
+    - sh
+    - -c
+    image: ${IMAGE_MIXNET}
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-dirauth-2:
+    command:
+    - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth2/authority.toml;
+      sleep 2; done
+    container_name: mix-dirauth-2
+    entrypoint:
+    - sh
+    - -c
+    image: ${IMAGE_MIXNET}
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-dirauth-3:
+    command:
+    - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth3/authority.toml;
+      sleep 2; done
+    container_name: mix-dirauth-3
+    entrypoint:
+    - sh
+    - -c
+    image: ${IMAGE_MIXNET}
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-gateway:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/gateway1/katzenpost.toml
+    container_name: mix-gateway
+    depends_on:
+    - mix-1
+    - mix-2
+    - mix-3
+    image: ${IMAGE_MIXNET}
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+  mix-servicenode:
+    container_name: mix-servicenode
+    depends_on:
+    - mix-1
+    - mix-2
+    - mix-3
+    entrypoint:
+    - /servicenode-entrypoint.sh
+    image: ${IMAGE_MIXNET}
+    mem_limit: ${MIXNET_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet:/var/lib/katzenpost
+    - /home/zero-tech/zknode01/bin/chatd:/usr/local/bin/chatd:ro
+    - ./config/mixnet/servicenode-entrypoint.sh:/servicenode-entrypoint.sh:ro
   mixnet-proxy:
-    image: ${IMAGE_MIXNET_PROXY}
-    container_name: mixnet-proxy
     command:
     - --config
     - /etc/mixnet-proxy/config.json
+    container_name: mixnet-proxy
+    depends_on:
+    - mix-client
+    image: ${IMAGE_MIXNET_PROXY}
+    mem_limit: ${PROXY_MEM_LIMIT}
+    network_mode: host
+    restart: unless-stopped
     volumes:
     - ./config/proxy/config.json:/etc/mixnet-proxy/config.json:ro
     - ./config/proxy/thinclient.toml:/etc/mixnet-proxy/thinclient.toml:ro
+  reticulum:
+    command:
+    - --config
+    - /etc/reticulum
+    container_name: reticulum
+    image: zeros/reticulum:arm64
     network_mode: host
     restart: unless-stopped
-    mem_limit: ${PROXY_MEM_LIMIT}
-    depends_on:
-    - mix-client
-  walletshield:
-    image: walletshield-fixed:arm64
-    container_name: walletshield
-    command: '-config /etc/walletshield/config.toml -listen 127.0.0.1:9200 -thin -log_level
-      INFO
-
-      '
     volumes:
-    - ./config/walletshield/config.toml:/etc/walletshield/config.toml:ro
-    - ./data/walletshield:/var/lib/walletshield
+    - ./config/reticulum/config:/etc/reticulum
+    - ./data/reticulum:/var/lib/reticulum
+  nomadnet:
+    build:
+      context: .
+      dockerfile: Dockerfile.nomadnet
+    command:
+    - --daemon
+    - --config
+    - /etc/nomadnet
+    container_name: nomadnet
     network_mode: host
     restart: unless-stopped
-    depends_on:
-    - mix-client
+    volumes:
+    - ./config/nomadnet:/etc/nomadnet:rw
+    - ./config/nomadnet/pages:/var/lib/nomadnet/pages:rw
+    - ./data/nomadnet:/var/lib/nomadnet
+    - ./config/nomadnet/llm-wiki-proxy.sh:/usr/local/bin/llm-wiki-proxy.sh:ro
   storage-proved:
-    image: zeros/storage-proved-rs:arm64
-    container_name: storage-proved
     command:
     - --listen
     - 0.0.0.0:9201
     - --dir
     - /var/lib/ant-node/chunks
-    volumes:
-    - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
+    container_name: storage-proved
+    image: zeros/storage-proved-rs:arm64
+    networks:
+    - autonomi
     ports:
     - 127.0.0.1:9201:9201
-    networks:
-    - autonomi
     restart: unless-stopped
-  antd:
-    image: ${IMAGE_ANTD}
-    container_name: antd
-    cap_add:
-    - SYS_ADMIN
-    - SYS_RESOURCE
-    environment:
-    - AUTONOMI_EVM_NETWORK=${AUTONOMI_EVM_NETWORK}
-    - SECRET_KEY=${SECRET_KEY}
     volumes:
-    - ./data/antd:/var/lib/antd
-    - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks
-    - ${AUTONOMI_LOGS_DIR:-./data/logs}:/var/lib/ant-node/logs
-    networks:
-    - autonomi
-    entrypoint:
-    - sh
-    - -c
+    - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
+  walletshield:
     command:
-    - echo 1 > /proc/sys/vm/overcommit_memory 2>/dev/null; tail -f /dev/null
-    restart: unless-stopped
-  reticulum:
-    image: zeros/reticulum:arm64
-    container_name: reticulum
-    command:
-    - --config
-    - /etc/reticulum/config
-    volumes:
-    - ./config/reticulum:/etc/reticulum
-    - ./data/reticulum:/var/lib/reticulum
+    - -config
+    - /etc/walletshield/config.toml
+    - -listen
+    - 127.0.0.1:9200
+    - -thin
+    - -timeout
+    - "120"
+    - -log_level
+    - INFO
+    container_name: walletshield
+    depends_on:
+    - mix-client
+    entrypoint: null
+    image: walletshield-rebuild:latest
     network_mode: host
     restart: unless-stopped
+    volumes:
+    - ./config/walletshield/config.toml:/etc/walletshield/config.toml:ro
+    - ./data/walletshield:/var/lib/walletshield
   zkchat:
-    image: ${IMAGE_MIXNET}
+    command:
+    - while true; do /usr/local/bin/zkchat poll /etc/zkchat/thinclient.toml 2>&1;
+      sleep 30; done
     container_name: zkchat
     entrypoint:
     - sh
     - -c
-    command:
-    - while true; do /usr/local/bin/zkchat poll /etc/zkchat/thinclient.toml 2>&1;
-      sleep 10; done
-    volumes:
-    - ./config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    image: ${IMAGE_MIXNET}
     network_mode: host
     restart: unless-stopped
+    volumes:
+    - ./config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    - /home/zero-tech/zknode01/bin/zkchat:/usr/local/bin/zkchat:ro
   zknode-dashboard:
-    image: ${IMAGE_DASHBOARD:-zknode-dashboard:latest}
-    container_name: zknode-dashboard
     build:
       context: ./zknode-dashboard
+    container_name: zknode-dashboard
+    environment:
+    - PORT=${DASHBOARD_PORT:-8080}
+    - WS_PORT=${WS_PORT:-9200}
+    - LLM_WIKI_PORT=${LLM_WIKI_PORT:-18765}
+    image: ${IMAGE_DASHBOARD:-zknode-dashboard:latest}
+    network_mode: host
     ports:
     - ${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}
+    restart: unless-stopped
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock:ro
     - /home/zero-tech/.local/bin/llm-wiki:/usr/local/bin/llm-wiki:ro
     - /home/zero-tech/wikis:/wikis:ro
     - /home/zero-tech/.llm-wiki:/root/.llm-wiki:rw
-    - /home/zero-tech/nomadnet-new:/var/nomadnet:ro
+    - ./config/nomadnet/pages:/var/nomadnet/pages:rw
     - /home/zero-tech/zknode01/bin/zkchat:/usr/local/bin/zkchat:ro
     - /home/zero-tech/zknode-autonomi/config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
     - /home/zero-tech/zknode-autonomi/config/mixnet/client/.zkchat/identity:/etc/zkchat/identity:ro
@@ -252,12 +303,17 @@ services:
     - /home/zero-tech/.local/bin/ant:/usr/local/bin/ant:ro
     - /home/zero-tech/.local/share/ant:/root/.local/share/ant:rw
     - /mnt/autonomi:/mnt/autonomi:rw
-    environment:
-    - PORT=${DASHBOARD_PORT:-8080}
-    - WS_PORT=${WS_PORT:-9200}
-    - LLM_WIKI_PORT=${LLM_WIKI_PORT:-18765}
+  llm-wiki:
+    command:
+    - /usr/local/bin/llm-wiki serve --http 18765 --wiki /var/lib/llm-wiki
+    container_name: llm-wiki
+    entrypoint:
+    - sh
+    - -c
+    image: debian:testing-slim
     network_mode: host
     restart: unless-stopped
-networks:
-  autonomi:
-    driver: bridge
+    volumes:
+    - /home/zero-tech/.local/bin/llm-wiki:/usr/local/bin/llm-wiki:ro
+    - /home/zero-tech/wikis:/var/lib/llm-wiki:rw
+    - /home/zero-tech/.llm-wiki:/root/.llm-wiki:rw

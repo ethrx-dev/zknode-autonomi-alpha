@@ -255,3 +255,92 @@ Source code: AGPL-3.0-only.
 Documentation: CC-BY-SA-4.0.
 
 **WARNING**: This is a Proof of Concept. Not production-hardened.
+## Key Components
+
+| Component | Port | Description |
+|-----------|------|-------------|
+| **zknode-dashboard** | 8080 | Web UI: system stats, mixnet health, wiki, zkchat, ant |
+| **walletshield** | 9200 | Mixnet RPC proxy for MetaMask (CORS proxy on :8080/ethereum) |
+| **mixnet** | 30001-30019 | Katzenpost mixnet (dauths, mixes, gateway, servicenode) |
+| **kpclientd** | 64332 | Thin client daemon for walletshield & zkchat |
+| **zkchat** | — | E2EE chat over mixnet |
+| **llm-wiki** | 18765 | Local LLM-powered wiki search (P4P wiki, 39k+ pages) |
+| **antd** | 12000 | Autonomi node daemon with Zymbit HSM wallet |
+
+## Mixnet Tuning
+
+The mixnet uses 3 mix layers with 1 node per layer (all localhost). Key parameters in `config/mixnet/auth1/authority.toml`:
+
+- `Layers = 1` (reduced from 3 for lower latency — set during session)
+- `UserForwardPayloadLength = 2000` (Sphinx payload size, matched across all configs)
+- `Mu = 0.005`, `LambdaM = 0.2` (decoy/mix rate parameters)
+
+RPC latency: ~2s after warmup (first request may take 30s for PKI fetch).
+
+## zkchat
+
+Groups stored in `/tmp/zkchat/` on the servicenode (chatd default). Dashboard reads from both `/tmp/zkchat/` and legacy path. Group creation/deletion supported via API and UI. No `group delete` command in zkchat CLI — deletion done via `rm -rf` on the store directory.
+
+## MetaMask Connectivity
+
+Use `http://<SCM4_IP>:8080/ethereum` as RPC URL (chain ID 1). The dashboard adds CORS headers (`Access-Control-Allow-Origin: *`). First request may be slow while mixnet warmup completes.
+
+## Boot Recovery
+
+Systemd service `zknode-boot.service` starts containers in phased order:
+1. Directory authorities → 2. Mix nodes → 3. Gateway + Servicenode → 4. Client + Walletshield → 5. Dashboard + Support
+
+Manual invocation: `sudo /home/zero-tech/zknode-autonomi/deploy.sh`
+
+## Backup
+
+- Local: `./backup-scm4.sh /tmp/scm4-backup-$(date +%Y%m%d-%H%M)`
+- Restore: `./restore-scm4.sh <backup_dir>`
+- USB SSD: Configs synced to `/mnt/autonomi/autonomi-data/zknode-backup-*/`
+
+## Known Issues
+
+- Chatd `-store` flag can't pass arguments (CBOR plugin treats `Command` as raw path)
+- Proxy upstream responses exceeding 2000 bytes stall the plugin (restart servicenode to recover)
+- Zymkey device flips between `/dev/ttyACM0` and `/dev/ttyACM1` on reboot
+- Mixnet PKI chain requires ~20 min to stabilize after dauth restarts
+
+## Mesh Wiki (NomadNet over Reticulum)
+
+NomadNet serves the P4P wiki over the Reticulum mesh network for offline/peer-to-peer access.
+
+| Component | Port | Description |
+|-----------|------|-------------|
+| **reticulum** | 37428/udp | Reticulum mesh transport (LoRa/LLC/I2P) |
+| **nomadnet** | 4242/tcp | NomadNet mesh HTTP + peer discovery |
+
+### Architecture
+
+```
+Mesh Peer ←→ Reticulum ←→ NomadNet (4242) ←→ Dynamic Pages ←→ Dashboard API (8080) ←→ llm-wiki MCP
+                        ↕
+                Static .mu pages (config/nomadnet/pages/)
+```
+
+- **Static pages**: Wiki content auto-exported as `.mu` files whenever a page is viewed in the dashboard (via `POST /api/wiki/export/:slug`)
+- **Dynamic pages**: Python scripts in `config/nomadnet/pages/wiki/` that proxy search and page-read through to the dashboard REST API
+  - `/wiki/search?q=query` — searches 39k+ wiki pages, returns results as `.mu` links
+  - `/wiki/page?slug=Page_Name` — fetches a single page, renders as `.mu` with internal links
+
+### Dashboard Mesh Tab
+
+The frontend wiki browser panel (`#meshWikiContent`) mirrors the P4P wiki viewer. Any page viewed triggers auto-export to the nomadnet pages directory. State (active tab, wallet, wiki history, chat) persists across full page refreshes via `sessionStorage`.
+
+### Configuration
+
+- `config/nomadnet/config` — Reticulum identity, NomadNet port, dynamic page paths
+- `config/nomadnet/pages/wiki/search` — Python search proxy (executable)
+- `config/nomadnet/pages/wiki/page` — Python page-reader proxy (executable)
+- `config/nomadnet/pages/` — Shared volume mounted in both `nomadnet` and `dashboard` containers
+
+### Health Check
+
+```
+curl http://scm4:8080/api/status
+→ {"rnsd":"running","nomadnet":"active","nomadPages":6,"wiki":{"pages":39804}}
+```

@@ -77,10 +77,6 @@ KEMName = ""
     Disable = false
     Command = "/usr/local/bin/chatd"
     MaxConcurrency = 4
-    [ServiceNode.CBORPluginKaetzchen.Config]
-      log_dir = "/var/lib/katzenpost/servicenode1"
-      log_level = "DEBUG"
-      store = "/var/lib/katzenpost/servicenode1/chatd"
 
 [Debug]
 NumSphinxWorkers = 2
@@ -90,13 +86,13 @@ NumKaetzchenWorkers = 4
 SchedulerExternalMemoryQueue = false
 SchedulerQueueSize = 0
 SchedulerMaxBurst = 16
-UnwrapDelay = 250
+UnwrapDelay = 100
 GatewayDelay = 500
 ServiceDelay = 500
-KaetzchenDelay = 750
+KaetzchenDelay = 200
 SchedulerSlack = 450
 SendSlack = 50
-DecoySlack = 15000
+DecoySlack = 2000
 ConnectTimeout = 120000
 HandshakeTimeout = 120000
 ReauthInterval = 30000
@@ -105,9 +101,9 @@ DisableRateLimit = false
 GenerateOnly = false
 
   [[ServiceNode.CBORPluginKaetzchen]]
-    Capability = "http_proxy"
+    Capability = "proxy"
     Endpoint = "http_proxy"
-    Disable = true
+    Disable = false
     Command = "/usr/local/bin/http-proxy-server"
     MaxConcurrency = 4
     [ServiceNode.CBORPluginKaetzchen.Config]

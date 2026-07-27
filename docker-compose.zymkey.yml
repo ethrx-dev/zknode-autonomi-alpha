@@ -17,7 +17,6 @@ services:
     container_name: zkifc
     devices:
       - /dev/zymkey:/dev/zymkey
-      - /dev/i2c-1:/dev/i2c-1
     volumes:
       - /etc/zymbit:/etc/zymbit:ro
       - /var/lib/zymbit:/var/lib/zymbit
@@ -38,17 +37,35 @@ services:
 
   # ─── Autonomi Storage Node (with zymkey) ───────────────────
   ant-node:
+    image: ${IMAGE_ANTD:-zeros/antd:arm64}
+    container_name: ant-node
     devices:
       - /dev/zymkey:/dev/zymkey
     volumes:
       - /etc/zymbit:/etc/zymbit:ro
       - /var/lib/zymbit:/var/lib/zymbit
       - ./data/zymbit:/var/lib/zymbit/data
+      - ./data/antd:/var/lib/antd
+      - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks
+      - ${AUTONOMI_LOGS_DIR:-./data/logs}:/var/lib/ant-node/logs
     environment:
       - ZYMBIT_ENABLED=true
       - ZYMBIT_TRINITY_KEY=/etc/zymbit/trinity_key.bin
       - ZYMBIT_WALLET_NAME=zknode-wallet
-      - ANT_REWARDS_ADDRESS=CHANGE_ME_BEFORE_DEPLOY
+      - ANT_REWARDS_ADDRESS=0x8930ce147b305260f3761e02214a5622674bd256
+      - AUTONOMI_EVM_NETWORK=${AUTONOMI_EVM_NETWORK}
+      - SECRET_KEY=${SECRET_KEY}
+    entrypoint:
+      - sh
+      - -c
+    command:
+      - |
+        echo "ant-node: starting daemon..."
+        ant node daemon start || true
+        echo "ant-node daemon started"
+        tail -f /dev/null
+    network_mode: host
+    restart: unless-stopped
 
   # ─── Mixnet Proxy (with zymkey for SURB signing) ─────────
   mixnet-proxy:

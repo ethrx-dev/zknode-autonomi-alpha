@@ -1,6 +1,9 @@
 # walletshield thin client config for zknode-autonomi-alpha mixnet
 # Sphinx geometry matches zeros/mixnet-node:arm64 (PacketLength=3082)
 
+Network = "tcp"
+Address = "127.0.0.1:64332"
+
 [SphinxGeometry]
   PacketLength = 3082
   NrHops = 5
@@ -25,8 +28,3 @@
   CourierQueryReplyWriteLength = 50
   NIKEName = "CTIDH1024-X25519"
   SignatureSchemeName = "Ed25519"
-
-[Dial]
-  [Dial.Tcp]
-    Address = "127.0.0.1:64332"
-    Network = "tcp"

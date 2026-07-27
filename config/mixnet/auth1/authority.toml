@@ -46,15 +46,15 @@
 
 [Parameters]
   Mu = 0.005
-  LambdaP = 0.001
+  LambdaP = 0.01
   LambdaL = 0.0005
-  LambdaM = 0.2
+  LambdaM = 0.5
   LambdaR = 0.0005
   LambdaGMaxDelay = 60000
   LambdaRMaxDelay = 60000
 
 [Debug]
-  Layers = 3
+  Layers = 1
   MinNodesPerLayer = 1
   GenerateOnly = false
 

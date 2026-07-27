@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""NomadNet dynamic page: read a P4P wiki page via dashboard API"""
+import http.client, urllib.parse, json, os, sys
+
+def api_get(path):
+    conn = http.client.HTTPConnection("127.0.0.1", 8080, timeout=15)
+    conn.request("GET", path)
+    resp = conn.getresponse()
+    data = resp.read().decode()
+    conn.close()
+    return json.loads(data) if data.startswith("{") or data.startswith('"') else data
+
+def to_mu(text):
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    lines = text.split("\n")
+    out = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            out.append(f"# {stripped[2:]}")
+        elif stripped.startswith("## "):
+            out.append(f"## {stripped[3:]}")
+        elif stripped.startswith("### "):
+            out.append(f"### {stripped[4:]}")
+        elif stripped.startswith("#### "):
+            out.append(f"#### {stripped[5:]}")
+        elif stripped.startswith("[") and "](" in stripped:
+            parts = stripped.split("](", 1)
+            text_part = parts[0][1:]
+            url_part = parts[1].rstrip(")")
+            if url_part.startswith("http://") or url_part.startswith("https://"):
+                out.append(f"[{text_part}|{url_part}]")
+            else:
+                slug = urllib.parse.quote(url_part.replace("wiki://p4p/wiki/", "").replace("wiki://p4p/", "").replace("wiki/", ""), safe="")
+                out.append(f"[{text_part}|/wiki/page?slug={slug}]")
+        elif stripped.startswith("- "):
+            out.append(f"  - {stripped[2:]}")
+        elif stripped == "---":
+            continue
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+q = os.environ.get("QUERY_STRING", "").strip()
+params = urllib.parse.parse_qs(q)
+slug = params.get("slug", [""])[0]
+
+if not slug:
+    print("# Wiki Page Error")
+    print()
+    print("Usage: add ?slug=page-name to the URL")
+    print("Example: /wiki/page?slug=Mesh+Networks")
+    print()
+    print("[Wiki Home|/wiki/index.mu]")
+    sys.exit(0)
+
+encoded = urllib.parse.quote(slug, safe="")
+path = f"/api/wiki/page/wiki%2F{encoded}"
+
+try:
+    data = api_get(path)
+except Exception as e:
+    data = f"# Error\n\nCould not load page: {slug}\n\nError: {e}"
+
+if isinstance(data, str) and data.startswith('"error'):
+    print("# Page Not Found")
+    print()
+    print(f"Could not load page: {slug}")
+    print()
+    print("[Wiki Home|/wiki/index.mu]")
+    sys.exit(0)
+
+if isinstance(data, str):
+    content = data.strip('"')
+else:
+    content = data.get("text") or data.get("content") or json.dumps(data)
+
+title_line = content.split("\n")[0] if content else slug
+title = title_line.replace("# ", "").strip() if title_line.startswith("# ") else slug.replace("-", " ").replace("_", " ")
+
+print(f"# {title}")
+print()
+print(to_mu(content))
+print()
+print(f"[Wiki Home|/wiki/index.mu]")

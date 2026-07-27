@@ -52,3 +52,17 @@ walletshield-fix/*.bak
 
 # Compiled binaries
 walletshield-fix/walletshield-arm64
+*.log
+persistence.db
+spool.db
+*.socket
+
+# Arch-specific Dockerfiles
+Dockerfile.*.amd64
+
+# Build artifacts and tarballs
+*.tar.gz
+walletshield-amd64
+
+# Test artifacts
+test_from_container

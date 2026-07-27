@@ -1,5 +1,5 @@
 import { request as httpRequest } from 'http';
-import { existsSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, accessSync, constants } from "fs";
 import { execSync } from 'child_process';
 import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
 import { join, dirname } from 'path';
@@ -88,7 +88,8 @@ function mcpHttp(method, path, headers, body, timeoutMs = 10000) {
     };
     const req = httpRequest(opts, (res) => {
       let data = '';
-      res.on('data', c => data += c);
+      let rtimer = null;
+      res.on('data', c => { data += c; if (!rtimer) { rtimer = setTimeout(() => resolve({ status: res.statusCode, headers: res.headers, body: data }), 3000); } });
       res.on('end', () => resolve({
         status: res.statusCode,
         headers: res.headers,
@@ -292,9 +293,7 @@ async function getStorageStatus() {
 }
 
 function getAntDaemonPort() {
-  try {
-    return parseInt(execSync('cat /root/.local/share/ant/daemon.port 2>/dev/null', { timeout: 2000, encoding: 'utf8' }).trim(), 10);
-  } catch { return null; }
+  return 12000;
 }
 
 async function getAntDaemonStatus() {
@@ -329,7 +328,7 @@ app.post('/api/wiki/search', async (req, res) => {
   if (!query) return res.json({ error: 'query required', results: [] });
   const result = await mcpCall('tools/call', {
     name: 'wiki_search',
-    arguments: { query, top_k: topK || 10 }
+    arguments: { wiki: 'p4p', query, top_k: topK || 10 }
   });
   res.json(result);
 });
@@ -339,7 +338,7 @@ app.get('/api/wiki/list', async (req, res) => {
   const pageSize = parseInt(req.query.pageSize) || 20;
   const type = req.query.type || '';
   const status = req.query.status || '';
-  const args = { page, page_size: pageSize };
+  const args = { wiki: 'p4p', page, page_size: pageSize };
   if (type) args.type = type;
   if (status) args.status = status;
   const result = await mcpCall('tools/call', {
@@ -351,7 +350,7 @@ app.get('/api/wiki/list', async (req, res) => {
 
 app.get('/api/wiki/page/:slug', async (req, res) => {
   const { wiki } = req.query;
-  const args = { uri: req.params.slug };
+  const args = { wiki: 'p4p', uri: req.params.slug };
   if (wiki) args.wiki = wiki;
   const result = await mcpCall('tools/call', {
     name: 'wiki_content_read',
@@ -361,16 +360,35 @@ app.get('/api/wiki/page/:slug', async (req, res) => {
 });
 
 app.get('/api/wiki/stats', async (req, res) => {
-  const result = await mcpCall('tools/call', { name: 'wiki_stats', arguments: {} });
+  const result = await mcpCall('tools/call', { name: 'wiki_stats', arguments: { wiki: 'p4p' } });
   res.json(result || {});
 });
 
 app.get('/api/wiki/suggest/:slug', async (req, res) => {
   const result = await mcpCall('tools/call', {
     name: 'wiki_suggest',
-    arguments: { slug: req.params.slug, limit: 10 }
+    arguments: { wiki: 'p4p', slug: req.params.slug, limit: 10 }
   });
   res.json(result);
+});
+
+app.post('/api/wiki/export/:slug', async (req, res) => {
+  let uri = req.params.slug;
+  if (!uri.startsWith('wiki/')) uri = 'wiki/' + uri;
+  const result = await mcpCall('tools/call', { name: 'wiki_content_read', arguments: { wiki: 'p4p', uri } });
+  if (!result || result.error) return res.json({ ok: false, error: result?.error || 'fetch failed' });
+  const content = result.text || result.content || (typeof result === 'string' ? result : '');
+  const slug = uri.split('/').pop().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const title = slug.replace(/[-_]/g, ' ');
+  const exportDir = '/var/nomadnet/pages/wiki';
+  const mu = `# ${title}\n\n${content}\n\n[Wiki Home|/wiki/index.mu]\n`;
+  try {
+    if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true });
+    writeFileSync(`${exportDir}/${slug}.mu`, mu);
+    res.json({ ok: true, path: `wiki/${slug}.mu` });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // ─── ZKCHAT ENDPOINTS ─────────────────────────────────────────
@@ -497,10 +515,10 @@ app.get('/api/mesh/status', (req, res) => {
   const rnsPid = pgrep('rnsd');
   const nomadRunning = !!nomadPid;
   const rnsRunning = !!rnsPid;
-  const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
+  const pages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
   const config = runShell('cat /var/nomadnet/config 2>/dev/null');
-  const wikiPages = runShell('ls /home/zero-tech/wikis/p2p-infrastructure/wiki/ 2>/dev/null');
-  const nomadPages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
+  const wikiPages = runShell('grep "^pages" /root/.llm-wiki/indexes/p4p/state.toml 2>/dev/null | grep -oE "[0-9]+"');
+  const nomadPages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
   res.json({
     rnsd: rnsRunning ? 'running' : 'not running',
     pid: rnsPid || nomadPid || null,
@@ -508,7 +526,7 @@ app.get('/api/mesh/status', (req, res) => {
     nomadnet: nomadRunning ? 'active' : 'inactive',
     pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
     wiki: {
-      pages: wikiPages.ok ? wikiPages.data.split('\n').filter(Boolean).length : 0
+      pages: wikiPages.ok ? parseInt(wikiPages.data.trim()) || 0 : 0
     },
     nomadPages: nomadPages.ok ? nomadPages.data.split('\n').filter(Boolean).length : 0
   });
@@ -618,7 +636,7 @@ app.get('/api/zymbit', async (req, res) => {
   const zymApi = await fetchUrl('http://127.0.0.1:8765/api/zymkey/status');
   res.json({
     zkifc: existsSync('/run/zkstatus/zkifc_running') ? 'active' : 'inactive',
-    devZymkey: existsSync('/dev/zymkey'),
+    devZymkey: (() => { try { accessSync('/dev/zymkey', constants.R_OK); return true; } catch { return false; }})(),
     zscm: zymApi.error ? null : {
       device: zymApi.device,
       model: zymApi.model,

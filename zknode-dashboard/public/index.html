@@ -351,6 +351,9 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         <button class="sidebar-btn" data-tab="wiki" onclick="switchTab('wiki')">
           <span class="icon">◉</span><span style="flex:1">P4P WIKI</span>
         </button>
+        <button class="sidebar-btn" data-tab="autonomi" onclick="switchTab('autonomi')">
+          <span class="icon">⍉</span><span style="flex:1">AUTONOMI</span>
+        </button>
         <button class="sidebar-btn" data-tab="mesh" onclick="switchTab('mesh')">
           <span class="icon">◎</span><span style="flex:1">MESH NET</span>
         </button>
@@ -593,6 +596,8 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                 <div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div>
                 <span id="wikiViewTitle">WELCOME</span>
                 <span class="ml-auto flex gap-2">
+                  <button class="btn-secondary" onclick="wikiBack()" id="wikiBackBtn" style="padding:4px 8px;font-size:0.6rem;display:none;" title="Back">◀</button>
+                  <button class="btn-secondary" onclick="wikiForward()" id="wikiFwdBtn" style="padding:4px 8px;font-size:0.6rem;display:none;" title="Forward">▶</button>
                   <button class="btn-secondary" onclick="wikiShowList()" style="padding:4px 8px;font-size:0.6rem;">BROWSE</button>
                   <button class="btn-secondary" onclick="wikiShowStats()" style="padding:4px 8px;font-size:0.6rem;">STATS</button>
                   <button class="btn-secondary" onclick="wikiNewPage()" style="padding:4px 8px;font-size:0.6rem;color:var(--neon-green);">+NEW</button>
@@ -616,6 +621,43 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         </div>
 
         <!-- Mesh Tab -->
+        <div id="tab-autonomi" class="hidden">
+          <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+              <span style="color:var(--neon-green);font-size:0.7rem;letter-spacing:0.1em;">ROOT@ZKNODE // AUTONOMI</span>
+            </div>
+            <h2 class="text-2xl font-bold glowing" style="font-family:Orbitron,sans-serif;">AUTONOMI STORAGE NODE</h2>
+            <p class="text-gray-500 mt-2" style="font-size:0.75rem;">// DECENTRALIZED P2P STORAGE NETWORK</p>
+          </div>
+          <div class="grid grid-cols-3 gap-4 mb-4">
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>DAEMON</span></div>
+              <div class="terminal-body" id="autonomiDaemon">
+                <div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;"></span> Loading...</div>
+              </div>
+            </div>
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>NODE</span></div>
+              <div class="terminal-body" id="autonomiNode">
+                <div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;"></span> Loading...</div>
+              </div>
+            </div>
+            <div class="terminal-card">
+              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>STORAGE</span></div>
+              <div class="terminal-body" id="autonomiStorage">
+                <div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;"></span> Loading...</div>
+              </div>
+            </div>
+          </div>
+          <div class="terminal-card">
+            <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>CONSOLE</span></div>
+            <div class="console-body" id="autonomiConsole" style="height:200px;">
+              <div class="text-gray-600">> Autonomi node manager ready</div>
+              <div class="text-gray-700">> Waiting for status update...</div>
+            </div>
+          </div>
+        </div>
+
         <div id="tab-mesh" class="hidden">
           <div class="mb-6">
             <div class="flex items-center gap-2 mb-2">
@@ -667,6 +709,30 @@ tr:hover td { background:rgba(0,255,136,0.02); }
 <div id="toastContainer" class="toast-container"></div>
 
 <script>
+const PERSIST_KEYS = ['activeTab','wallet','wiki','chat'];
+function saveState() {
+  try {
+    const o = {};
+    for (const k of PERSIST_KEYS) {
+      if (k === 'chat') {
+        const { pollTimer, ...rest } = state.chat || {};
+        o.chat = rest;
+      } else {
+        o[k] = state[k];
+      }
+    }
+    sessionStorage.setItem('zknodeState', JSON.stringify(o));
+  } catch(e) {}
+}
+function loadState() {
+  try {
+    const raw = sessionStorage.getItem('zknodeState');
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    for (const k of PERSIST_KEYS) if (s[k] !== undefined) Object.assign(state, { [k]: s[k] });
+  } catch(e) {}
+}
+
 const state = {
   wallet: { connected: false, address: null, type: null, balance: null, networkId: null },
   walletshieldContainer: false,
@@ -674,7 +740,7 @@ const state = {
   mixnetPoll: null,
   systemPoll: null,
   activeTab: 'dashboard',
-  wiki: { results: [], currentPage: null, stats: null }
+  wiki: { results: [], currentPage: null, stats: null, history: { stack: [], index: -1 } }
 };
 
 function switchTab(tab) {
@@ -822,7 +888,18 @@ let wikiInitDone = false;
 function wikiInit() {
   if (wikiInitDone) return;
   wikiInitDone = true;
-  doWikiSearch();
+  // Single delegated click handler for internal wiki links
+  document.getElementById('wikiViewContent').addEventListener('click', function(e) {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('#') && !href.startsWith('mailto:')) {
+      e.preventDefault();
+      const slug = href.startsWith('wiki/') ? href : 'wiki/' + href;
+      viewWikiPage(slug, href.split('/').pop().replace(/[-_]/g, ' '));
+    }
+  });
+  if (!state.wiki.history.stack.length) doWikiSearch();
 }
 
 let wikiSearchTimer = null;
@@ -857,6 +934,11 @@ function renderWikiResults() {
 }
 
 async function viewWikiPage(uri, title) {
+  state.wiki.history.stack = state.wiki.history.stack.slice(0, state.wiki.history.index + 1);
+  state.wiki.history.stack.push({ uri, title: title || uri.split('/').pop() });
+  state.wiki.history.index = state.wiki.history.stack.length - 1;
+  document.getElementById('wikiBackBtn').style.display = state.wiki.history.index > 0 ? 'inline-flex' : 'none';
+  document.getElementById('wikiFwdBtn').style.display = 'none';
   currentEditSlug = uri.split("/").pop();
   document.getElementById("wikiEditBtn").style.display = "inline-flex";
   document.getElementById('wikiViewTitle').textContent = title || 'LOADING...';
@@ -869,6 +951,13 @@ async function viewWikiPage(uri, title) {
   const content = typeof r === 'string' ? r : (r.text || r.content || JSON.stringify(r));
   document.getElementById('wikiViewTitle').textContent = title || uri.split('/').pop();
   document.getElementById('wikiViewContent').innerHTML = '<div class="wiki-page-content whitespace-pre-wrap">' + renderMarkdown(content) + '</div>';
+  // Also populate mesh tab wiki browser
+  const meshBrowser = document.getElementById('meshWikiContent');
+  if (meshBrowser) {
+    meshBrowser.innerHTML = '<div class="wiki-page-content whitespace-pre-wrap" style="font-size:0.75rem;">' + renderMarkdown(content) + '</div><div class="divider"></div><div class="text-xs text-gray-500">Page: ' + uri + ' — served over Reticulum mesh via NomadNet</div>';
+  }
+  // Auto-export to NomadNet pages for mesh access
+  api('/api/wiki/export/' + encodeURIComponent(uri), { method: 'POST' }).catch(() => {});
   // Load suggestions
   const slug = uri.split('/').pop();
   const sug = await api('/api/wiki/suggest/' + encodeURIComponent(slug));
@@ -880,6 +969,44 @@ async function viewWikiPage(uri, title) {
         '<div class="text-xs text-gray-500">' + escapeHtml(s.slug) + ' <span class="badge badge-info">' + (s.score||'').toFixed(2) + '</span></div>' +
         '<div class="text-xs text-gray-600">' + (s.reason||'') + '</div>' +
       '</div>').join('');
+  }
+}
+
+function wikiBack() {
+  if (state.wiki.history.index > 0) {
+    state.wiki.history.index--;
+    const entry = state.wiki.history.stack[state.wiki.history.index];
+    document.getElementById('wikiBackBtn').style.display = state.wiki.history.index > 0 ? 'inline-flex' : 'none';
+    document.getElementById('wikiFwdBtn').style.display = state.wiki.history.index < state.wiki.history.stack.length - 1 ? 'inline-flex' : 'none';
+    currentEditSlug = entry.uri.split("/").pop();
+    document.getElementById("wikiEditBtn").style.display = "inline-flex";
+    document.getElementById('wikiViewTitle').textContent = entry.title || 'LOADING...';
+    document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;margin-right:6px;"></span>Loading...</div>';
+    api('/api/wiki/page/' + encodeURIComponent(entry.uri)).then(r => {
+      if (r.error) { document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-red-400">Error: ' + r.error + '</div>'; return; }
+      const content = typeof r === 'string' ? r : (r.text || r.content || JSON.stringify(r));
+      document.getElementById('wikiViewTitle').textContent = entry.title;
+      document.getElementById('wikiViewContent').innerHTML = '<div class="wiki-page-content whitespace-pre-wrap">' + renderMarkdown(content) + '</div>';
+    });
+  }
+}
+
+function wikiForward() {
+  if (state.wiki.history.index < state.wiki.history.stack.length - 1) {
+    state.wiki.history.index++;
+    const entry = state.wiki.history.stack[state.wiki.history.index];
+    document.getElementById('wikiBackBtn').style.display = state.wiki.history.index > 0 ? 'inline-flex' : 'none';
+    document.getElementById('wikiFwdBtn').style.display = state.wiki.history.index < state.wiki.history.stack.length - 1 ? 'inline-flex' : 'none';
+    currentEditSlug = entry.uri.split("/").pop();
+    document.getElementById("wikiEditBtn").style.display = "inline-flex";
+    document.getElementById('wikiViewTitle').textContent = entry.title || 'LOADING...';
+    document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;margin-right:6px;"></span>Loading...</div>';
+    api('/api/wiki/page/' + encodeURIComponent(entry.uri)).then(r => {
+      if (r.error) { document.getElementById('wikiViewContent').innerHTML = '<div class="text-xs text-red-400">Error: ' + r.error + '</div>'; return; }
+      const content = typeof r === 'string' ? r : (r.text || r.content || JSON.stringify(r));
+      document.getElementById('wikiViewTitle').textContent = entry.title;
+      document.getElementById('wikiViewContent').innerHTML = '<div class="wiki-page-content whitespace-pre-wrap">' + renderMarkdown(content) + '</div>';
+    });
   }
 }
 
@@ -985,8 +1112,8 @@ function renderMarkdown(md) {
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  // Links — external get target=_blank, internal wiki links do not
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, t, u) => '<a href="' + u + '"' + (u.match(/^https?:\/\//) ? ' target="_blank"' : '') + '>' + t + '</a>');
   // Lists
   html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
@@ -1148,12 +1275,53 @@ async function refreshAll() {
 
   // Ant / Autonomi
   const antWidget = document.getElementById('antWidget');
-  const antRunning = ant.data && ant.data.running;
-  antWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(antRunning?'green pulse':'gray')+'"></span><span class="text-xs '+(antRunning?'glowing':'text-gray-500')+'">'+(antRunning?'RUNNING':'OFFLINE')+'</span></span></div></div>';
+  const antDaemon = ant && ant.daemon;
+  const antStorage = ant && ant.storage;
+  if (antDaemon) {
+    antWidget.innerHTML = '<div class="space-y-2">' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="dot '+(antDaemon.running?'green pulse':'gray')+'"></span><span class="text-xs '+(antDaemon.running?'glowing':'text-gray-500')+'">'+(antDaemon.running?'RUNNING':'STOPPED')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(antDaemon.nodes_running||0)+'/'+(antDaemon.nodes_total||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(antDaemon.uptime_secs||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(antDaemon.port||'-')+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STORAGE</span><span class="text-xs '+(antStorage&&antStorage.running?'glowing':'text-gray-500')+'">'+(antStorage&&antStorage.running?'ACTIVE':'OFFLINE')+'</span></div>' +
+      '</div>';
+  } else {
+    antWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">OFFLINE</span></div></div>';
+  }
 
   const provWidget = document.getElementById('proverWidget');
-  const provRunning = prov.data && prov.data.running;
-  provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(provRunning?'green pulse':'gray')+'"></span><span class="text-xs '+(provRunning?'glowing':'text-gray-500')+'">'+(provRunning?'ACTIVE':'IDLE')+'</span></span></div></div>';
+  if (prov && prov.running) {
+    provWidget.innerHTML = '<div class="space-y-2">' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot green pulse"></span><span class="text-xs glowing">ACTIVE</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(prov.totalChunks||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNK SIZE</span><span class="text-xs text-white">'+(prov.chunkSize||0)+'</span></div>' +
+      '</div>';
+  } else {
+    provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">IDLE</span></div></div>';
+  }
+
+  // Autonomi tab
+  if (!document.getElementById('tab-autonomi').classList.contains('hidden')) {
+    const de = document.getElementById('autonomiDaemon');
+    const ne = document.getElementById('autonomiNode');
+    const se = document.getElementById('autonomiStorage');
+    const ce = document.getElementById('autonomiConsole');
+    if (de && ant && ant.daemon) {
+      const d = ant.daemon;
+      de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">' + (d.running ? 'RUNNING' : 'STOPPED') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">' + (d.pid || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">' + (d.port || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(d.uptime_secs || 0) + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">' + (d.nodes_running || 0) + '/' + (d.nodes_total || 0) + '</span></div></div>';
+    }
+    if (ne && ant.nodes && ant.nodes.length) {
+      const n = ant.nodes[0];
+      ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">' + (n.node_id || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">' + (n.name || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">' + (n.version || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (n.status === 'running' ? 'glowing' : 'text-yellow-400') + '">' + (n.status || '-').toUpperCase() + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(n.uptime_secs || 0) + '</span></div></div>';
+    }
+    if (se && ant.storage) {
+      const s = ant.storage;
+      se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (s.running ? 'glowing' : 'text-gray-500') + '">' + (s.running ? 'ACTIVE' : 'OFFLINE') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">' + (s.totalChunks || 0) + '</span></div></div>';
+    }
+    if (ce && ant) {
+      ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: ' + (ant.daemon?.running ? 'ONLINE' : 'OFFLINE') + '</div><div class="text-gray-700">> Nodes running: ' + (ant.totalRunning || 0) + '</div><div class="text-gray-700">> Storage: ' + (ant.storage?.running ? 'ACTIVE' : 'OFFLINE') + '</div>';
+    }
+  }
 
   // Mesh tab
   if (!document.getElementById('tab-mesh').classList.contains('hidden')) {
@@ -1395,14 +1563,42 @@ function escHtml(s) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  loadState();
   refreshAll();
   state.systemPoll = setInterval(refreshAll, 10000);
+  // Restore persisted state
+  if (state.activeTab !== 'dashboard') switchTab(state.activeTab);
+  if (state.wallet && state.wallet.connected) {
+    renderWalletConnected(state.wallet.type || 'metamask', state.wallet.type === 'zkid' ? 'zkID' : 'MetaMask', state.wallet.type === 'zkid' ? '◈' : '🦊', state.wallet.type === 'zkid' ? '#00ff88' : '#f6851b');
+  }
+  if (state.wiki.history.stack.length > 0) {
+    const last = state.wiki.history.stack[state.wiki.history.index];
+    if (last) {
+      currentEditSlug = last.uri.split("/").pop();
+      document.getElementById("wikiEditBtn").style.display = "inline-flex";
+      document.getElementById('wikiViewTitle').textContent = last.title;
+      api('/api/wiki/page/' + encodeURIComponent(last.uri)).then(r => {
+        if (!r.error) {
+          const c = typeof r === 'string' ? r : (r.text || r.content || JSON.stringify(r));
+          document.getElementById('wikiViewTitle').textContent = last.title;
+          document.getElementById('wikiViewContent').innerHTML = '<div class="wiki-page-content whitespace-pre-wrap">' + renderMarkdown(c) + '</div>';
+        }
+      });
+      document.getElementById('wikiBackBtn').style.display = state.wiki.history.index > 0 ? 'inline-flex' : 'none';
+      document.getElementById('wikiFwdBtn').style.display = 'none';
+    }
+  }
   // Initialize chat
   setTimeout(() => {
     chatRefreshGroups();
     chatFetchIdentity();
+    if (state.chat && state.chat.activeGroupId) {
+      chatSelectGroup(state.chat.activeGroupId, state.chat.activeGroupName);
+    }
   }, 2000);
 });
+addEventListener('beforeunload', saveState);
+addEventListener('pagehide', saveState);
 </script>
 </body>
 </html>
