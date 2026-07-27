@@ -1,35 +1,29 @@
 # Wiki Index
 
 Welcome to the P2P Foundation wiki archive, served over the
-Reticulum mesh. This node provides dynamic access to all
-39,804 wiki pages via the llm-wiki search engine.
-
->>Search
-
-Full-text search across all wiki pages:
-
-[/wiki/search.mu (enter query in URL bar)|/wiki/search.mu]
-
->>Read a Page
-
-To read a specific page, use the page endpoint:
-
-`/wiki/page?slug=Category-SomePage`
-
->>Browse by Category
-
-[Concepts|/wiki/page?slug=Category-Concepts]
-[People|/wiki/page?slug=Category-People]
-[Organizations|/wiki/page?slug=Category-Organizations]
-[Infrastructure|/wiki/page?slug=Category-Infrastructure]
-[Commons|/wiki/page?slug=Category-Commons]
-[Governance|/wiki/page?slug=Category-Governance]
+Reticulum mesh.
 
 >>About
 
 This is a markdown-converted archive of the P2P Foundation wiki.
 The original MediaWiki (45,000+ pages) has been exported and
 converted to markdown format with YAML frontmatter.
+
+>>Browse
+
+Pages are organized by type and category. Use the links below
+to navigate the wiki structure.
+
+[Concepts|/wiki/concepts.mu]
+[People|/wiki/people.mu]
+[Organizations|/wiki/organizations.mu]
+[Publications|/wiki/publications.mu]
+[All Pages (alphabetical)|/wiki/pages.mu]
+
+>>Search
+
+Full-text search is available via the llm-wiki search API.
+See the [Search page|/search.mu] for details.
 
 >>Archives
 

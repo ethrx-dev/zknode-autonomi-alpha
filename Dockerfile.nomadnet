@@ -20,7 +20,7 @@ EXPOSE 37428/udp 4242/tcp
 
 VOLUME ["/var/lib/nomadnet"]
 
-# Static pages are volume-mounted at runtime from config/nomadnet/pages/
+COPY config/nomadnet/pages/ /var/lib/nomadnet/pages/
 
 ENTRYPOINT ["nomadnet"]
 CMD ["--daemon", "--config", "/etc/nomadnet/config"]

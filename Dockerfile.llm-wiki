@@ -1,9 +1,9 @@
 ARG TARGETARCH=arm64
 
-FROM --platform=linux/${TARGETARCH} rust:1.84-bookworm AS builder
+FROM --platform=linux/${TARGETARCH} rust:1.84-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev libgit2-dev ca-certificates \
+    pkg-config libssl-dev libgit2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build

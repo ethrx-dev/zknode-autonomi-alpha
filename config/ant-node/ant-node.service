@@ -1,21 +1,27 @@
 [Unit]
-Description=Autonomi Network Node (ant-node)
-After=network-online.target
-Wants=network-online.target
+Description=Autonomi Testnet Node
+After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
-User=alchemical1
-ExecStart=/home/zero-tech/zknode-autonomi/data/antd/node-1/bin/antnode \
-  --root-dir /tmp/ant-host \
-  --port 12000 \
-  --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
-  --log-output-dest /tmp/ant-host/ant-node.log \
-  --no-upnp \
-  evm-arbitrum-one
-Restart=on-failure
+WorkingDirectory=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1
+ExecStart=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node \
+    --root-dir %h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1 \
+    --port 12000 \
+    --rewards-address 0xREWARDS_ADDRESS_PLACEHOLDER \
+    --evm-network arbitrum-sepolia \
+    --network-mode testnet \
+    --ipv4-only \
+    --enable-logging \
+    --log-level debug \
+    --log-dir %h/zknode-autonomi/data/logs \
+    --stop-on-upgrade
+Restart=always
 RestartSec=10
-LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ant-node
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

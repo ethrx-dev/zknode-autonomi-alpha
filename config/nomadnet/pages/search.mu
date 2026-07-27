@@ -1,32 +1,47 @@
 # Wiki Search
 
-Search all 39,804 P4P wiki pages via the llm-wiki semantic search engine.
+Search the P2P Foundation wiki archive using the llm-wiki
+full-text search engine (BM25 scoring with tantivy).
 
 >>How to Search
 
-Append your query to the dynamic search URL:
+This node runs llm-wiki on port 18765. Connect over the LAN
+or via the mixnet to perform searches:
 
-`/wiki/search?q=your+query+here`
+   ```
+   curl http://198.51.100.2:18765/search?q=<query>
+   ```
 
->>Example Searches
+Or use the llm-wiki CLI directly on this node:
+   ```
+   /tmp/llm-wiki search "mesh network"
+   ```
 
-[/wiki/search?q=blockchain+governance|/wiki/search?q=blockchain+governance]
-[/wiki/search?q=mesh+networking+dht|/wiki/search?q=mesh+networking+dht]
-[/wiki/search?q=commons+infrastructure|/wiki/search?q=commons+infrastructure]
+>>Browse by Category
 
->>Read a Specific Page
+[Concepts|/wiki/concepts.mu]
+[People|/wiki/people.mu]
+[Organizations|/wiki/organizations.mu]
+[Publications|/wiki/publications.mu]
 
-Use the dynamic page reader:
+>>Full-Text Search
 
-`/wiki/page?slug=Category-PageName`
+The llm-wiki engine indexes page titles, body text, and tags
+using BM25 ranking. All 500 wiki pages are searchable.
 
-[/wiki/page?slug=Category-Commons Infrastructure|/wiki/page?slug=Category-Commons Infrastructure]
-[/wiki/page?slug=Category-Peer+Production|/wiki/page?slug=Category-Peer+Production]
+For mesh-native search, send an LXMF message to this node
+with the query and you will receive results by reply.
 
->>Tip
+>>Search via Autonomi
 
-Use specific terms for better results. The search indexes
-page titles, content, and categories.
+All wiki content is stored on the Autonomi network:
+   Address: `6c6fc79cd7e1553cbd1226c220c18fdca2a5b7f731a5b748fd5d1034a0082848`
 
-[Wiki Home|/wiki/index.mu]
+Download the full archive, extract, and search locally:
+   ```
+   ant file download 6c6fc79..2848 -o wiki.tar.gz
+   tar xzf wiki.tar.gz
+   grep -ri "mesh network" wiki/
+   ```
+
 [Back to Home|/index.mu]

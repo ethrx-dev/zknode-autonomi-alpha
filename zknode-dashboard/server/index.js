@@ -79,6 +79,7 @@ function pgrep(name) {
 let mcpSessionId = null;
 let mcpSseReq = null;
 let mcpReady = false;
+const mcpPending = new Map();
 
 function mcpHttp(method, path, headers, body, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
@@ -88,8 +89,7 @@ function mcpHttp(method, path, headers, body, timeoutMs = 60000) {
     };
     const req = httpRequest(opts, (res) => {
       let data = '';
-      let rtimer = null;
-      res.on('data', c => { data += c; if (!rtimer) { rtimer = setTimeout(() => resolve({ status: res.statusCode, headers: res.headers, body: data }), 3000); } });
+      res.on('data', c => data += c);
       res.on('end', () => resolve({
         status: res.statusCode,
         headers: res.headers,
@@ -146,7 +146,23 @@ function mcpOpenSse() {
     headers: { 'Accept': 'text/event-stream', 'mcp-session-id': mcpSessionId }
   };
   const req = httpRequest(opts, (res) => {
-    res.on('data', () => {});
+    let sseBuf = '';
+    const parseSse = () => {
+      const parts = sseBuf.split('\n\n');
+      sseBuf = parts.pop() || '';
+      for (const block of parts) {
+        const m = block.match(/^data: (.+)$/m);
+        if (!m) continue;
+        try {
+          const parsed = JSON.parse(m[1]);
+          if (parsed.jsonrpc === '2.0' && parsed.id && mcpPending.has(parsed.id)) {
+            mcpPending.get(parsed.id)(parsed);
+            mcpPending.delete(parsed.id);
+          }
+        } catch {}
+      }
+    };
+    res.on('data', (c) => { sseBuf += c; parseSse(); });
     res.on('end', () => {
       mcpSseReq = null;
       mcpReady = false;
@@ -611,6 +627,20 @@ app.get('/api/system', (req, res) => res.json(getSystemStats()));
 app.get('/api/containers', async (req, res) => res.json(await getContainers()));
 app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
 app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
+app.all('/ethereum', async (req, res) => {
+  try {
+    const r = await fetch('http://127.0.0.1:9200/ethereum', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body || {})
+    });
+    const txt = await r.text();
+    res.set('Content-Type', 'application/json');
+    res.status(r.status).send(txt);
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
 
 app.get('/api/zkchat', (req, res) => {
   const hasBinary = existsSync('/usr/local/bin/zkchat');
