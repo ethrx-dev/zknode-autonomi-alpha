@@ -390,7 +390,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           </div>
 
           <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="terminal-card scan">
+            <div class="terminal-card">
               <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>MIXNET</span></div>
               <div class="terminal-body" id="mixnetWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
@@ -530,6 +530,19 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             </div>
             <h2 class="text-2xl font-bold glowing" style="font-family:'Orbitron',sans-serif;">ZKCHAT</h2>
             <p class="text-gray-500 mt-1" style="font-size:0.75rem;">// ENCRYPTED MIXNET GROUP MESSAGING</p>
+          </div>
+          <div class="mb-3 p-3 rounded" style="background:rgba(0,255,136,0.03);border:1px solid rgba(0,255,136,0.1);font-size:0.7rem;">
+            <div class="flex items-center justify-between mb-1">
+              <span style="color:var(--neon-green);font-weight:600;">MY IDENTITY</span>
+              <span style="font-size:0.6rem;color:var(--neon-green);cursor:pointer;" onclick="document.getElementById('chatIdentityPanel').classList.toggle('hidden')">[SHOW QR]</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <code id="chatIdentityFull" style="font-size:0.65rem;word-break:break-all;flex:1;color:#ccc;"></code>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('chatIdentityFull').textContent);showToast('Identity copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
+            </div>
+            <div id="chatIdentityPanel" class="hidden flex justify-center mt-2">
+              <img id="chatIdentityQr" style="width:120px;height:120px;image-rendering:pixelated;" alt="QR">
+            </div>
           </div>
           <div class="flex gap-3" style="height:calc(100vh - 320px);min-height:400px;">
             <div class="terminal-card" style="flex:0 0 260px;display:flex;flex-direction:column;">
@@ -1182,10 +1195,11 @@ async function updateAutonomi() {
 }
 
 async function refreshAll() {
-  const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov] = await Promise.all([
+  const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov, hb] = await Promise.all([
     api('/api/system'), api('/api/containers'), api('/api/mixnet'),
     api('/api/walletshield'), api('/api/zkchat'), api('/api/llm-wiki'),
-    api('/api/reticulum'), api('/api/zymbit'), api('/api/ant'), api('/api/prover')
+    api('/api/reticulum'), api('/api/zymbit'), api('/api/ant'), api('/api/prover'),
+    api('/api/ws-heartbeat')
   ]);
 
   const s = sys.error ? null : sys;
@@ -1267,10 +1281,12 @@ async function refreshAll() {
   const wsDot = document.getElementById('wsStatusDot');
   const wsOnline = state.walletshieldContainer;
   if (wsDot && !state.wallet.connected) { wsDot.className = 'dot ' + (wsOnline ? 'yellow' : 'gray'); }
+  const hbOk = hb && hb.ok;
   wsWidget.innerHTML = '<div class="space-y-2">' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">CONTAINER</span><span class="flex items-center gap-1"><span class="dot ' + (wsOnline ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (wsOnline ? 'glowing' : 'text-gray-500') + '">' + (wsOnline ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">RPC PORT</span><span class="text-xs text-white">9200</span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">API</span><span class="text-xs ' + (wsApiOk ? 'text-green-400' : 'text-yellow-400') + '">' + (wsApiOk ? 'RESPONDING' : 'NO RESPONSE') + '</span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">MIXNET</span><span class="flex items-center gap-1"><span class="dot ' + (hbOk ? 'green pulse' : 'red') + '"></span><span class="text-xs ' + (hbOk ? 'glowing' : 'text-red-400') + '">' + (hbOk ? 'CONNECTED' : 'DEAD') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs ' + (state.wallet.connected ? 'glowing' : 'text-gray-500') + '">' + (state.wallet.connected ? state.wallet.type.toUpperCase() : 'NOT CONNECTED') + '</span></div>' +
     '</div>';
 
@@ -1464,8 +1480,11 @@ async function chatRefreshGroups() {
   }
   list.innerHTML = state.chat.groups.map(g =>
     `<div class="chat-group-item ${state.chat.activeGroupId === g.id ? 'active' : ''}" data-id="${g.id}" data-name="${g.name}" onclick="chatSelectGroup('${g.id}','${g.name}')">
-      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.name}</div>
-      <div style="font-size:0.6rem;color:var(--neon-green);">${g.members} mem</div>
+      <div class="flex items-center justify-between">
+        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.name}</div>
+        ${g.isOwner ? `<button onclick="event.stopPropagation();chatDeleteGroup('${g.id}','${g.name}')" class="text-red-400 hover:text-red-300" title="Delete group" style="font-size:0.7rem;background:none;border:none;cursor:pointer;padding:2px 6px;">✕</button>` : ''}
+      </div>
+      <div style="font-size:0.6rem;color:var(--neon-green);">${g.members} mem${g.isOwner ? ' · OWNER' : ''}</div>
     </div>`
   ).join('');
 }
@@ -1548,6 +1567,23 @@ async function chatDoCreateGroup() {
   }
 }
 
+async function chatDeleteGroup(groupId, groupName) {
+  if (!confirm(`Delete group "${groupName}"? This cannot be undone.`)) return;
+  const r = await api('/api/chat/groups/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id: groupId }) });
+  if (r.deleted) {
+    showToast('Group deleted', 'success');
+    if (state.chat.activeGroupId === groupId) {
+      state.chat.activeGroupId = null;
+      state.chat.activeGroupName = '';
+      document.getElementById('chatActiveGroupTitle').textContent = '# select a group';
+      document.getElementById('chatMessages').innerHTML = '<div class="text-gray-500" style="margin:auto;">Select or create a group to start chatting</div>';
+    }
+    await chatRefreshGroups();
+  } else {
+    showToast('Delete failed: ' + (r.error || 'unknown'), 'error');
+  }
+}
+
 function chatInviteMember() {
   if (!state.chat.activeGroupId) { showToast('Select a group first', 'error'); return; }
   const overlay = document.createElement('div');
@@ -1558,6 +1594,16 @@ function chatInviteMember() {
       <h2 class="text-lg font-bold glowing" style="font-family:'Orbitron',sans-serif;">INVITE TO #${state.chat.activeGroupName}</h2>
       <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-500 hover:text-white" style="font-size:1.5rem;">×</button>
     </div>
+    <div class="mb-4 p-3 rounded" style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,136,0.1);">
+      <div style="font-size:0.6rem;color:var(--neon-green);margin-bottom:4px;">SHARE THIS GROUP ID WITH FRIENDS</div>
+      <div class="flex items-center gap-2">
+        <code id="chatGroupIdDisplay" style="font-size:0.65rem;word-break:break-all;flex:1;color:#ccc;">${state.chat.activeGroupId}</code>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('chatGroupIdDisplay').textContent);showToast('Group ID copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
+      </div>
+      <div style="font-size:0.6rem;color:var(--neon-green);margin-top:4px;">OR SCAN QR TO SHARE YOUR IDENTITY</div>
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('zkchat:' + document.getElementById('chatIdentityFull').textContent)}" style="width:100px;height:100px;margin-top:4px;image-rendering:pixelated;" alt="QR">
+    </div>
+    <div class="mb-2" style="font-size:0.7rem;color:#aaa;">INVITE MEMBERS BY ADDRESS</div>
     <textarea id="chatInviteMembers" placeholder="Member addresses (space-separated)..." class="w-full mb-4" style="background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:4px;font-size:0.75rem;outline:none;resize:vertical;height:80px;"></textarea>
     <button onclick="chatDoInvite()" class="btn-primary w-full text-center">INVITE</button>
   </div>`;
@@ -1579,13 +1625,16 @@ async function chatDoInvite() {
 }
 
 async function chatFetchIdentity() {
-  const r = await api('/api/chat/messages');
-  // Try to get identity from poll response metadata
+  const r = await api('/api/chat/identity');
   const e = document.getElementById('chatIdentity');
-  try {
-    const pollR = await api('/api/chat/poll');
-    e.textContent = 'identity';
-  } catch { e.textContent = 'zkchat'; }
+  if (r.identity && r.valid) {
+    e.textContent = r.identity.slice(0, 8) + '...' + r.identity.slice(-6);
+    e.title = r.identity;
+    document.getElementById('chatIdentityFull').textContent = r.identity;
+    document.getElementById('chatIdentityQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent('zkchat:' + r.identity);
+  } else {
+    e.textContent = 'no identity';
+  }
 }
 
 function chatCopyIdentity() {

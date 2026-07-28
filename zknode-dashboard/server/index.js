@@ -1,4 +1,4 @@
-import { request as httpRequest } from 'http';
+import { request as httpRequest, Agent as HttpAgent } from 'http';
 import { existsSync, writeFileSync } from "fs";
 import { execSync, spawnSync } from 'child_process';
 import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
@@ -10,6 +10,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
 const WS_PORT = process.env.WS_PORT || 9200;
 const DOCKER_SOCK = '/var/run/docker.sock';
+
+let cachedChainId = null;
+let cachedNetVersion = null;
+let wsHeartbeatState = { ok: false, lastOk: null, lastError: null, error: null };
+const wsAgent = new HttpAgent({ keepAlive: true, keepAliveMsecs: 10000, maxSockets: 10 });
 let ZKCHAT_MESSAGES = [];
 const CHAT_HISTORY_FILE = "/app/public/chat-history.json";
 let ZKCHAT_GROUP_HISTORY = {};
@@ -458,23 +463,35 @@ app.get('/api/chat/poll', (req, res) => {
   res.json({ messages, history: ZKCHAT_MESSAGES.slice(-100) });
 
 });
+function getIdentityHex() {
+  try { return execSync('cat /etc/zkchat/identity 2>/dev/null', { timeout: 3000 }).toString('hex').trim(); } catch { return null; }
+}
+
+function isGroupOwner(meta, identityHex) {
+  if (!identityHex || !meta.Owner) return false;
+  try { return Buffer.from(meta.Owner, 'base64').toString('hex') === identityHex; } catch { return false; }
+}
+
 app.get('/api/chat/groups', (req, res) => {
-  let identity = null;
-  try { identity = execSync('cat /etc/zkchat/identity 2>/dev/null', { timeout: 3000 }); } catch {}
+  const identityHex = getIdentityHex();
   const raw = runShell(join(__dirname, "chat-groups.sh"), 10000);
   if (!raw.ok || !raw.data.trim()) return res.json({ groups: [] });
   const groups = [];
   for (const jsonStr of (raw.data.match(/\{[^}]+\}/g) || [])) {
     try {
       const meta = JSON.parse(jsonStr);
-      if (identity) {
-        const hex = identity.toString('hex');
+      if (identityHex) {
         const isMember = meta.Members && meta.Members.some(m => {
-          try { return Buffer.from(m, 'base64').toString('hex') === hex; } catch { return false; }
+          try { return Buffer.from(m, 'base64').toString('hex') === identityHex; } catch { return false; }
         });
         if (!isMember) continue;
       }
-      groups.push({ id: meta.ID, name: meta.Name || 'unnamed', members: (meta.Members || []).length });
+      groups.push({
+        id: meta.ID, name: meta.Name || 'unnamed',
+        members: (meta.Members || []).length,
+        owner: meta.Owner || null,
+        isOwner: isGroupOwner(meta, identityHex)
+      });
     } catch {}
   }
   res.json({ groups });
@@ -538,6 +555,23 @@ app.post('/api/chat/groups/leave', (req, res) => {
   if (!group_id) return res.status(400).json({ error: 'group_id required' });
   const r = zkchatCmd(`group leave ${ZKCONF} ${group_id}`);
   res.json(r.ok ? { left: true, output: r.data } : { error: r.error });
+});
+
+app.post('/api/chat/groups/delete', (req, res) => {
+  const { group_id } = req.body || {};
+  if (!group_id) return res.json({ error: 'group_id required' });
+  const identityHex = getIdentityHex();
+  if (!identityHex) return res.json({ error: 'cannot determine identity' });
+  const metaRaw = runShell(`docker exec mix-servicenode find /tmp/zkchat /var/lib/katzenpost/servicenode1/chatd -path "*/group_${group_id}/meta.json" -exec cat {} +`, 5000);
+  if (!metaRaw.ok || !metaRaw.data) return res.json({ error: 'group not found' });
+  try {
+    const meta = JSON.parse(metaRaw.data);
+    if (!isGroupOwner(meta, identityHex)) return res.json({ error: 'only the group owner can delete the group' });
+    const del = runShell(`docker exec mix-servicenode rm -rf /var/lib/katzenpost/servicenode1/chatd/group_${group_id} /tmp/zkchat/group_${group_id} 2>/dev/null`, 10000);
+    res.json(del.ok ? { deleted: true } : { error: del.error || 'delete failed' });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
 });
 
 // ─── MESH ENDPOINTS ───────────────────────────────────────────
@@ -627,17 +661,49 @@ app.get('/api/system', (req, res) => res.json(getSystemStats()));
 app.get('/api/containers', async (req, res) => res.json(await getContainers()));
 app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
 app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
+app.get('/api/ws-heartbeat', (req, res) => res.json(wsHeartbeatState));
 app.all('/ethereum', async (req, res) => {
   try {
-    const r = await fetch('http://127.0.0.1:9200/ethereum', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body || {})
+    const method = req.body?.method;
+    const id = req.body?.id ?? 1;
+
+    if (method === 'eth_chainId' && cachedChainId !== null) {
+      return res.json({ jsonrpc: '2.0', id, result: cachedChainId });
+    }
+    if (method === 'net_version' && cachedNetVersion !== null) {
+      return res.json({ jsonrpc: '2.0', id, result: cachedNetVersion });
+    }
+
+    const bodyStr = JSON.stringify(req.body || {});
+    const txt = await new Promise((resolve, reject) => {
+      const opts = {
+        hostname: '127.0.0.1', port: 9200, path: '/ethereum',
+        method: 'POST', agent: wsAgent,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) }
+      };
+      const r = httpRequest(opts, (res) => {
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+      });
+      r.on('error', reject);
+      r.setTimeout(20000, () => { r.destroy(); reject(new Error('timeout')); });
+      r.write(bodyStr);
+      r.end();
     });
-    const txt = await r.text();
+
+    try { const p = JSON.parse(txt); if (method === 'eth_chainId' && p.result) cachedChainId = p.result; } catch {}
+    try { const p = JSON.parse(txt); if (method === 'net_version' && p.result) cachedNetVersion = p.result; } catch {}
+
     res.set('Content-Type', 'application/json');
-    res.status(r.status).send(txt);
+    res.send(txt);
   } catch (e) {
+    if (req.body?.method === 'eth_chainId' && cachedChainId !== null) {
+      return res.json({ jsonrpc: '2.0', id: req.body.id ?? 1, result: cachedChainId });
+    }
+    if (req.body?.method === 'net_version' && cachedNetVersion !== null) {
+      return res.json({ jsonrpc: '2.0', id: req.body.id ?? 1, result: cachedNetVersion });
+    }
     res.status(502).json({ error: e.message });
   }
 });
@@ -867,6 +933,32 @@ connectMcp();
 setInterval(() => {
   if (!mcpReady && !mcpSessionId) connectMcp();
 }, 30000);
+
+async function wsHeartbeat() {
+  try {
+    const r = await fetch('http://127.0.0.1:9200/ethereum', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 'hb', method: 'eth_blockNumber', params: [] })
+    });
+    const txt = await r.text();
+    const p = JSON.parse(txt);
+    if (p.result) {
+      wsHeartbeatState.ok = true;
+      wsHeartbeatState.lastOk = Date.now();
+      wsHeartbeatState.lastError = null;
+      wsHeartbeatState.error = null;
+    } else {
+      throw new Error('unexpected response: ' + txt.slice(0, 100));
+    }
+  } catch (e) {
+    wsHeartbeatState.ok = false;
+    wsHeartbeatState.lastError = Date.now();
+    wsHeartbeatState.error = e.message;
+    console.log('[ws-hb] walletshield unreachable:', e.message);
+  }
+}
+setInterval(wsHeartbeat, 10000);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`ZKNode Dashboard running on http://0.0.0.0:${PORT}`);
