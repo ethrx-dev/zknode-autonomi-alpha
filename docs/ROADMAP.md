@@ -132,7 +132,7 @@ and publishes to ghcr.io.
 - Push to ghcr.io/ethrx-dev/zknode-autonomi-alpha/*
 ```
 
-**Status**: Ready to implement
+**Status**: ✅ Completed — `.github/workflows/build.yml` builds dashboard + walletshield for `linux/arm64` via QEMU + Buildx on every push, pushes to `ghcr.io/ethrx-dev/zknode-autonomi-alpha/{dashboard,walletshield}`.
 
 ---
 
@@ -171,7 +171,7 @@ that can be run from a fresh OS install.
 |-----|----------|--------|--------|
 | Backups automation | High | Small | ✅ Completed |
 | Monitoring/alerting | High | Small | ✅ Completed |
-| CI/CD pipeline | High | Medium | This week |
+| CI/CD pipeline | High | Medium | ✅ Completed |
 | Recovery documentation | Medium | Small | ✅ Completed |
 | Peer onboarding | Medium | Medium | ⏳ In progress |
 | mixnet-proxy fix | High | Medium | Next week |
