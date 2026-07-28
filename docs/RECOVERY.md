@@ -1,108 +1,98 @@
 # zknode-autonomi — Recovery Procedure
 
-## Scenario: SD card failure / OS reinstall
+## When to Use
 
-If the Raspberry Pi's SD card dies or needs a clean OS install,
-follow this procedure to restore from USB backup.
+- SD card corruption or failure
+- Fresh OS install after hardware replacement
+- Accidental config deletion
 
-### Prerequisites
+## Prerequisites
 
-- Fresh Raspberry Pi OS (Bookworm) installed on new SD card
-- USB drive with backups attached
-- Internet connection
-- 30 minutes
+- Fresh Debian/Ubuntu install on SCM4
+- USB backup drive with recent backup
+- Network connectivity (for docker pull)
 
-### Step 1: Base System Setup
+## Recovery Steps
 
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install dependencies
-sudo apt install -y docker.io docker-compose-v2 git rsync curl
-
-# Enable Docker
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-# Log out and back in
-```
-
-### Step 2: Restore from USB Backup
+### 1. Mount backup drive
 
 ```bash
-# Mount USB backup drive
 sudo mkdir -p /mnt/backup
-sudo mount /dev/sdX3 /mnt/backup  # adjust device name
-
-# Find latest backup
-ls -lt /mnt/backup/zknode/daily/ | head -5
-
-# Choose a backup timestamp
-BACKUP="20260717_050058"  # replace with actual
-sudo rsync -a /mnt/backup/zknode/daily/$BACKUP/ /home/$USER/zknode-autonomi/
-
-# Fix ownership
-sudo chown -R $USER:$USER /home/$USER/zknode-autonomi
+sudo mount /dev/sda3 /mnt/backup
 ```
 
-### Step 3: Restore Docker Images
+List available backups:
 
 ```bash
-cd /home/$USER/zknode-autonomi
-
-# Pull images from registry (if CI/CD is set up)
-docker pull ghcr.io/ethrx-dev/zknode-autonomi-alpha/mixnet-node:arm64
-docker pull ghcr.io/ethrx-dev/zknode-autonomi-alpha/walletshield:arm64
-docker pull ghcr.io/ethrx-dev/zknode-autonomi-alpha/dashboard:arm64
-docker pull ghcr.io/ethrx-dev/zknode-autonomi-alpha/mixnet-proxy:arm64
-
-# Or rebuild locally
-docker build -f Dockerfile.mixnet -t zeros/mixnet-node-fixed:v0.0.84 .
-docker build -f Dockerfile.walletshield -t walletshield-fixed:arm64 .
-docker build -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
-cd zknode-dashboard && docker build -t zknode-dashboard:latest .
+ls -lt /mnt/backup/zknode/daily/
 ```
 
-### Step 4: Deploy
+### 2. Run restore script
 
 ```bash
-cd /home/$USER/zknode-autonomi
+sudo ./scripts/recovery/zmnt-restore.sh /dev/sda3 20260717_050058
+```
 
-# Optional: setup .env
-cp .env.example .env  # if exists
+Replace `20260717_050058` with the timestamp of the backup to restore.
 
-# Start stack
+### 3. Start services
+
+```bash
+cd /home/zero-tech/zknode-autonomi
 docker compose up -d
-
-# Verify
-docker ps
-curl http://127.0.0.1:8080/api/system
 ```
 
-### Step 5: Post-Recovery
+### 4. Verify
 
 ```bash
-# Restore backup timers
-sudo cp scripts/backup/zknode-backup.* /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now zknode-backup.timer
-sudo systemctl enable --now zknode-backup-weekly.timer
-
-# Verify mixnet consensus (wait 2-5 min for PKI)
-docker logs mix-dirauth-1 --tail 10
-# Look for "SIGNED" in output
-
-# Test walletshield
-curl -X POST http://127.0.0.1:9200/ethereum \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+curl http://127.0.0.1:8080/api/health
 ```
 
-### Recovery Script
+Expected response: `{"status": "healthy", ...}`
+
+## Manual Recovery (if restore script unavailable)
+
+### Clone repo
 
 ```bash
-# Automated recovery
-sudo ./scripts/recovery/zmnt-restore.sh /dev/sdX3 20260717_050058
+git clone https://github.com/ethrx-dev/zknode-autonomi-alpha.git
+cd zknode-autonomi-alpha
 ```
 
-See `scripts/recovery/zmnt-restore.sh` for the automated version.
+### Restore configs from backup
+
+```bash
+sudo rsync -a /mnt/backup/zknode/daily/<timestamp>/config/ ./config/
+sudo chown -R zero-tech:zero-tech .
+```
+
+### Restore Docker images
+
+```bash
+while IFS= read -r img; do docker pull "$img"; done < /mnt/backup/zknode/daily/<timestamp>/docker-images.txt
+```
+
+### Start
+
+```bash
+sudo ./deploy.sh
+```
+
+## Backup Files
+
+| Path | Contents |
+|------|----------|
+| `/mnt/backup/zknode/daily/` | Daily backups (7 day retention) |
+| `/mnt/backup/zknode/weekly/` | Weekly backups (4 week retention) |
+| `/mnt/backup/zknode/monthly/` | Monthly backups (3 month retention) |
+| `docker-images.txt` | Snapshot of pulled Docker images |
+| `docker-ps-all.txt` | Snapshot of container states |
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| `docker compose up` fails | Missing .env file | `cp .env.example .env` and edit |
+| PKI consensus doesn't form | Stale authority state | `docker compose down -v` then up again |
+| Walletshield returns 502 | Mixnet not ready | Wait 2-3 min for PKI epoch |
+| Dashboard 404 | Wrong branch | Check `git branch`, switch to `p4p-wiki-merge` |

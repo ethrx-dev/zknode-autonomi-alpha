@@ -322,6 +322,10 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         <span class="dot green pulse" id="mixnetStatusDot"></span>
         <span id="mixnetStatusLabel">MIXNET ACTIVE</span>
       </div>
+      <div class="status-badge online" id="healthStatusBadge" style="display:none;">
+        <span class="dot green pulse" id="healthStatusDot"></span>
+        <span id="healthStatusLabel">HEALTHY</span>
+      </div>
       <div id="walletArea">
         <button class="btn-primary" onclick="showWalletSelector()" id="connectWalletBtn">
           <span class="mr-2">></span> CONNECT WALLET
@@ -1195,11 +1199,11 @@ async function updateAutonomi() {
 }
 
 async function refreshAll() {
-  const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov, hb] = await Promise.all([
+  const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov, hb, health] = await Promise.all([
     api('/api/system'), api('/api/containers'), api('/api/mixnet'),
     api('/api/walletshield'), api('/api/zkchat'), api('/api/llm-wiki'),
     api('/api/reticulum'), api('/api/zymbit'), api('/api/ant'), api('/api/prover'),
-    api('/api/ws-heartbeat')
+    api('/api/ws-heartbeat'), api('/api/health')
   ]);
 
   const s = sys.error ? null : sys;
@@ -1255,6 +1259,18 @@ async function refreshAll() {
     const headerBadge = document.getElementById('mixnetStatusBadge');
     headerBadge.className = 'status-badge online';
     headerBadge.innerHTML = '<span class="dot green pulse" id="mixnetStatusDot"></span><span id="mixnetStatusLabel">MIXNET ACTIVE</span>';
+  }
+
+  // Health badge
+  const healthBadge = document.getElementById('healthStatusBadge');
+  if (health && health.status) {
+    const ok = health.status === 'healthy';
+    healthBadge.style.display = 'inline-flex';
+    healthBadge.className = 'status-badge ' + (ok ? 'online' : 'offline');
+    healthBadge.innerHTML = '<span class="dot ' + (ok ? 'green pulse' : 'yellow') + '" id="healthStatusDot"></span><span id="healthStatusLabel">' + (ok ? 'HEALTHY' : 'DEGRADED') + '</span>';
+    healthBadge.title = 'disk: ' + (health.disk_used_percent || '?') + '% | ws: ' + (health.walletshield_http || '?') + ' | mix: ' + (health.mix_nodes || '?');
+  } else {
+    healthBadge.style.display = 'none';
   }
 
   // Containers table

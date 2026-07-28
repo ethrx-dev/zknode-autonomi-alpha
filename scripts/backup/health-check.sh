@@ -3,6 +3,9 @@
 # Returns JSON with service status
 set -euo
 
+NTFY_TOPIC="${NTFY_TOPIC:-}"
+STATE_FILE="/tmp/zknode-health-state"
+
 echo "{"
 echo '  "timestamp": "'$(date -Iseconds)'",'
 
@@ -45,3 +48,22 @@ KPCLIENTD=$(ss -tlnp | grep -c ":64332" || true)
 echo '  "kpclientd_listening": '$([ "$KPCLIENTD" -gt 0 ] && echo "true" || echo "false")
 
 echo '}'
+
+# ─── ntfy.sh Push Notification ──────────────────────────
+if [ -n "$NTFY_TOPIC" ]; then
+  OVERALL="healthy"
+  [ "$MIX_OK" -lt 5 ] && OVERALL="degraded"
+  [ "$DISK" -gt 90 ] && OVERALL="degraded"
+  [ "$WS_OK" != "200" ] && OVERALL="degraded"
+  [ "$CONSENSUS" -eq 0 ] && OVERALL="degraded"
+
+  LAST_STATE=""
+  [ -f "$STATE_FILE" ] && LAST_STATE=$(cat "$STATE_FILE")
+
+  if [ "$OVERALL" != "$LAST_STATE" ]; then
+    echo "$OVERALL" > "$STATE_FILE"
+    MSG="zknode health: $OVERALL"
+    [ "$OVERALL" = "degraded" ] && MSG="$MSG | mix=$MIX_OK/6 disk=${DISK}% ws=$WS_OK"
+    curl -sf -H "Title: ZKNode Alert" -d "$MSG" "https://ntfy.sh/$NTFY_TOPIC" 2>/dev/null || true
+  fi
+fi
