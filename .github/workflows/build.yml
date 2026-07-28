@@ -1,29 +1,21 @@
-name: Build and Publish
+name: Build & Push
 
 on:
   push:
-    branches: [main, p4p-wiki-merge]
-    tags: ['v*']
-  pull_request:
-    branches: [main]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_MIXNET: ghcr.io/ethrx-dev/zknode-autonomi-alpha/mixnet-node
-  IMAGE_WALLETSHIELD: ghcr.io/ethrx-dev/zknode-autonomi-alpha/walletshield
-  IMAGE_DASHBOARD: ghcr.io/ethrx-dev/zknode-autonomi-alpha/dashboard
-  IMAGE_PROXY: ghcr.io/ethrx-dev/zknode-autonomi-alpha/mixnet-proxy
-  IMAGE_KPCLIENTD: ghcr.io/ethrx-dev/zknode-autonomi-alpha/kpclientd
-  IMAGE_LLM_WIKI: ghcr.io/ethrx-dev/zknode-autonomi-alpha/llm-wiki
-  IMAGE_NOMADNET: ghcr.io/ethrx-dev/zknode-autonomi-alpha/nomadnet
-  IMAGE_RETICULUM: ghcr.io/ethrx-dev/zknode-autonomi-alpha/reticulum
+    branches: [p4p-wiki-merge]
+    paths:
+      - 'zknode-dashboard/**'
+      - 'Dockerfile.walletshield'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [arm64, amd64]
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -33,72 +25,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build mixnet image
+      - name: Build and push dashboard
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile.mixnet
-          platforms: linux/${{ matrix.target }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.IMAGE_MIXNET }}:${{ matrix.target }}-${{ github.sha }},${{ env.IMAGE_MIXNET }}:${{ matrix.target }}
+          context: zknode-dashboard
+          file: zknode-dashboard/Dockerfile
+          platforms: linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}/dashboard:latest
+            ghcr.io/${{ github.repository }}/dashboard:${{ github.sha }}
+          push: true
 
-      - name: Build walletshield image
+      - name: Build and push walletshield
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.walletshield
-          platforms: linux/${{ matrix.target }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.IMAGE_WALLETSHIELD }}:${{ matrix.target }}-${{ github.sha }},${{ env.IMAGE_WALLETSHIELD }}:${{ matrix.target }}
-
-      - name: Build dashboard image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./zknode-dashboard
-          platforms: linux/${{ matrix.target }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.IMAGE_DASHBOARD }}:${{ matrix.target }}-${{ github.sha }},${{ env.IMAGE_DASHBOARD }}:${{ matrix.target }}
-
-      - name: Build proxy image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.mixnet-proxy
-          platforms: linux/${{ matrix.target }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.IMAGE_PROXY }}:${{ matrix.target }}-${{ github.sha }},${{ env.IMAGE_PROXY }}:${{ matrix.target }}
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check Dockerfile syntax
-        run: |
-          for f in Dockerfile.* zknode-dashboard/Dockerfile; do
-            echo "Linting $f"
-            docker run --rm -v $PWD:/workspace hadolint/hadolint:latest hadolint /workspace/$f
-          done
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Trivy scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-      - name: Upload results
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
+          platforms: linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository }}/walletshield:latest
+            ghcr.io/${{ github.repository }}/walletshield:${{ github.sha }}
+          push: true
