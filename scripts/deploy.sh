@@ -319,6 +319,10 @@ cmd_group() {
             $base up -d $extra reticulum
             sleep 5
             wait_for_healthy reticulum 30
+            info "Starting NomadNet..."
+            $base up -d $extra nomadnet
+            sleep 5
+            wait_for_healthy nomadnet 30
             info "Waiting 10s..."
             sleep 10
             ;;

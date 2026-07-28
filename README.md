@@ -255,3 +255,52 @@ Source code: AGPL-3.0-only.
 Documentation: CC-BY-SA-4.0.
 
 **WARNING**: This is a Proof of Concept. Not production-hardened.
+## Key Components
+
+| Component | Port | Description |
+|-----------|------|-------------|
+| **zknode-dashboard** | 8080 | Web UI: system stats, mixnet health, wiki, zkchat, ant |
+| **walletshield** | 9200 | Mixnet RPC proxy for MetaMask (CORS proxy on :8080/ethereum) |
+| **mixnet** | 30001-30019 | Katzenpost mixnet (dauths, mixes, gateway, servicenode) |
+| **kpclientd** | 64332 | Thin client daemon for walletshield & zkchat |
+| **zkchat** | — | E2EE chat over mixnet |
+| **llm-wiki** | 18765 | Local LLM-powered wiki search (P4P wiki, 39k+ pages) |
+| **antd** | 12000 | Autonomi node daemon with Zymbit HSM wallet |
+
+## Mixnet Tuning
+
+The mixnet uses 3 mix layers with 1 node per layer (all localhost). Key parameters in `config/mixnet/auth1/authority.toml`:
+
+- `Layers = 1` (reduced from 3 for lower latency — set during session)
+- `UserForwardPayloadLength = 2000` (Sphinx payload size, matched across all configs)
+- `Mu = 0.005`, `LambdaM = 0.2` (decoy/mix rate parameters)
+
+RPC latency: ~2s after warmup (first request may take 30s for PKI fetch).
+
+## zkchat
+
+Groups stored in `/tmp/zkchat/` on the servicenode (chatd default). Dashboard reads from both `/tmp/zkchat/` and legacy path. Group creation/deletion supported via API and UI. No `group delete` command in zkchat CLI — deletion done via `rm -rf` on the store directory.
+
+## MetaMask Connectivity
+
+Use `http://<SCM4_IP>:8080/ethereum` as RPC URL (chain ID 1). The dashboard adds CORS headers (`Access-Control-Allow-Origin: *`). First request may be slow while mixnet warmup completes.
+
+## Boot Recovery
+
+Systemd service `zknode-boot.service` starts containers in phased order:
+1. Directory authorities → 2. Mix nodes → 3. Gateway + Servicenode → 4. Client + Walletshield → 5. Dashboard + Support
+
+Manual invocation: `sudo /home/zero-tech/zknode-autonomi/deploy.sh`
+
+## Backup
+
+- Local: `./backup-scm4.sh /tmp/scm4-backup-$(date +%Y%m%d-%H%M)`
+- Restore: `./restore-scm4.sh <backup_dir>`
+- USB SSD: Configs synced to `/mnt/autonomi/autonomi-data/zknode-backup-*/`
+
+## Known Issues
+
+- Chatd `-store` flag can't pass arguments (CBOR plugin treats `Command` as raw path)
+- Proxy upstream responses exceeding 2000 bytes stall the plugin (restart servicenode to recover)
+- Zymkey device flips between `/dev/ttyACM0` and `/dev/ttyACM1` on reboot
+- Mixnet PKI chain requires ~20 min to stabilize after dauth restarts

@@ -6,21 +6,45 @@ services:
     container_name: antd
     image: zeros/antd:arm64
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     environment:
     - HOME=/var/lib/antd
     user: root
-    command:
-    - node
-    - daemon
-    - run
-    - --port
-    - "12000"
     volumes:
     - /home/zero-tech/.local/share/ant:/var/lib/antd/.local/share/ant
     - /var/lib/ant-node:/var/lib/ant-node
+    command:
+    - |
+      mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs
+      B1=/var/lib/antd/node-1/ant-node
+      if [ ! -x "$$B1" ]; then
+        echo "antd: ERROR: node binary not found at $$B1"
+        exit 1
+      fi
+      echo "antd: starting ant-node..."
+      $$B1 \
+        --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
+        --root-dir /var/lib/antd/node-1 \
+        --port 12000 \
+        --log-output-dest stdout \
+        --stop-on-upgrade 2>&1 &
+      P1=$$!
+      echo "antd: ant-node started (PID $$P1)"
+      echo "antd: entering monitor loop"
+      while true; do
+        if ! kill -0 $$P1 2>/dev/null; then
+          echo "antd: node died, restarting..."
+          $$B1 \
+            --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
+            --root-dir /var/lib/antd/node-1 \
+            --port 12000 \
+            --log-output-dest stdout \
+            --stop-on-upgrade 2>&1 &
+          P1=$$!
+          echo "antd: ant-node restarted (PID $$P1)"
+        fi
+        sleep 30
+      done
   mix-1:
     command:
     - /usr/local/bin/server
@@ -34,8 +58,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -52,8 +74,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -70,8 +90,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -89,8 +107,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: 128m
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -105,8 +121,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -115,16 +129,12 @@ services:
     - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth2/authority.toml;
       sleep 2; done
     container_name: mix-dirauth-2
-    depends_on:
-    - mix-dirauth-1
     entrypoint:
     - sh
     - -c
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -133,16 +143,12 @@ services:
     - while true; do /usr/local/bin/dirauth -f /var/lib/katzenpost/auth3/authority.toml;
       sleep 2; done
     container_name: mix-dirauth-3
-    depends_on:
-    - mix-dirauth-2
     entrypoint:
     - sh
     - -c
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -159,8 +165,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -175,8 +179,6 @@ services:
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet:/var/lib/katzenpost
@@ -192,8 +194,6 @@ services:
     image: ${IMAGE_MIXNET_PROXY}
     mem_limit: ${PROXY_MEM_LIMIT}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/proxy/config.json:/etc/mixnet-proxy/config.json:ro
@@ -201,16 +201,30 @@ services:
   reticulum:
     command:
     - --config
-    - /etc/reticulum/config
+    - /etc/reticulum
     container_name: reticulum
     image: zeros/reticulum:arm64
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
-    - ./config/reticulum:/etc/reticulum
+    - ./config/reticulum/config:/etc/reticulum
     - ./data/reticulum:/var/lib/reticulum
+  nomadnet:
+    build:
+      context: .
+      dockerfile: Dockerfile.nomadnet
+    command:
+    - --daemon
+    - --config
+    - /etc/nomadnet
+    container_name: nomadnet
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/nomadnet:/etc/nomadnet:rw
+    - ./config/nomadnet/pages:/var/lib/nomadnet/pages:rw
+    - ./data/nomadnet:/var/lib/nomadnet
+    - ./config/nomadnet/llm-wiki-proxy.sh:/usr/local/bin/llm-wiki-proxy.sh:ro
   storage-proved:
     command:
     - --listen
@@ -231,7 +245,7 @@ services:
     - -config
     - /etc/walletshield/config.toml
     - -listen
-    - 0.0.0.0:9200
+    - 127.0.0.1:9200
     - -thin
     - -timeout
     - "120"
@@ -243,8 +257,6 @@ services:
     entrypoint: null
     image: walletshield-rebuild:latest
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/walletshield/config.toml:/etc/walletshield/config.toml:ro
@@ -252,18 +264,17 @@ services:
   zkchat:
     command:
     - while true; do /usr/local/bin/zkchat poll /etc/zkchat/thinclient.toml 2>&1;
-      sleep 10; done
+      sleep 30; done
     container_name: zkchat
     entrypoint:
     - sh
     - -c
     image: ${IMAGE_MIXNET}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     restart: unless-stopped
     volumes:
     - ./config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    - /home/zero-tech/zknode01/bin/zkchat:/usr/local/bin/zkchat:ro
   zknode-dashboard:
     build:
       context: ./zknode-dashboard
@@ -274,8 +285,6 @@ services:
     - LLM_WIKI_PORT=${LLM_WIKI_PORT:-18765}
     image: ${IMAGE_DASHBOARD:-zknode-dashboard:latest}
     network_mode: host
-    devices:
-    - /dev/zymkey:/dev/zymkey
     ports:
     - ${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}
     restart: unless-stopped
@@ -284,12 +293,27 @@ services:
     - /home/zero-tech/.local/bin/llm-wiki:/usr/local/bin/llm-wiki:ro
     - /home/zero-tech/wikis:/wikis:ro
     - /home/zero-tech/.llm-wiki:/root/.llm-wiki:rw
-    - /home/zero-tech/nomadnet-new:/var/nomadnet:ro
+    - ./config/nomadnet/pages:/var/nomadnet/pages:rw
     - /home/zero-tech/zknode01/bin/zkchat:/usr/local/bin/zkchat:ro
     - /home/zero-tech/zknode-autonomi/config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
     - /home/zero-tech/zknode-autonomi/config/mixnet/client/.zkchat/identity:/etc/zkchat/identity:ro
     - ./zknode-dashboard/server/:/app/server/
     - ./zknode-dashboard/public/:/app/public/
     - /run/zkstatus/:/run/zkstatus/:ro
+    - /home/zero-tech/.local/bin/ant:/usr/local/bin/ant:ro
     - /home/zero-tech/.local/share/ant:/root/.local/share/ant:rw
     - /mnt/autonomi:/mnt/autonomi:rw
+  llm-wiki:
+    command:
+    - /usr/local/bin/llm-wiki serve --http 18765 --wiki /var/lib/llm-wiki
+    container_name: llm-wiki
+    entrypoint:
+    - sh
+    - -c
+    image: debian:testing-slim
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - /home/zero-tech/.local/bin/llm-wiki:/usr/local/bin/llm-wiki:ro
+    - /home/zero-tech/wikis:/var/lib/llm-wiki:rw
+    - /home/zero-tech/.llm-wiki:/root/.llm-wiki:rw
