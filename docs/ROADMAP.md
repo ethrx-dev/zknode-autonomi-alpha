@@ -67,7 +67,7 @@ exchange and CLI commands.
 
 **Files**: `zknode-dashboard/server/invite.js`, `zknode-dashboard/public/invite.js`
 
-**Status**: Backlog
+**Status**: ⏳ In progress — QR codes and identity display added to dashboard. Invite link generation remaining.
 
 ---
 
@@ -85,7 +85,7 @@ exchange and CLI commands.
 
 Retention: 7 daily, 4 weekly, 3 monthly.
 
-**Status**: Ready to implement
+**Status**: ✅ Completed — systemd timers installed and enabled (zknode-backup.timer daily, zknode-backup-weekly.timer weekly).
 
 ---
 
@@ -108,12 +108,11 @@ GET /api/health → {
 }
 ```
 
-Dashboard shows health badge in sidebar. Optional ntfy.sh push notification
-on status change.
+Dashboard shows HEALTHY/DEGRADED badge in header. ntfy.sh push notification on status change (set `NTFY_TOPIC` env var).
 
-**Files**: `zknode-dashboard/server/health.js`, `scripts/health-check.sh`
+**Files**: `scripts/backup/health-check.sh`
 
-**Status**: Ready to implement
+**Status**: ✅ Completed
 
 ---
 
@@ -160,9 +159,9 @@ and publishes to ghcr.io.
 **Solution**: Documented recovery procedure + recovery script `zmnt-restore`
 that can be run from a fresh OS install.
 
-**Files**: `docs/RECOVERY.md`, `scripts/zmnt-restore.sh`
+**Files**: `docs/RECOVERY.md`, `scripts/recovery/zmnt-restore.sh`
 
-**Status**: Ready to implement
+**Status**: ✅ Completed — `docs/RECOVERY.md` documents full recovery steps. `scripts/recovery/zmnt-restore.sh` handles automated restore.
 
 ---
 
@@ -170,11 +169,11 @@ that can be run from a fresh OS install.
 
 | Gap | Priority | Effort | Target |
 |-----|----------|--------|--------|
-| Backups automation | High | Small | This week |
-| Monitoring/alerting | High | Small | This week |
+| Backups automation | High | Small | ✅ Completed |
+| Monitoring/alerting | High | Small | ✅ Completed |
 | CI/CD pipeline | High | Medium | This week |
-| Recovery documentation | Medium | Small | This week |
+| Recovery documentation | Medium | Small | ✅ Completed |
+| Peer onboarding | Medium | Medium | ⏳ In progress |
 | mixnet-proxy fix | High | Medium | Next week |
-| Peer onboarding | Medium | Medium | Next week |
 | Mesh chat bridge | Low | Large | Future |
 | Key rotation | Low | Medium | Future |
