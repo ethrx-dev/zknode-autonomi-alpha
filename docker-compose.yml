@@ -14,6 +14,8 @@ services:
     volumes:
     - /home/zero-tech/.local/share/ant:/var/lib/antd/.local/share/ant
     - /var/lib/ant-node:/var/lib/ant-node
+    - /mnt/usb_sda3/antd-data/node-1:/var/lib/antd/node-1
+    - /mnt/usb_sda3/antd-data/logs:/var/lib/antd/logs
     command:
     - |
       mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs
