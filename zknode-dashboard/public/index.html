@@ -1453,7 +1453,7 @@ async function refreshAll() {
   const zymWidget = document.getElementById('zymbitWidget');
   const zymActive = zym && zym.zkifc === 'active';
   zymWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?zym.zkifc.toUpperCase():'UNKNOWN')+'</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?(zym.zkifc || "").toUpperCase():'UNKNOWN')+'</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym&&zym.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs text-white" style="font-size:0.65rem;">0x8930ce...4d256</span></div>' +
     '</div>';

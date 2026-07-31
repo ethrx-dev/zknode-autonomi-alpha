@@ -324,6 +324,8 @@ async function getAntDaemonStatus() {
   if (!port) return { running: false, error: 'no daemon port file' };
   const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/status`);
   if (data && !data.error) return data;
+  const pid = pgrep('ant-node');
+  if (pid) return { running: true, pid, mode: 'direct-binary', error: data?.error || 'daemon api unreachable, node binary detected directly' };
   return { running: false, error: data?.error || 'no response' };
 }
 
@@ -339,6 +341,16 @@ async function getAntNodeStatus() {
       }],
       total_running: node.status === 'running' ? 1 : 0,
       total_stopped: node.status === 'stopped' ? 1 : 0
+    };
+  }
+  const pid = pgrep('ant-node');
+  if (pid) {
+    return {
+      nodes: [{
+        node_id: 1, name: 'node1', version: 'direct',
+        status: 'running', pid, uptime_secs: 0
+      }],
+      total_running: 1, total_stopped: 0
     };
   }
   return { nodes: [], total_running: 0, total_stopped: 0 };
@@ -870,7 +882,7 @@ app.get('/api/ant/balance', async (req, res) => {
 app.get('/api/ant/logs', (req, res) => {
   const lines = parseInt(req.query.lines) || 50;
   const today = new Date().toISOString().slice(0, 10);
-  const r = runShell(`tail -${lines} /mnt/autonomi/autonomi-data/logs/node-1/logs/ant-node.${today}.log 2>/dev/null || echo "no logs"`);
+  const r = runShell(`docker exec antd sh -c 'tail -${lines} /var/lib/antd/logs/ant-node.${today}.log 2>/dev/null' 2>/dev/null || echo "no logs"`);
   res.json({ logs: r.ok ? r.data.split('\n') : [] });
 });
 
@@ -905,18 +917,19 @@ app.get('/api/health', async (req, res) => {
   try {
     const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
       .filter(n => { try { return execSync('docker ps --format \"{{.Names}}\" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
-    const wsOk = (() => { try { const r = execSync('curl -s -o /dev/null -w \"%{http_code}\" --max-time 5 -X POST http://127.0.0.1:9200/ethereum -H \"Content-Type: application/json\" -d \'{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}\'', { timeout: 5000 }); return r.toString().trim(); } catch { return '000'; }})();
+    const wsOk = wsHeartbeatState.ok ? '200' : '000';
+
     const lastBackup = (() => { try { const r = execSync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', { timeout: 3000 }).toString().trim(); if (!r) return -1; const age = execSync('echo $(( ($(date +%s) - $(stat -c %Y "' + r + '")) / 3600 ))', { timeout: 3000 }).toString().trim(); return parseInt(age) || -1; } catch { return -1; }})();
     const disk = parseFloat(execSync("df / | tail -1 | awk '{print \$5}' | sed 's/%//'", { timeout: 3000 }).toString().trim());
     res.json({
       status: mixOk >= 5 && wsOk === '200' ? 'healthy' : 'degraded',
-      dirauth_consensus: execSync('docker logs mix-dirauth-1 --tail 5 2>&1 | grep -c SIGNED || true', { timeout: 3000 }).toString().trim() !== '0',
+      dirauth_consensus: execSync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', { timeout: 3000 }).toString().trim() !== '0',
       mix_nodes: mixOk + '/6',
       walletshield_http: wsOk,
       dashboard_http: '200',
       disk_used_percent: disk,
       last_backup_age_hours: lastBackup,
-      kpclientd_listening: execSync('ss -tlnp | grep -c :64332 || true', { timeout: 3000 }).toString().trim() !== '0'
+      kpclientd_listening: isPortListening(64332)
     });
   } catch (e) {
     res.status(500).json({ status: 'error', error: e.message });

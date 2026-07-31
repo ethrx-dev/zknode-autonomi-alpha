@@ -23,8 +23,11 @@ import (
 	"github.com/katzenpost/hpqc/hash"
 	"github.com/katzenpost/hpqc/rand"
 
+	cbor "github.com/fxamacker/cbor/v2"
+
 	"github.com/katzenpost/katzenpost/client2"
 	"github.com/katzenpost/katzenpost/client2/config"
+	"github.com/katzenpost/katzenpost/server/cborplugin"
 	thinclt "github.com/ZeroKnowledgeNetwork/opt/apps/walletshield/thin"
 	sConstants "github.com/katzenpost/katzenpost/core/sphinx/constants"
 )
@@ -75,6 +78,7 @@ type Server struct {
 	thin       *thinclt.ThinClient
 	configPath string
 	logLevel   string
+	upstream   string
 	mu         sync.Mutex
 }
 
@@ -114,6 +118,7 @@ func main() {
 	var logLevel string
 	var listenAddr string
 	var listenAddrClient string
+	var upstream string
 	var configPath string
 	var delayStart int
 	var testProbe bool
@@ -127,6 +132,7 @@ func main() {
 	flag.StringVar(&logLevel, "log_level", "DEBUG", "logging level could be set to: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 	flag.StringVar(&listenAddr, "listen", "", "local socket to listen HTTP on")
 	flag.StringVar(&listenAddrClient, "listen_client", "", "local network address for the client daemon")
+	flag.StringVar(&upstream, "upstream", "", "upstream base URL to rewrite requests to")
 	flag.BoolVar(&testProbe, "probe", false, "send test probes instead of handling requests")
 	flag.IntVar(&testProbeCount, "probe_count", 1, "number of test probes to send")
 	flag.IntVar(&testProbeResponseDelay, "probe_response_delay", 0, "test probe response deplay")
@@ -213,6 +219,7 @@ func main() {
 		daemon:     d,
 		configPath: configPath,
 		logLevel:   level.String(),
+		upstream:   upstream,
 	}
 
 	// Start event monitoring goroutine for auto-reconnect
@@ -255,16 +262,37 @@ func main() {
 func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 	s.log.Infof("Received HTTP request for %s", req.URL)
 
-	myurl, err := url.Parse(req.RequestURI)
-	if err != nil {
-		s.log.Errorf("url.Parse(req.RequestURI) failed: %s", err)
-		return
+	// Build the raw request payload sent through the mixnet.
+	// When an upstream is configured, use an absolute-form request line so the
+	// mixnet http-proxy can forward to the correct scheme://host.
+	var buf bytes.Buffer
+	if s.upstream != "" {
+		body, rerr := io.ReadAll(req.Body)
+		if rerr != nil {
+			s.log.Errorf("io.ReadAll failed: %s", rerr)
+			return
+		}
+		u, uerr := url.Parse(s.upstream)
+		if uerr != nil {
+			s.log.Errorf("url.Parse(upstream) failed: %s", uerr)
+			return
+		}
+		fmt.Fprintf(&buf, "POST %s HTTP/1.1\r\n", s.upstream)
+		fmt.Fprintf(&buf, "Host: %s\r\n", u.Host)
+		fmt.Fprintf(&buf, "Content-Type: application/json\r\n")
+		fmt.Fprintf(&buf, "Content-Length: %d\r\n", len(body))
+		fmt.Fprintf(&buf, "\r\n")
+		buf.Write(body)
+	} else {
+		myurl, err := url.Parse(req.RequestURI)
+		if err != nil {
+			s.log.Errorf("url.Parse(req.RequestURI) failed: %s", err)
+			return
+		}
+		req.URL = myurl
+		req.RequestURI = ""
+		req.Write(&buf)
 	}
-	req.URL = myurl
-	req.RequestURI = ""
-
-	buf := new(bytes.Buffer)
-	req.Write(buf)
 
 	s.log.Debugf("RAW HTTP REQUEST:\n%s", string(buf.Bytes()))
 
@@ -287,8 +315,20 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// The mixnet http-proxy replies with a cborplugin.Response whose Payload is a
+	// CBOR-encoded common.Response wrapping the raw HTTP response bytes.
+	// The mixnet http-proxy replies with a cborplugin.Response whose Payload holds
+	// the raw HTTP response bytes (padded to the Sphinx payload size).
+	var pluginResp cborplugin.Response
+	if _, perr := cbor.UnmarshalFirst(rawReply, &pluginResp); perr != nil {
+		s.log.Errorf("Failed to cbor-unmarshal plugin response: %s", perr)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	httpResp := bytes.TrimRight(pluginResp.Payload, "\x00")
+
 	// Parse the raw HTTP response
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(rawReply)), nil)
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(httpResp)), nil)
 	if err != nil {
 		s.log.Errorf("Failed to parse response: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

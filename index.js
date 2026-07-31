@@ -1,0 +1,827 @@
+import { request as httpRequest } from 'http';
+import { existsSync, mkdirSync, writeFileSync, accessSync, constants } from "fs";
+import { execSync } from 'child_process';
+import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import express from 'express';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 8080;
+const WS_PORT = process.env.WS_PORT || 9200;
+const DOCKER_SOCK = '/var/run/docker.sock';
+let ZKCHAT_MESSAGES = [];
+const CHAT_HISTORY_FILE = "/app/public/chat-history.json";
+let ZKCHAT_GROUP_HISTORY = {};
+try { ZKCHAT_GROUP_HISTORY = JSON.parse(execSync('cat "' + CHAT_HISTORY_FILE + '" 2>/dev/null || echo "{}"', { timeout: 3000 }).toString()); } catch {}
+
+const app = express();
+app.use(express.json());
+app.use(express.static(join(__dirname, '..', 'public')));
+
+function runShell(cmd, timeoutMs = 15000) {
+  try {
+    const out = execSync(cmd, { timeout: timeoutMs, encoding: 'utf8', maxBuffer: 1024 * 1024, shell: '/bin/sh' });
+    return { ok: true, data: out.trim() };
+  } catch (e) {
+    const stderr = e.stderr ? e.stderr.toString().trim() : '';
+    return { ok: false, error: e.message, stderr };
+  }
+}
+
+function dockerApi(path) {
+  return new Promise((resolve) => {
+    if (!existsSync(DOCKER_SOCK)) return resolve({ error: 'docker socket not found' });
+    const req = httpRequest({ socketPath: DOCKER_SOCK, path, method: 'GET' }, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { resolve({ error: 'parse error', raw: body }); }
+      });
+    });
+    req.on('error', () => resolve({ error: 'docker api error' }));
+    req.end();
+  });
+}
+
+function fetchUrl(url, timeout = 5000, opts = {}) {
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeout);
+    const options = { signal: controller.signal, method: opts.method || 'GET' };
+    if (opts.body) options.body = opts.body;
+    fetch(url, options)
+      .then(r => r.text().then(txt => {
+        try { return JSON.parse(txt); }
+        catch { return { raw: txt }; }
+      }))
+      .then(d => { clearTimeout(t); resolve(d); })
+      .catch(e => { clearTimeout(t); resolve({ error: e.message }); });
+  });
+}
+
+function isPortListening(port) {
+  return runShell(`netstat -tln 2>/dev/null | grep -qE ":${port} " && echo ok`).ok;
+}
+
+function isProcessAlive(pid) {
+  return runShell(`docker run --rm --pid host alpine kill -0 ${pid} 2>&1`, 5000).ok;
+}
+
+function pgrep(name) {
+  const r = runShell(`pgrep -f "${name}" 2>/dev/null | head -1`, 5000);
+  return r.ok && r.data ? parseInt(r.data, 10) : null;
+}
+
+// ─── MCP Client for llm-wiki ─────────────────────────────────
+
+let mcpSessionId = null;
+let mcpSseReq = null;
+let mcpReady = false;
+
+function mcpHttp(method, path, headers, body, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: '127.0.0.1', port: 18765, path, method,
+      headers: { ...headers }
+    };
+    const req = httpRequest(opts, (res) => {
+      let data = '';
+      let rtimer = null;
+      res.on('data', c => { data += c; if (!rtimer) { rtimer = setTimeout(() => resolve({ status: res.statusCode, headers: res.headers, body: data }), 3000); } });
+      res.on('end', () => resolve({
+        status: res.statusCode,
+        headers: res.headers,
+        body: data
+      }));
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+function parseSseJson(sseBody) {
+  const dataLines = [];
+  for (const line of sseBody.split('\n')) {
+    if (line.startsWith('data: ')) {
+      const payload = line.slice(6).trim();
+      if (payload) dataLines.push(payload);
+    }
+  }
+  for (const jsonStr of dataLines) {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.jsonrpc === '2.0') return parsed;
+    } catch {}
+  }
+  try { return JSON.parse(sseBody); }
+  catch { return null; }
+}
+
+async function mcpInitialize() {
+  const msg = JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'initialize',
+    params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'zknode-dashboard', version: '1.0' } }
+  });
+  const resp = await mcpHttp('POST', '/mcp', {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json, text/event-stream'
+  }, msg);
+  if (!resp.headers['mcp-session-id']) {
+    throw new Error('No mcp-session-id in response');
+  }
+  mcpSessionId = resp.headers['mcp-session-id'];
+}
+
+function mcpOpenSse() {
+  if (mcpSseReq) {
+    mcpSseReq.destroy();
+    mcpSseReq = null;
+  }
+  const opts = {
+    hostname: '127.0.0.1', port: 18765, path: '/mcp', method: 'GET',
+    headers: { 'Accept': 'text/event-stream', 'mcp-session-id': mcpSessionId }
+  };
+  const req = httpRequest(opts, (res) => {
+    res.on('data', () => {});
+    res.on('end', () => {
+      mcpSseReq = null;
+      mcpReady = false;
+      setTimeout(connectMcp, 1000);
+    });
+    res.on('error', () => {
+      mcpSseReq = null;
+      mcpReady = false;
+      setTimeout(connectMcp, 2000);
+    });
+  });
+  req.on('error', () => {
+    mcpSseReq = null;
+    mcpReady = false;
+    setTimeout(connectMcp, 2000);
+  });
+  req.end();
+  mcpSseReq = req;
+}
+
+async function connectMcp() {
+  try {
+    await mcpInitialize();
+    mcpOpenSse();
+    mcpReady = true;
+    console.log('MCP session established:', mcpSessionId?.slice(0, 8) + '...');
+  } catch (e) {
+    console.log('MCP init failed:', e.message, '- retrying in 5s');
+    mcpReady = false;
+    setTimeout(connectMcp, 5000);
+  }
+}
+
+async function mcpCall(method, params = {}) {
+  if (!mcpReady) return { error: 'MCP not ready' };
+  const id = Date.now() + Math.floor(Math.random() * 1000);
+  const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params });
+  try {
+    const resp = await mcpHttp('POST', '/mcp', {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'mcp-session-id': mcpSessionId
+    }, msg);
+    if (resp.status === 400) {
+      mcpReady = false;
+      connectMcp();
+      return { error: 'Session expired, reconnecting' };
+    }
+    if (resp.status !== 200) return { error: `HTTP ${resp.status}`, raw: resp.body };
+    const parsed = parseSseJson(resp.body);
+    if (!parsed) return { error: 'failed to parse response', raw: resp.body };
+    if (parsed.error) return { error: parsed.error.message || JSON.stringify(parsed.error) };
+    if (parsed.result && parsed.result.content) {
+      const textContent = parsed.result.content.find(c => c.type === 'text');
+      if (textContent) {
+        try { return JSON.parse(textContent.text); }
+        catch { return textContent.text; }
+      }
+      return parsed.result.content;
+    }
+    return parsed.result;
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// ─── SYSTEM DATA FUNCTIONS ────────────────────────────────────
+
+function getSystemStats() {
+  const mem = { total: totalmem(), free: freemem(), used: totalmem() - freemem() };
+  const disk = (() => {
+    try {
+      const out = execSync('df -B1 / /mnt/autonomi 2>/dev/null || df -B1 /', { timeout: 3000, encoding: 'utf8' });
+      return out.trim().split('\n').slice(1).map(l => {
+        const [, fs, sz, u, av, use, mp] = l.match(/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+(\S+)/) || [];
+        return fs ? { filesystem: fs, size: +sz, used: +u, available: +av, usePercent: +use, mount: mp } : null;
+      }).filter(Boolean);
+    } catch { return []; }
+  })();
+  return {
+    hostname: hostname(), platform: process.platform, arch: process.arch,
+    uptime: uptime(), loadavg: loadavg(), cpuCount: cpus().length, memory: mem,
+    disks: disk,
+    network: Object.entries(networkInterfaces()).flatMap(([name, addrs]) =>
+      addrs.filter(a => a.family === 'IPv4').map(a => ({ name, address: a.address }))
+    )
+  };
+}
+
+async function getContainers() {
+  const data = await dockerApi('/containers/json?all=true');
+  if (data.error) return data;
+  if (!Array.isArray(data)) return { error: 'unexpected response' };
+  return data.map(c => ({
+    id: c.Id?.slice(0, 12), name: c.Names?.[0]?.replace(/^\//, ''),
+    image: c.Image, state: c.State, status: c.Status,
+    ports: c.Ports?.map(p => `${p.PublicPort || ''}:${p.PrivatePort}/${p.Type}`) || [],
+    created: c.Created, networkMode: c.HostConfig?.NetworkMode
+  }));
+}
+
+async function getMixnetStatus() {
+  const containers = await getContainers();
+  if (containers.error) return { error: containers.error };
+  const authHosts = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
+  const authorities = authHosts.map((name, aidx) => {
+    const c = containers.find(ct => ct.name === name);
+    const running = c && c.state === 'running';
+    const da = `mix-dirauth-${aidx + 1}`;
+    const epoch = running ? runShell(`docker exec ${da} sh -c "grep 'Epoch:' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*Epoch: //;s/ .*//'"`, 5000) : null;
+    const consensus = running ? runShell(`docker exec ${da} sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*: //;s/ .*//'"`, 5000) : null;
+    const nodeCount = running ? runShell(`docker exec ${da} sh -c "grep 'ServiceNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'servicenode' | wc -l"`, 5000) : null;
+    const gwCount = running ? runShell(`docker exec ${da} sh -c "grep 'GatewayNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'gateway' | wc -l"`, 5000) : null;
+    return {
+      host: `127.0.0.1:${30001 + aidx}`,
+      data: running ? {
+        Epoch: epoch?.ok ? epoch.data.trim() : null,
+        Consensus: consensus?.ok ? consensus.data.trim() : null,
+        ServiceNodes: nodeCount?.ok ? parseInt(nodeCount.data.trim()) || 0 : 0,
+        GatewayNodes: gwCount?.ok ? parseInt(gwCount.data.trim()) || 0 : 0
+      } : { error: 'offline' }
+    };
+  });
+  const mixnetNames = ['mix-1', 'mix-2', 'mix-3', 'mix-gateway', 'mix-servicenode', 'mix-client',
+    'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3', 'mixnet-proxy'];
+  const nodes = {};
+  for (const n of mixnetNames) {
+    const c = containers.find(ct => ct.name === n);
+    nodes[n] = c ? { running: c.state === 'running', status: c.status } : { running: false, status: 'not found' };
+  }
+  return { authorities, nodes, listeningPorts: [30001, 30002, 30003].filter(p => isPortListening(p)).length };
+}
+
+async function getWalletshieldStatus() {
+  return { connected: isPortListening(9200), port: 9200 };
+}
+
+async function getStorageStatus() {
+  const data = await fetchUrl('http://127.0.0.1:9201/status');
+  if (data && !data.error && data.total_chunks !== undefined) {
+    return { running: true, totalChunks: data.total_chunks, chunkSize: data.chunk_size, merkleRoot: data.merkle_root };
+  }
+  return { running: false, error: data?.error || 'no response' };
+}
+
+function getAntDaemonPort() {
+  return 12000;
+}
+
+async function getAntDaemonStatus() {
+  const port = getAntDaemonPort();
+  if (!port) return { running: false, error: 'no daemon port file' };
+  const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/status`);
+  if (data && !data.error) return data;
+  return { running: false, error: data?.error || 'no response' };
+}
+
+async function getAntNodeStatus() {
+  const port = getAntDaemonPort();
+  if (!port) return { nodes: [], total_running: 0, total_stopped: 0 };
+  const node = await fetchUrl(`http://127.0.0.1:${port}/api/v1/nodes/1`);
+  if (node && !node.error) {
+    return {
+      nodes: [{
+        node_id: node.id, name: node.service_name, version: node.version,
+        status: node.status, pid: node.pid, uptime_secs: node.uptime_secs
+      }],
+      total_running: node.status === 'running' ? 1 : 0,
+      total_stopped: node.status === 'stopped' ? 1 : 0
+    };
+  }
+  return { nodes: [], total_running: 0, total_stopped: 0 };
+}
+
+// ─── WIKI ENDPOINTS (via MCP) ────────────────────────────────
+
+app.post('/api/wiki/search', async (req, res) => {
+  const { query, topK } = req.body || {};
+  if (!query) return res.json({ error: 'query required', results: [] });
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_search',
+    arguments: { wiki: 'p4p', query, top_k: topK || 10 }
+  });
+  res.json(result);
+});
+
+app.get('/api/wiki/list', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const type = req.query.type || '';
+  const status = req.query.status || '';
+  const args = { wiki: 'p4p', page, page_size: pageSize };
+  if (type) args.type = type;
+  if (status) args.status = status;
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_list',
+    arguments: args
+  });
+  res.json(result);
+});
+
+app.get('/api/wiki/page/:slug', async (req, res) => {
+  const { wiki } = req.query;
+  const args = { wiki: 'p4p', uri: req.params.slug };
+  if (wiki) args.wiki = wiki;
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_content_read',
+    arguments: args
+  });
+  res.json(result);
+});
+
+app.get('/api/wiki/stats', async (req, res) => {
+  const result = await mcpCall('tools/call', { name: 'wiki_stats', arguments: { wiki: 'p4p' } });
+  res.json(result || {});
+});
+
+app.get('/api/wiki/suggest/:slug', async (req, res) => {
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_suggest',
+    arguments: { wiki: 'p4p', slug: req.params.slug, limit: 10 }
+  });
+  res.json(result);
+});
+
+app.post('/api/wiki/export/:slug', async (req, res) => {
+  const uri = req.params.slug;
+  const result = await mcpCall('tools/call', { name: 'wiki_content_read', arguments: { wiki: 'p4p', uri } });
+  if (!result || result.error) return res.json({ ok: false, error: result?.error || 'fetch failed' });
+  const content = result.text || result.content || (typeof result === 'string' ? result : '');
+  const slug = uri.split('/').pop().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const title = slug.replace(/[-_]/g, ' ');
+  const exportDir = '/var/nomadnet/pages/wiki';
+  const mu = `# ${title}\n\n${content}\n\n[Wiki Home|/wiki/index.mu]\n`;
+  try {
+    if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true });
+    writeFileSync(`${exportDir}/${slug}.mu`, mu);
+    res.json({ ok: true, path: `wiki/${slug}.mu` });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// ─── ZKCHAT ENDPOINTS ─────────────────────────────────────────
+
+const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
+
+function zkchatCmd(args, timeout = 10000) {
+  const cmd = 'docker run --rm --network host -v /home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost -v /home/zero-tech/zknode01/bin:/usr/local/bin zeros/mixnet-node-fixed:v0.0.84 /usr/local/bin/zkchat ' + args + ' 2>&1';
+  const r = runShell(cmd, timeout);
+  if (!r.ok) {
+    const err = r.stderr || r.error || '';
+    const short = err.includes('Command failed') ? 'mixnet unavailable (connect to kpclientd failed)' : err;
+    return { ok: false, error: short };
+  }
+  return r;
+}
+
+app.get('/api/chat/poll', (req, res) => {
+  const r = zkchatCmd(`poll ${ZKCONF}`, 8000);
+  if (!r.ok) return res.json({ messages: [], error: r.error });
+  const raw = r.data.split('\n').filter(l => l.trim());
+  const messages = [];
+  let current = null;
+  for (const line of raw) {
+    const m = line.match(/^\[(\d{2}:\d{2}:\d{2})\]\s+from\s+([0-9a-fA-F]+)\s+\(([^)]+)\):/);
+    if (m) {
+      if (current) messages.push(current);
+      current = { timestamp: m[1], sender: m[2], text: '', type: m[3] };
+    } else if (current) {
+      current.text += (current.text ? '\n' : '') + line;
+    }
+  }
+  if (current) messages.push(current);
+  if (messages.length) ZKCHAT_MESSAGES.push(...messages);
+  res.json({ messages, history: ZKCHAT_MESSAGES.slice(-100) });
+
+});
+app.get('/api/chat/groups', (req, res) => {
+  let identity = null;
+  try { identity = execSync('cat /etc/zkchat/identity 2>/dev/null', { timeout: 3000 }); } catch {}
+  const raw = runShell(join(__dirname, "chat-groups.sh"), 10000);
+  if (!raw.ok || !raw.data.trim()) return res.json({ groups: [] });
+  const groups = [];
+  for (const jsonStr of (raw.data.match(/\{[^}]+\}/g) || [])) {
+    try {
+      const meta = JSON.parse(jsonStr);
+      if (identity) {
+        const hex = identity.toString('hex');
+        const isMember = meta.Members && meta.Members.some(m => {
+          try { return Buffer.from(m, 'base64').toString('hex') === hex; } catch { return false; }
+        });
+        if (!isMember) continue;
+      }
+      groups.push({ id: meta.ID, name: meta.Name || 'unnamed', members: (meta.Members || []).length });
+    } catch {}
+  }
+  res.json({ groups });
+});
+app.post('/api/chat/groups/create', (req, res) => {
+  const { name, members } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'group name required' });
+  const membersStr = members && members.length ? members.join(' ') : '';
+  const r = zkchatCmd(`group create ${ZKCONF} "${name}" ${membersStr}`);
+  res.json(r.ok ? { created: true, output: r.data } : { error: r.error, stderr: r.stderr });
+});
+
+app.post('/api/chat/groups/send', (req, res) => {
+  const { group_id, message } = req.body || {};
+  if (!group_id || !message) return res.status(400).json({ error: 'group_id and message required' });
+  const r = zkchatCmd(`group send ${ZKCONF} ${group_id} "${message}"`);
+  res.json(r.ok ? { sent: true, output: r.data } : { sent: false, error: r.error });
+});
+
+app.post('/api/chat/send', (req, res) => {
+  const { recipient, message } = req.body || {};
+  if (!recipient || !message) return res.status(400).json({ error: 'recipient and message required' });
+  const r = zkchatCmd(`send ${ZKCONF} ${recipient} "${message}"`);
+  res.json(r.ok ? { sent: true, output: r.data } : { sent: false, error: r.error });
+});
+
+app.get('/api/chat/groups/poll', (req, res) => {
+  const groupId = req.query.group_id || '';
+  const key = groupId || '__all__';
+  if (!ZKCHAT_GROUP_HISTORY[key]) ZKCHAT_GROUP_HISTORY[key] = [];
+  const cmd = `group poll ${ZKCONF}${groupId ? ' ' + groupId : ''}`;
+  const r = zkchatCmd(cmd, 15000);
+  if (!r.ok) return res.json({ messages: ZKCHAT_GROUP_HISTORY[key], error: r.error });
+  const lines = r.data.split('\n');
+  let current = null;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const m = trimmed.match(/^\[(\d{2}:\d{2}:\d{2})\]\s+\[([^\]]+)\]\s+from\s+([0-9a-fA-F]+)\s+\(([^)]+)\):/);
+    if (m) {
+      if (current) ZKCHAT_GROUP_HISTORY[key].push(current);
+      current = { timestamp: m[1], sender: m[3], text: '', type: m[4], gid: m[2], group: groupId || 'all' };
+    } else if (current) {
+      current.text += (current.text ? '\n' : '') + trimmed;
+    }
+  }
+  if (current) ZKCHAT_GROUP_HISTORY[key].push(current);
+  try { writeFileSync(CHAT_HISTORY_FILE, JSON.stringify(ZKCHAT_GROUP_HISTORY)); } catch {}
+  res.json({ messages: ZKCHAT_GROUP_HISTORY[key] });
+});
+
+app.post('/api/chat/groups/invite', (req, res) => {
+  const { group_id, members } = req.body || {};
+  if (!group_id || !members || !members.length) return res.status(400).json({ error: 'group_id and members required' });
+  const r = zkchatCmd(`group invite ${ZKCONF} ${group_id} ${members.join(' ')}`);
+  res.json(r.ok ? { invited: true, output: r.data } : { error: r.error });
+});
+
+app.post('/api/chat/groups/leave', (req, res) => {
+  const { group_id } = req.body || {};
+  if (!group_id) return res.status(400).json({ error: 'group_id required' });
+  const r = zkchatCmd(`group leave ${ZKCONF} ${group_id}`);
+  res.json(r.ok ? { left: true, output: r.data } : { error: r.error });
+});
+
+// ─── MESH ENDPOINTS ───────────────────────────────────────────
+
+app.get('/api/mesh/status', (req, res) => {
+  const nomadPid = pgrep('nomadnet');
+  const rnsPid = pgrep('rnsd');
+  const nomadRunning = !!nomadPid;
+  const rnsRunning = !!rnsPid;
+  const pages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
+  const config = runShell('cat /var/nomadnet/config 2>/dev/null');
+  const wikiPages = runShell('grep "^pages" /home/zero-tech/.llm-wiki/indexes/p4p/state.toml 2>/dev/null | grep -oP "\\d+"');
+  const nomadPages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
+  res.json({
+    rnsd: rnsRunning ? 'running' : 'not running',
+    pid: rnsPid || nomadPid || null,
+    identity: config.ok ? config.data.slice(0, 64) : (rnsRunning ? 'checking...' : null),
+    nomadnet: nomadRunning ? 'active' : 'inactive',
+    pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
+    wiki: {
+      pages: wikiPages.ok ? parseInt(wikiPages.data.trim()) || 0 : 0
+    },
+    nomadPages: nomadPages.ok ? nomadPages.data.split('\n').filter(Boolean).length : 0
+  });
+});
+
+app.get('/api/mesh/nomadnet', (req, res) => {
+  const nomadPid = pgrep('nomadnet');
+  const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
+  const config = runShell('cat /var/nomadnet/config 2>/dev/null');
+  const log = runShell('tail -10 /var/nomadnet/logfile 2>/dev/null');
+  res.json({
+    nomadPid,
+    pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
+    config: config.ok ? config.data : null,
+    recentLog: log.ok ? log.data.split('\n') : []
+  });
+});
+
+app.get('/api/mesh/rns', (req, res) => {
+  const status = runShell('/home/zero-tech/.local/bin/rnstatus -j 2>/dev/null', 5000);
+  const paths = runShell('/home/zero-tech/.local/bin/rnpath -t -j 2>/dev/null', 5000);
+  const wifi = runShell('/usr/sbin/iw dev wlan0 info 2>/dev/null', 3000);
+  const peers = runShell('/usr/sbin/iw dev wlan0 station dump 2>/dev/null', 3000);
+  let data = { interfaces: [], transport_id: null, uptime: 0, traffic: { txb: 0, rxb: 0 } };
+  if (status.ok) {
+    try { data = JSON.parse(status.data); } catch {}
+  }
+  let pathList = [];
+  if (paths.ok) {
+    try { pathList = JSON.parse(paths.data); } catch {}
+  }
+  const wifiLines = wifi.ok ? wifi.data.split('\n').filter(Boolean) : [];
+  const wifiInfo = {};
+  for (const line of wifiLines) {
+    const parts = line.split(/\s+/, 2);
+    if (parts.length >= 2) wifiInfo[parts[0].replace(':', '')] = parts[1];
+  }
+  res.json({
+    transport_id: data.transport_id || null,
+    network_id: data.network_id || null,
+    uptime: data.transport_uptime || 0,
+    traffic: { txb: data.txb || 0, rxb: data.rxb || 0 },
+    interfaces: (data.interfaces || []).map(iface => ({
+      name: iface.name || iface.short_name || 'Unknown',
+      type: iface.type || 'Unknown',
+      status: iface.status === true ? 'Up' : iface.status === false ? 'Down' : 'Unknown',
+      peers: iface.peers || iface.clients || 0,
+      bitrate: iface.bitrate || 0,
+      rxb: iface.rxb || 0,
+      txb: iface.txb || 0
+    })),
+    paths: pathList,
+    wifi: {
+      ssid: wifiInfo.ssid || null,
+      channel: wifiInfo.channel || null,
+      type: wifiInfo.type || null,
+      txpower: wifiInfo.txpower || null,
+      peers: peers.ok ? peers.data.trim() : null
+    }
+  });
+});
+
+// ─── SYSTEM ENDPOINTS ─────────────────────────────────────────
+
+app.get('/api/system', (req, res) => res.json(getSystemStats()));
+app.get('/api/containers', async (req, res) => res.json(await getContainers()));
+app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
+app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
+
+app.get('/api/zkchat', (req, res) => {
+  const hasBinary = existsSync('/usr/local/bin/zkchat');
+  const hasConfig = existsSync("/etc/zkchat/thinclient.toml");
+  const mixClientRunning = isPortListening(64332);
+  res.json({
+    running: hasBinary && hasConfig && mixClientRunning,
+    binary: hasBinary,
+    config: hasConfig,
+    mixClient: mixClientRunning,
+    messages: ZKCHAT_MESSAGES.slice(-5)
+  });
+});
+
+
+
+app.get('/api/chat/identity', (req, res) => {
+  try {
+    const raw = execSync('cat /etc/zkchat/identity 2>/dev/null', { timeout: 3000 });
+    if (raw && raw.length > 0) {
+      const hex = raw.toString('hex').trim();
+      return res.json({ identity: hex, valid: hex.length === 32 });
+    }
+  } catch {}
+  res.json({ identity: null, valid: false });
+});
+
+app.get('/api/reticulum', (req, res) => {
+  const rnsPid = pgrep('rnsd');
+  const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
+  res.json({
+    rnsd: rnsPid ? 'running' : 'not running',
+    rnsPid,
+    pages: pages.ok ? pages.data.split('\n').filter(Boolean).length : 0
+  });
+});
+
+app.get('/api/zymbit', async (req, res) => {
+  const zymApi = await fetchUrl('http://127.0.0.1:8765/api/zymkey/status');
+  res.json({
+    zkifc: existsSync('/run/zkstatus/zkifc_running') ? 'active' : 'inactive',
+    devZymkey: (() => { try { accessSync('/dev/zymkey', constants.R_OK); return true; } catch { return false; }})(),
+    zscm: zymApi.error ? null : {
+      device: zymApi.device,
+      model: zymApi.model,
+      firmware: zymApi.firmware,
+      serial: zymApi.serial
+    }
+  });
+});
+
+app.get('/api/llm-wiki', async (req, res) => {
+  res.json({
+    container: mcpReady ? 'connected via MCP' : null,
+    mcpOk: mcpReady,
+    sessionId: mcpSessionId ? mcpSessionId.slice(0, 8) + '...' : null
+  });
+});
+
+app.get('/api/prover', async (req, res) => {
+  const s = await getStorageStatus();
+  res.json({ running: s.running, ...s });
+});
+
+app.get('/api/ant', async (req, res) => {
+  const [storage, daemon, nodes] = await Promise.all([
+    getStorageStatus(),
+    getAntDaemonStatus(),
+    getAntNodeStatus()
+  ]);
+  res.json({
+    storage,
+    daemon: daemon.error ? { running: false, error: daemon.error } : {
+      running: daemon.running, pid: daemon.pid, port: daemon.port,
+      uptime_secs: daemon.uptime_secs,
+      nodes_total: daemon.nodes_total, nodes_running: daemon.nodes_running,
+      nodes_stopped: daemon.nodes_stopped, nodes_errored: daemon.nodes_errored
+    },
+    nodes: nodes.nodes || [],
+    totalRunning: nodes.total_running || 0,
+    totalStopped: nodes.total_stopped || 0,
+    binaries: {
+      ant: runShell('ant --version 2>&1').ok ? runShell('ant --version 2>&1').data.trim() : null,
+      antNode: runShell('ls /root/.local/share/ant/bin/ant-node-* 2>/dev/null').ok
+    }
+  });
+});
+
+app.post('/api/ant/daemon/start', async (req, res) => {
+  const r = runShell('ant node daemon start 2>&1');
+  res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
+});
+
+app.post('/api/ant/daemon/stop', async (req, res) => {
+  const r = runShell('ant node daemon stop 2>&1');
+  res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
+});
+
+app.post('/api/ant/node/start', async (req, res) => {
+  const port = getAntDaemonPort();
+  if (!port) return res.json({ ok: false, message: 'daemon not running' });
+  const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/nodes/1/start`, 10000, { method: 'POST' });
+  res.json({ ok: !data.error, message: data.error || data.current_state?.status || 'started' });
+});
+
+app.post('/api/ant/node/stop', async (req, res) => {
+  const port = getAntDaemonPort();
+  if (!port) return res.json({ ok: false, message: 'daemon not running' });
+  const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/nodes/1/stop`, 10000, { method: 'POST' });
+  res.json({ ok: !data.error, message: data.error || data.current_state?.status || 'stopped' });
+});
+
+const ARB_SEPOLIA_RPC = process.env.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc';
+const ANT_TOKEN_ADDR = process.env.ANT_TOKEN_ADDR || '0xa2e8920fFbD5E5De5fF38E48b9B5621d0E7Cfd66'; // ANT on Arb Sepolia
+
+async function getTokenBalance(rpcUrl, tokenAddr, walletAddr) {
+  const data = tokenAddr
+    ? await fetchUrl(rpcUrl, 10000, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'eth_call',
+          params: [{to: tokenAddr, data: '0x70a08231000000000000000000000000' + walletAddr.slice(2)}, 'latest']
+        })
+      })
+    : null;
+  if (data && data.result) {
+    try { return BigInt(data.result).toString(); } catch {}
+  }
+  return '0';
+}
+
+app.get('/api/ant/wallet', async (req, res) => {
+  const zym = await fetchUrl('http://127.0.0.1:8765/api/zymkey/eth-address');
+  res.json({
+    address: zym?.address || null,
+    hardware: 'ZSCM Secure Element',
+    nodeRewardsAddress: zym?.address || null
+  });
+});
+
+app.get('/api/ant/balance', async (req, res) => {
+  const zym = await fetchUrl('http://127.0.0.1:8765/api/zymkey/eth-address');
+  const addr = zym?.address;
+  if (!addr) return res.json({ error: 'no wallet', eth: '0', ant: '0' });
+  const [ethRaw, antRaw] = await Promise.all([
+    fetchUrl(ARB_SEPOLIA_RPC, 10000, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [addr, 'latest']})
+    }),
+    getTokenBalance(ARB_SEPOLIA_RPC, ANT_TOKEN_ADDR, addr)
+  ]);
+  const ethWei = ethRaw?.result || '0x0';
+  const eth = (BigInt(ethWei) / BigInt(10**14)).toString() / 10000;
+  const antWei = BigInt(antRaw || '0');
+  const ant = antWei > 0 ? (antWei / BigInt(10**14)).toString() / 10000 : 0;
+  res.json({ address: addr, eth: eth.toFixed(6), ant: ant.toFixed(4) });
+});
+
+app.get('/api/ant/logs', (req, res) => {
+  const lines = parseInt(req.query.lines) || 50;
+  const today = new Date().toISOString().slice(0, 10);
+  const r = runShell(`tail -${lines} /mnt/autonomi/autonomi-data/logs/node-1/logs/ant-node.${today}.log 2>/dev/null || echo "no logs"`);
+  res.json({ logs: r.ok ? r.data.split('\n') : [] });
+});
+
+app.get('/api/services', async (req, res) => {
+  const [containers, mixnet, walletshield, storage, system] = await Promise.all([
+    getContainers(),
+    getMixnetStatus(),
+    getWalletshieldStatus(),
+    getStorageStatus(),
+    Promise.resolve(getSystemStats())
+  ]);
+  const [antNodes, antDaemon] = await Promise.all([
+    getAntNodeStatus(),
+    getAntDaemonStatus()
+  ]);
+  res.json({
+    system, containers, mixnet, walletshield,
+    ant: {
+      running: antDaemon.running && antNodes.total_running > 0,
+      daemon: antDaemon,
+      nodes: antNodes.nodes || [],
+      storage: { running: storage.running, totalChunks: storage.totalChunks }
+    },
+    prover: { running: storage.running },
+    reticulum: { rnsd: pgrep('rnsd') ? 'running' : 'not running', rnsPid: pgrep('rnsd') }
+  });
+});
+
+
+
+app.get('/api/health', async (req, res) => {
+  try {
+    const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
+      .filter(n => { try { return execSync('docker ps --format \"{{.Names}}\" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
+    const wsOk = (() => { try { const r = execSync('curl -s -o /dev/null -w \"%{http_code}\" --max-time 5 -X POST http://127.0.0.1:9200/ethereum -H \"Content-Type: application/json\" -d \'{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}\'', { timeout: 5000 }); return r.toString().trim(); } catch { return '000'; }})();
+    const lastBackup = (() => { try { const r = execSync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', { timeout: 3000 }).toString().trim(); if (!r) return -1; const age = execSync('echo $(( ($(date +%s) - $(stat -c %Y "' + r + '")) / 3600 ))', { timeout: 3000 }).toString().trim(); return parseInt(age) || -1; } catch { return -1; }})();
+    const disk = parseFloat(execSync("df / | tail -1 | awk '{print \$5}' | sed 's/%//'", { timeout: 3000 }).toString().trim());
+    res.json({
+      status: mixOk >= 5 && wsOk === '200' ? 'healthy' : 'degraded',
+      dirauth_consensus: execSync('docker logs mix-dirauth-1 --tail 5 2>&1 | grep -c SIGNED || true', { timeout: 3000 }).toString().trim() !== '0',
+      mix_nodes: mixOk + '/6',
+      walletshield_http: wsOk,
+      dashboard_http: '200',
+      disk_used_percent: disk,
+      last_backup_age_hours: lastBackup,
+      kpclientd_listening: execSync('ss -tlnp | grep -c :64332 || true', { timeout: 3000 }).toString().trim() !== '0'
+    });
+  } catch (e) {
+    res.status(500).json({ status: 'error', error: e.message });
+  }
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '..', 'public', 'index.html'));
+});
+
+// Start MCP connection
+connectMcp();
+
+setInterval(() => {
+  if (!mcpReady && !mcpSessionId) connectMcp();
+}, 30000);
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`ZKNode Dashboard running on http://0.0.0.0:${PORT}`);
+});
+

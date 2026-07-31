@@ -1,0 +1,6 @@
+Hostname = "zymbit-dev"
+MeasuredAt = 2026-07-21T09:06:14.111437545Z
+NumCPU = 4
+OpsPerSecPerCore = 309.8926407935235
+OpsPerSecSaturated = 745.2093749574998
+IterationTime = "3.226924ms"

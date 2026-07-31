@@ -1,0 +1,61 @@
+PKISignatureScheme = "Ed25519"
+WireKEMScheme = "MLKEM768"
+
+[Listen]
+  [Listen.Tcp]
+    Address = "127.0.0.1:64332"
+    Network = "tcp"
+
+[SphinxGeometry]
+  PacketLength = 3082
+  NrHops = 5
+  HeaderLength = 476
+  RoutingInfoLength = 410
+  PerHopRoutingInfoLength = 82
+  SURBLength = 572
+  SphinxPlaintextHeaderLength = 2
+  PayloadTagLength = 32
+  ForwardPayloadLength = 2574
+  UserForwardPayloadLength = 2000
+  NextNodeHopLength = 65
+  SPRPKeyMaterialLength = 64
+  NIKEName = "x25519"
+  KEMName = ""
+
+[Logging]
+  Disable = false
+  File = ""
+  Level = "DEBUG"
+
+[UpstreamProxy]
+  Type = "none"
+  Network = ""
+  Address = ""
+  User = ""
+  Password = ""
+
+[Debug]
+  DisableDecoyTraffic = false
+  SessionDialTimeout = 0
+  InitialMaxPKIRetrievalDelay = 0
+  PollingInterval = 0
+  EnableTimeSync = false
+
+[PinnedGateways]
+  [[PinnedGateways.Gateways]]
+    WireKEMScheme = "MLKEM768"
+    Name = "gateway1"
+    IdentityKey = "-----BEGIN ED25519 PUBLIC KEY-----\nd7my3fxbVTBSwdY66JW0vglFvpXkKN0GxkBOspQb5Gk=\n-----END ED25519 PUBLIC KEY-----\n"
+    LinkKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nfocrNfsZQLHOx2pLibsOVYF4CRcNC/UV7aKmEACfDhd0x5Afx5q3+jAf+kHDm6ta\n6tsJgtqIyLsieIQeWhB58aepHwYjD0kG7YKpNGE+/gEZB1Ns41rNzDEeUzklRehb\nhjK973x2gSBlUSxOQZlZjzcBWZIuuFGoGHpzYNRyTPF7s3rPSYCNLlxmc/sr7SYB\nqeJWKPgJYfoyfcuuWiiEHERUQLVaeGtGKTdzYCp5wbrD57cwqKh2aEug62MrhgO6\nUXZplfQMl6TNm3MJiEN3ltx0k+hzl0VrIcGsoWE3g1pI4gJ7wmYoOoqe4atH5zG9\nm+oZGceeHTmHs9g4QAYbwHOEBAXL3YfDdDy93iFXA6dUNFx47/s6NCQGHKkTK9IH\niPPC78s9g/R0HaF92sAxzwiOY2tIYgd8oWbAgOI2YlB4RVOopfaC7OPMX7MGKfsU\nFmtB9PZrlym4TOlNZ7scAZKC4qFzMMYZU1VL4kpMmZOmh8O9ejF7qxnLZni7D3Kt\nVrh8amKzlymOSeXOEPayrFeuqZhYk1YCPxVIZ2OWbYBBU1KiNTChG7ee/wK8xFAg\nHqm1uze3hmYvpYUMKGInxvBkocws1TOVS/ALffy2ELolPsxb0KG1doCa5IOL+3Kh\nF5UDkuNDmzdXSkKW7bNpwUuU8ch3nnSyJPc26FRnp6LOBUG99AFz3hcHobgcJcaz\nojcObbyrxbRSwIIgCNtoZfpY5sAt3tcJJwGlXRpufunNaKRj/mQT9REy3YvKn3ue\ntCKpBudmCsRjEKOMpdGhgXIuwMFTPBczO7lMehwPIvqLJqe506hpTkciVLCxMBiM\n9GaqfkAkYiu6xjidUuUa/SswjjYEZUS9CpLAf3ua3tISFJSW0CY11YZF6CVeMQka\nbEuHzFe8JrdS26NMFMYnDNNaqrPIZdC1umyUxcuyCxYFK3BoYASnvsofROp7/auI\nplsU3AVE2+BZ9MOC7UwZYFI9ccKrUXATCaStCYppG9mZxQe5hmwXgqqWvks7V8q3\nRxB1LrcOESirPga/EDXG3is6wWhByUQwmhYgYdKIJKcoyrLDICkZC2wFC8bKMYd8\nPoghClKaqXV+DzJLKdpe+rTBE0taJEgeKsVxUDFUVFePXyEQszcG9qxFmKIMCXUe\ntQbMGzVkuAKREHoz8NA5ghHHH3iu8wbIOpiXI7KrD5S1z0ha7gPE3dmIOyMh7TWE\nD6Ke1DovtpsEszW6F4YHloYJjuAK27lD0uxga2tnsrB574whsigocft8FqUKsco2\nMaaiODmHR1rGZfZbdotE7/oKWEJBdChcpsbCUvBo0/AOgbOI/LBbfLhLIKCDBOWb\n0hM9+adSWNYfcUoOnsuwqHhZkBezFlZO2GywrxsOXqoUUFqNXFE096FuywdpVGeV\nrNOlAlh75UcXskeF9tNedmspUSoWPqJC7PAxcAMlhGo97TXEtOOhljfL+sRBVRfH\nmEI6bZY/E5hGewy1f3YTPikhXmFsWHa8kuMIUVe7RsmFlaIbM5cGFfwR8gIhH0a5\na+orYE9k5hQBe8hyUIfeStGq7nnuy5IQqxY48UKYOBU=\n-----END MLKEM768 PUBLIC KEY-----"
+    PKISignatureScheme = "Ed25519"
+    Addresses = ["tcp://127.0.0.1:30004"]
+
+[VotingAuthority]
+  [[VotingAuthority.Peers]]
+    Identifier = "auth1"
+    IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\nPuypiIQ+YbclJbEdskFLB5p/CG8j9yARaHlTLhwm1WU=\n-----END ED25519 PUBLIC KEY-----\n"
+    PKISignatureScheme = "Ed25519"
+    LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nkwCl7ogqRlZtKZY8A7cjO0PPtAW3PNpRhDFRP2s5Tmk/A3sogBtmXBe7xcUVkZE8\nMSdLCXiS2NZpanWX8PE7nUdepOFu9NRIPejFbKsDYlyU37XHhrqNegybSfNUWmEY\nuIiabDjLMfk70KUWanpyTpHEXvpxH/fBjxgJ7NcP+9JjBuBsl6tWZNgJv6EXqFe+\nScnB/4UQACGU0gIlOwOfpHhDC4V5elcbxFjL2RFohfSFChJqMBogz8KcVqKs3mIb\nodFsjWVVxphtNDzGndplUlBrCCVPA3iEUVqfUSm3hiEwB9XCbrga8YepVKE1ExMD\nIRDNIHSkNvaMijfI5Jt7brm6P8h9avmF/5m08SVRb6iHw2MF5dW6veAuPoS7cgrQ\nOwBXbFDHqLQwLRV7thsRKXwnp+VDMLVVxzi4iiI8+BNHJuMvFPSPfDgVtnGtdFGr\neLYGADiLFggQCBKGT7pQiJNLZcTK6zi3f9oy29geaBp/6EGr0+uCwxVXG/zJjsAl\nHlhpNkTIzTOMamxQ3ek3AJAnJ+knQQU31iI6BqknMbCiwJxKmXJ5KGDIW2o5UkUI\ntmHGE1ZGqsiEYBtthmMOOvOtr9xb68dYYSQsF3SawMUTYPhWF0C0xFMObSZu0Yk1\nLGJeOOYtMWHOxNgzA6fI7It4eLsvNfsH9iOGu8S0+8K2HpOvvFuriPeqMGijHuBo\nfdwWqbvDcIqGgWIcAFR7/ko8M/yAFIhiyIdiqvJPXnSFkbRl/NSVIJgrZ9EfBpyI\nZDkww/jEEBeb/fBoKIshK+Zn/GfOswXFoLTMIgLJApozdhK94tttHdkqdFch9II3\n2bWNAsFvYqwcytV1Aph3IQgankEQvrK43LyzXAqNW8QbqEJinds5zjNpgCbFM9e/\nLphMcblP8BXOiAcw4nopX0U8cgdSgPd0FStr9UZD4TcsmQdHvNsS3IqbNcAul2gB\nlUPGn6VzGGCwhfNeCuKEnpAP0NZBodeDBhG2EUfIaeOj7aZPA2KEQ8G1UOktVak5\nlrKoQDgZnBUyxiLEKSBw8Plc2hmq0twoHiUzHNw5Mxyvo0NpCxyCFyrIepQLzZsb\nlYejHAkxJNErLIeMZyoJgKdQtWynAfKn/bcH2jGbWbsE3uq6JRObe3O+JMuhpsU3\nwiBpHwZWu2oQz1kraBUt6GtN8Vkec0ECZKJQxNpLOPq6KhZm2KqL4vYQYnO0acsd\ngNQ2ZyyTyCNniGi7EhFod2A/dSVWOIu7/2sXFoJq84LMoydWa2NfVHpbfmA0chmk\nu3kG49lSAhdNYuvM9dEOJhFOPkhN4WbEgQV48XOSnJCpZGDKZgatbnkflZIwZGZT\n9FUi1qOCnvJ5YbDAzMrDgTHGB9R5GMkm2jtFT3y3HSICUIgVYKk4XBxykKK6aXWn\nofApuAnOhUFfOPGRnrYQAgaG1ngAjtASsjNGweKtFtWHQKp3fqagTOsKY2mhPyRQ\nbRAmltIgCsQ5/+ZsoPUooqlzdbaMmgq9dNO2W8ZpROO+SvVmadEBifqg0CUL3dlT\nqlrjc4itxoid1cixPw5qD20kvDZztZCIOx4+ankr4TY=\n-----END MLKEM768 PUBLIC KEY-----\n"
+    WireKEMScheme = "MLKEM768"
+    Addresses = ["tcp://127.0.0.1:30001"]
+

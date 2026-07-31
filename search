@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""NomadNet dynamic page: search P4P wiki via llm-wiki MCP"""
+import urllib.request, urllib.parse, urllib.error, json, os, sys
+
+MCP = "http://127.0.0.1:18765/mcp"
+
+def mcp_call(method, args):
+    data = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call",
+        "params":{"name":method,"arguments":args}}).encode()
+    req = urllib.request.Request(MCP, data=data,
+        headers={"Content-Type":"application/json"})
+    resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
+    if "result" in resp:
+        c = resp["result"].get("content", [])
+        for item in c:
+            if item.get("type") == "text":
+                return item["text"]
+    if "error" in resp:
+        return f"Error: {resp['error']['message']}"
+    return "No results"
+
+q = os.environ.get("QUERY_STRING", "").strip()
+params = urllib.parse.parse_qs(q)
+query = params.get("q", [""])[0]
+
+print("# Wiki Search")
+if not query:
+    print()
+    print("Usage: add ?q=search+terms to the URL")
+    print()
+    print("[Back to Wiki|/wiki/index.mu]")
+    sys.exit(0)
+
+print(f"Search results for: {query}")
+print()
+
+result_text = mcp_call("wiki_search", {"wiki":"p4p","query":query,"top_k":20})
+if not result_text or "Error" in result_text:
+    print("No results found.")
+else:
+    lines = result_text.strip().split("\n")
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if "slug:" in line.lower() or "uri:" in line.lower():
+            slug = line.split(":",1)[1].strip()
+            title = slug.split("/")[-1].replace("-"," ").replace("_"," ")
+            print(f"  [{title}|/wiki/page?slug={slug}]")
+        elif "title:" in line.lower():
+            title = line.split(":",1)[1].strip()
+            print(f"  *{title}*")
+        else:
+            print(f"  {line}")
+
+print()
+print("[New Search|/wiki/search.mu]")
+print("[Wiki Home|/wiki/index.mu]")

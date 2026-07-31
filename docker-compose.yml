@@ -4,6 +4,7 @@ networks:
 services:
   antd:
     container_name: antd
+    entrypoint: ["sh", "-c"]
     image: zeros/antd:arm64
     network_mode: host
     restart: unless-stopped
@@ -16,7 +17,7 @@ services:
     command:
     - |
       mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs
-      B1=/var/lib/antd/node-1/ant-node
+      B1=/var/lib/antd/.local/share/ant/bin/ant-node-0.14.4
       if [ ! -x "$$B1" ]; then
         echo "antd: ERROR: node binary not found at $$B1"
         exit 1
@@ -26,8 +27,20 @@ services:
         --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
         --root-dir /var/lib/antd/node-1 \
         --port 12000 \
-        --log-output-dest stdout \
-        --stop-on-upgrade 2>&1 &
+        --ipv4-only \
+        --network-mode testnet \
+        --evm-network arbitrum-sepolia \
+        --enable-logging \
+        --log-level debug \
+        --log-dir /var/lib/antd/logs \
+        --bootstrap 207.148.94.42:10000 \
+        --bootstrap 45.77.50.10:10000 \
+        --bootstrap 66.135.23.83:10000 \
+        --bootstrap 149.248.9.2:10000 \
+        --bootstrap 49.12.119.240:10000 \
+        --bootstrap 5.161.25.133:10000 \
+        --bootstrap 18.228.202.183:10000 \
+        2>&1 &
       P1=$$!
       echo "antd: ant-node started (PID $$P1)"
       echo "antd: entering monitor loop"
@@ -38,8 +51,20 @@ services:
             --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa \
             --root-dir /var/lib/antd/node-1 \
             --port 12000 \
-            --log-output-dest stdout \
-            --stop-on-upgrade 2>&1 &
+            --ipv4-only \
+            --network-mode testnet \
+            --evm-network arbitrum-sepolia \
+            --enable-logging \
+            --log-level debug \
+            --log-dir /var/lib/antd/logs \
+            --bootstrap 207.148.94.42:10000 \
+            --bootstrap 45.77.50.10:10000 \
+            --bootstrap 66.135.23.83:10000 \
+            --bootstrap 149.248.9.2:10000 \
+            --bootstrap 49.12.119.240:10000 \
+            --bootstrap 5.161.25.133:10000 \
+            --bootstrap 18.228.202.183:10000 \
+            2>&1 &
           P1=$$!
           echo "antd: ant-node restarted (PID $$P1)"
         fi
@@ -251,11 +276,13 @@ services:
     - "120"
     - -log_level
     - INFO
+    - -upstream
+    - https://ethereum-rpc.publicnode.com
     container_name: walletshield
     depends_on:
     - mix-client
-    entrypoint: null
-    image: walletshield-rebuild:latest
+    entrypoint: /walletshield
+    image: ws-deploy:latest
     network_mode: host
     restart: unless-stopped
     volumes:

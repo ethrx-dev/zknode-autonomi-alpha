@@ -1,0 +1,11 @@
+  [[ServiceNode.CBORPluginKaetzchen]]
+    Capability = "proxy"
+    Endpoint = "proxy"
+    Command = "/usr/local/bin/proxy-kaetzchen"
+    MaxConcurrency = 1
+    Disable = false
+    [ServiceNode.CBORPluginKaetzchen.Config]
+      log_dir = "/var/lib/katzenpost/servicenode1"
+      log_level = "DEBUG"
+EOF
+echo DONE

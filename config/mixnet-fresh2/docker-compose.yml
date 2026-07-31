@@ -1,0 +1,192 @@
+
+networks:
+  katzenpost-net:
+    driver: bridge
+
+services:
+
+  gateway1:
+    restart: "no"
+    container_name: gateway1
+    hostname: gateway1
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/server -f /var/lib/katzenpost/gateway1/katzenpost.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  servicenode1:
+    restart: "no"
+    container_name: servicenode1
+    hostname: servicenode1
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/server -f /var/lib/katzenpost/servicenode1/katzenpost.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  mix1:
+    restart: "no"
+    container_name: mix1
+    hostname: mix1
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/server -f /var/lib/katzenpost/mix1/katzenpost.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  mix2:
+    restart: "no"
+    container_name: mix2
+    hostname: mix2
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/server -f /var/lib/katzenpost/mix2/katzenpost.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  mix3:
+    restart: "no"
+    container_name: mix3
+    hostname: mix3
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/server -f /var/lib/katzenpost/mix3/katzenpost.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  replica1:
+    restart: "no"
+    container_name: replica1
+    hostname: replica1
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/replica -f /var/lib/katzenpost/replica1/replica.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  replica2:
+    restart: "no"
+    container_name: replica2
+    hostname: replica2
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/replica -f /var/lib/katzenpost/replica2/replica.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  replica3:
+    restart: "no"
+    container_name: replica3
+    hostname: replica3
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/replica -f /var/lib/katzenpost/replica3/replica.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  replica4:
+    restart: "no"
+    container_name: replica4
+    hostname: replica4
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/replica -f /var/lib/katzenpost/replica4/replica.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  replica5:
+    restart: "no"
+    container_name: replica5
+    hostname: replica5
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/replica -f /var/lib/katzenpost/replica5/replica.toml
+    networks:
+      - katzenpost-net
+    depends_on:
+      - auth1
+      - auth2
+      - auth3
+  auth1:
+    restart: "no"
+    container_name: auth1
+    hostname: auth1
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/dirauth -f /var/lib/katzenpost/auth1/authority.toml
+    networks:
+      - katzenpost-net
+
+  auth2:
+    restart: "no"
+    container_name: auth2
+    hostname: auth2
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/dirauth -f /var/lib/katzenpost/auth2/authority.toml
+    networks:
+      - katzenpost-net
+
+  auth3:
+    restart: "no"
+    container_name: auth3
+    hostname: auth3
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/dirauth -f /var/lib/katzenpost/auth3/authority.toml
+    networks:
+      - katzenpost-net
+
+  kpclientd:
+    restart: "no"
+    container_name: kpclientd
+    hostname: kpclientd
+    image: katzenpost-go_mod
+    volumes:
+      - ./:/var/lib/katzenpost
+    command: /var/lib/katzenpost/kpclientd -c /var/lib/katzenpost/client/client.toml
+    networks:
+      - katzenpost-net
+    ports:
+      - "127.0.0.1:64331:64331"

@@ -6,7 +6,7 @@ fi
 if [ ! -f /usr/local/bin/http-proxy-server ]; then
   cat > /usr/local/bin/http-proxy-server << 'WRAP'
 #!/bin/sh
-exec /usr/local/bin/http-proxy-server.bin -log_dir /var/lib/katzenpost/servicenode1 -log_level DEBUG "$@"
+exec /usr/local/bin/http-proxy-server.bin -log_dir /var/lib/katzenpost/servicenode1 -log_level DEBUG
 WRAP
   chmod +x /usr/local/bin/http-proxy-server
 fi
