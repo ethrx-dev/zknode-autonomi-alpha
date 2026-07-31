@@ -334,7 +334,7 @@ services:
     - /mnt/autonomi:/mnt/autonomi:rw
   llm-wiki:
     command:
-    - /usr/local/bin/llm-wiki serve --http 18765 --wiki /var/lib/llm-wiki
+    - "printf '[safe]\n\tdirectory = /var/lib/llm-wiki\n' > /root/.gitconfig && exec /usr/local/bin/llm-wiki serve --http 18765 --wiki /var/lib/llm-wiki"
     container_name: llm-wiki
     entrypoint:
     - sh
@@ -344,5 +344,5 @@ services:
     restart: unless-stopped
     volumes:
     - /home/zero-tech/.local/bin/llm-wiki:/usr/local/bin/llm-wiki:ro
-    - /home/zero-tech/wikis:/var/lib/llm-wiki:rw
+    - /var/lib/llm-wiki:/var/lib/llm-wiki:rw
     - /home/zero-tech/.llm-wiki:/root/.llm-wiki:rw

@@ -622,6 +622,8 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                 </span>
               </div>
               <div class="terminal-body" id="wikiViewContent" style="max-height:calc(100vh - 480px);overflow-y:auto;">
+                <div class="text-xs text-gray-500">Search or browse the wiki to view pages.</div>
+              </div>
               <div id="wikiEditor" style="display:none;">
                 <input type="text" id="wikiEditSlug" placeholder="Page slug (e.g. my-new-page)" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:4px;font-size:0.75rem;margin-bottom:6px;outline:none;"/>
                 <textarea id="wikiEditContent" placeholder="Write markdown content here..." style="width:100%;height:300px;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px;border-radius:4px;font-size:0.75rem;font-family:monospace;resize:vertical;outline:none;"></textarea>
@@ -630,8 +632,6 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                   <button class="btn-secondary" onclick="wikiCancelEdit()" style="padding:6px 16px;font-size:0.7rem;">CANCEL</button>
                   <span id="wikiEditStatus" style="font-size:0.7rem;color:var(--neon-green);margin-left:auto;align-self:center;"></span>
                 </div>
-              </div>
-                <div class="text-xs text-gray-500">Search or browse the wiki to view pages.</div>
               </div>
             </div>
           </div>
@@ -914,7 +914,7 @@ function wikiInit() {
     const href = link.getAttribute('href');
     if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('#') && !href.startsWith('mailto:')) {
       e.preventDefault();
-      const slug = href.startsWith('wiki/') ? href : 'wiki/' + href;
+      const slug = href;
       viewWikiPage(slug, href.split('/').pop().replace(/[-_]/g, ' '));
     }
   });
@@ -1093,10 +1093,10 @@ async function wikiSavePage() {
   if (!slug) { document.getElementById("wikiEditStatus").textContent = "ERROR: slug required"; return; }
   document.getElementById("wikiEditStatus").textContent = "SAVING...";
   try {
-    const r = await api("/api/wiki/page/write", { slug, content, message: "Dashboard edit" });
+    const r = await api("/api/wiki/page/write", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ slug, content, message: "Dashboard edit" }) });
     if (r.error) { document.getElementById("wikiEditStatus").textContent = "ERROR: " + r.error; return; }
     document.getElementById("wikiEditStatus").textContent = "COMMITTING...";
-    await api("/api/wiki/commit", { message: "Dashboard edit" });
+    await api("/api/wiki/commit", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ message: "Dashboard edit", slugs: slug }) });
     document.getElementById("wikiEditStatus").textContent = "SAVED ✓";
     currentEditSlug = slug;
     setTimeout(() => { wikiCancelEdit(); wikiViewPage(slug); }, 800);

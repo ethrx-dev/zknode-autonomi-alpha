@@ -222,6 +222,9 @@ async function mcpCall(method, params = {}) {
     if (parsed.error) return { error: parsed.error.message || JSON.stringify(parsed.error) };
     if (parsed.result && parsed.result.content) {
       const textContent = parsed.result.content.find(c => c.type === 'text');
+      if (parsed.result.isError) {
+        return { error: textContent ? textContent.text : 'MCP tool error' };
+      }
       if (textContent) {
         try { return JSON.parse(textContent.text); }
         catch { return textContent.text; }
@@ -385,7 +388,10 @@ app.get('/api/wiki/list', async (req, res) => {
 
 app.get('/api/wiki/page/:slug', async (req, res) => {
   const { wiki } = req.query;
-  const args = { uri: req.params.slug, wiki: wiki || 'p4p' };
+  let uri = req.params.slug;
+  if (uri.startsWith('wiki/')) uri = uri.slice(5);
+  if (uri.startsWith('wiki://')) uri = uri.split('/').pop();
+  const args = { uri, wiki: wiki || 'p4p' };
   const result = await mcpCall('tools/call', {
     name: 'wiki_content_read',
     arguments: args
@@ -426,6 +432,30 @@ app.post('/api/wiki/export/:slug', async (req, res) => {
 });
 
 // ─── ZKCHAT ENDPOINTS ─────────────────────────────────────────
+
+app.post('/api/wiki/page/write', async (req, res) => {
+  const { slug, content, message } = req.body || {};
+  if (!slug) return res.json({ error: 'slug required' });
+  const bare = slug.replace(/^wiki\//, '');
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_content_write',
+    arguments: { wiki: 'p4p', uri: bare, content }
+  });
+  if (!result || result.error) return res.json({ error: result?.error || 'write failed' });
+  res.json({ ok: true, slug, uri: bare });
+});
+
+app.post('/api/wiki/commit', async (req, res) => {
+  const { message, slugs } = req.body || {};
+  const args = { wiki: 'p4p', message: message || 'Dashboard edit' };
+  if (slugs) { const list = Array.isArray(slugs) ? slugs : String(slugs).split(","); args.slugs = list.map(s => s.trim().replace(/^wiki\//, "")).join(","); }
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_content_commit',
+    arguments: args
+  });
+  if (!result || result.error) return res.json({ error: result?.error || 'commit failed' });
+  res.json({ ok: true });
+});
 
 const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
 
