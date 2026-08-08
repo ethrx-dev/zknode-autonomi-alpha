@@ -9,8 +9,8 @@ and services come up on whatever host it lands on.
 
 | Decision | Choice | Why |
 |----------|--------|-----|
-| Target platforms | aarch64 **+** amd64 | any SBC/laptop/desktop with Docker |
-| Image distribution | vendored `docker save \| gzip` on the drive | works offline, no registry dependency |
+| Target platforms | aarch64 **+** amd64 by default | `IMG_ARCH` auto-detected on first run (`deploy.sh`) / at boot (`usb-init.sh`); compose defaults resolve `${IMG_ARCH:-arm64}` |
+| Image distribution | vendored `docker save \| gzip` on the drive, **both arches** | one drive boots on any Docker host (arm64 or amd64), `usb-init.sh` loads only the tarballs for `$(uname -m)` |
 | Node identity | shipped on drive, LUKS-passphrase protected | drive IS the node — same identity everywhere |
 | Encryption | LUKS2 passphrase (not zymkey-bound) | any host can unlock without the SCM4 HSM |
 | Host binaries | vendored into `ZKROOT/bin` | compose no longer needs `/home/zero-tech/...` |
@@ -51,6 +51,23 @@ in-place operation). App-layer ports are tunable:
 `ANTD_PORT`. The mixnet ports (30001-30019, 64332) are **fixed** — they are
 baked into the PKI doc (`config/mixnet/auth1/authority.toml`); regenerate with
 `scripts/gen-mixnet-configs.sh` to change them.
+
+### Architecture is auto-detected
+
+No manual `arm64`/`amd64` edits needed:
+
+- **Direct repo run**: `deploy.sh` computes `IMG_ARCH` from `uname -m` on
+  first run and generates/updates `.env` (`--check`, `--group N`, and full
+  deploy all call `ensure_env` first).
+- **Portable drive**: `usb-prep.sh` vendors **both** arch image tarballs;
+  `usb-init.sh` reads `uname -m` on the target, sets `IMG_ARCH`, and `docker
+  load`s only the matching-arch tarballs.
+- **compose defaults**: every image tag is
+  `${IMAGE_*:-zeros/<name>:${IMG_ARCH:-arm64}}`, so plain `docker compose up`
+  also resolves correctly once `IMG_ARCH` is set (arm64 remains the fallback).
+
+Image tags in `.env` use `zeros/<name>:${IMG_ARCH}` so a single arch variable
+flips every service.
 
 ## Build machine steps (one-time)
 
@@ -124,7 +141,9 @@ run the staged deploy (`deploy.sh`). Helpers: `luks-open.sh` / `luks-close.sh`.
   `docker-compose.zymkey.yml`.
 - **amd64/arm64 images**: both verified builds (see "Multi-arch builder pin"
   above). CI (`build.yml`) cross-builds and pushes to ghcr; run it once before
-  vendoring to a fresh drive. The deployed SCM4 only has arm64 images.
+  vendoring to a fresh drive. The deployed SCM4 only has arm64 images; the
+  amd64 images come from CI (or `docker build --build-arg TARGETARCH=amd64`).
+  `usb-prep.sh` vendors both arches and warns for any arch it cannot save.
 
 ## Files
 
@@ -139,4 +158,4 @@ run the staged deploy (`deploy.sh`). Helpers: `luks-open.sh` / `luks-close.sh`.
 | `scripts/portable/images.list` | image manifest (per-arch tags) |
 | `Dockerfile.mixnet` / `Dockerfile.mixnet-proxy` / `Dockerfile.antd` | TARGETARCH-native-or-cross builds |
 | `.github/workflows/build.yml` | multi-arch CI builds → ghcr |
-| `.env.example` | full var reference |
+| `.env.example` | full var reference (`IMG_ARCH` drives image arch) |

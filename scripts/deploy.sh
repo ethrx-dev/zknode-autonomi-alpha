@@ -10,7 +10,11 @@ set -euo pipefail
 #   sudo ./scripts/deploy.sh --status           # Check deployment status
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -f "$SCRIPT_DIR/docker-compose.yml" ]; then
+    PROJECT_ROOT="$SCRIPT_DIR"
+else
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
 COMPOSE="docker compose -f docker-compose.yml"
 COMPOSE_CMD="docker compose -f $PROJECT_ROOT/docker-compose.yml"
 
@@ -27,6 +31,31 @@ info()  { echo -e "${CYAN}[i]${NC} $1"; }
 
 # ─── Pre-flight Checks ─────────────────────────────────────
 
+# ─── Architecture detection ────────────────────────────────
+
+detect_arch() {
+    case "$(uname -m)" in
+        aarch64|arm64) echo "arm64" ;;
+        x86_64|amd64)  echo "amd64" ;;
+        *) echo "$(uname -m)" ;;
+    esac
+}
+
+# First-run: generate .env from .env.example with the detected arch if absent.
+ensure_env() {
+    local arch
+    arch="$(detect_arch)"
+    if [ ! -f "$PROJECT_ROOT/.env" ]; then
+        step "No .env found — generating from .env.example (arch: $arch)"
+        sed -e "s/^IMG_ARCH=.*/IMG_ARCH=$arch/" \
+            -e "s|^ZK_ROOT=.*|ZK_ROOT=$PROJECT_ROOT|" \
+            "$PROJECT_ROOT/.env.example" > "$PROJECT_ROOT/.env"
+    elif ! grep -q '^IMG_ARCH=' "$PROJECT_ROOT/.env"; then
+        step "IMG_ARCH missing from .env — appending detected arch ($arch)"
+        printf '\n# Detected on first run by deploy.sh\nexport IMG_ARCH=%s\n' "$arch" >> "$PROJECT_ROOT/.env"
+    fi
+}
+
 cmd_check() {
     local failed=0
 
@@ -34,10 +63,7 @@ cmd_check() {
     echo ""
 
     # Architecture
-    info "Architecture: $(uname -m)"
-    if [ "$(uname -m)" != "aarch64" ]; then
-        warn "Expected aarch64, got $(uname -m)"
-    fi
+    info "Architecture: $(uname -m) (image arch: $(detect_arch))"
 
     # Kernel
     info "Kernel: $(uname -r)"
@@ -348,8 +374,10 @@ cmd_group() {
 
 # ─── Full Deploy ──────────────────────────────────────────
 
-cmd_deploy() {
-    local zymkey="${1:-false}"
+ cmd_deploy() {
+     local zymkey="${1:-false}"
+
+    ensure_env
 
     step "Starting zknode-autonomi deployment..."
     echo ""
@@ -388,11 +416,11 @@ cmd_status() {
 # ─── Main ──────────────────────────────────────────────────
 
 case "${1:-}" in
-    --check)   cmd_check ;;
-    --dirs)    cmd_dirs ;;
+    --check)   ensure_env; cmd_check ;;
+    --dirs)    ensure_env; cmd_dirs ;;
     --status)  cmd_status ;;
     --zymkey)  cmd_deploy true ;;
-    --group)   cmd_group "${2:-}" "${3:-false}" ;;
+    --group)   ensure_env; cmd_group "${2:-}" "${3:-false}" ;;
     --help|-h)
         echo "Usage: sudo ./scripts/deploy.sh [OPTION]"
         echo ""

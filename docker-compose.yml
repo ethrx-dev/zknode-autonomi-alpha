@@ -15,7 +15,7 @@ services:
   antd:
     container_name: antd
     entrypoint: ["sh", "-c"]
-    image: ${IMAGE_ANTD:-zeros/antd:arm64}
+    image: ${IMAGE_ANTD:-zeros/antd:${IMG_ARCH:-arm64}}
     network_mode: host
     restart: unless-stopped
     environment:
@@ -92,7 +92,7 @@ services:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -108,7 +108,7 @@ services:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -124,7 +124,7 @@ services:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -141,7 +141,7 @@ services:
     entrypoint:
     - sh
     - -c
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: 128m
     network_mode: host
     restart: unless-stopped
@@ -155,7 +155,7 @@ services:
     entrypoint:
     - sh
     - -c
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -169,7 +169,7 @@ services:
     entrypoint:
     - sh
     - -c
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -183,7 +183,7 @@ services:
     entrypoint:
     - sh
     - -c
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -199,7 +199,7 @@ services:
     - mix-1
     - mix-2
     - mix-3
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -213,7 +213,7 @@ services:
     - mix-3
     entrypoint:
     - /servicenode-entrypoint.sh
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     mem_limit: ${MIXNET_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -228,7 +228,7 @@ services:
     container_name: mixnet-proxy
     depends_on:
     - mix-client
-    image: ${IMAGE_MIXNET_PROXY:-zeros/mixnet-proxy:arm64}
+    image: ${IMAGE_MIXNET_PROXY:-zeros/mixnet-proxy:${IMG_ARCH:-arm64}}
     mem_limit: ${PROXY_MEM_LIMIT}
     network_mode: host
     restart: unless-stopped
@@ -240,7 +240,7 @@ services:
     - --config
     - /etc/reticulum
     container_name: reticulum
-    image: ${IMAGE_RETICULUM:-zeros/reticulum:arm64}
+    image: ${IMAGE_RETICULUM:-zeros/reticulum:${IMG_ARCH:-arm64}}
     network_mode: host
     restart: unless-stopped
     volumes:
@@ -269,7 +269,7 @@ services:
     - --dir
     - /var/lib/ant-node/chunks
     container_name: storage-proved
-    image: ${IMAGE_STORAGE_PROVED:-zeros/storage-proved-rs:arm64}
+    image: ${IMAGE_STORAGE_PROVED:-zeros/storage-proved-rs:${IMG_ARCH:-arm64}}
     networks:
     - autonomi
     ports:
@@ -308,7 +308,7 @@ services:
     entrypoint:
     - sh
     - -c
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     network_mode: host
     restart: unless-stopped
     volumes:

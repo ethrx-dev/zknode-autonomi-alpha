@@ -115,15 +115,20 @@ if [ "$LOAD" = "1" ]; then
         err "docker not found — install Docker Engine + Compose v2 first"
         exit 1
     fi
-    if ls "$REPO/images/"*.tar.gz >/dev/null 2>&1; then
-        for f in "$REPO/images/"*.tar.gz; do
+    if ls "$REPO/images/"*"__${IMG_ARCH}.tar.gz" >/dev/null 2>&1; then
+        for f in "$REPO/images/"*"__${IMG_ARCH}.tar.gz"; do
             step "  docker load $f"
             docker load -i "$f"
         done
     else
-        warn "no vendored images on drive — running docker compose up may try to pull"
+        warn "no vendored images for $IMG_ARCH on drive — running docker compose up may try to pull"
     fi
-    set -a; source "$REPO/.env"; set +a
+    set -a
+    # shellcheck disable=SC1091
+    source "$REPO/.env"
+    IMG_ARCH="$(uname -m | sed 's/aarch64/arm64/; s/x86_64/amd64/')"
+    export IMG_ARCH
+    set +a
 fi
 
 # ─── 3. deploy ──────────────────────────────────────────────

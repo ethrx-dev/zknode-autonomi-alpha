@@ -13,7 +13,7 @@
 services:
   # ─── zymkey Interface Daemon ───────────────────────────────
   zkifc:
-    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:${IMG_ARCH:-arm64}}
     container_name: zkifc
     devices:
       - /dev/zymkey:/dev/zymkey
@@ -37,7 +37,7 @@ services:
 
   # ─── Autonomi Storage Node (with zymkey) ───────────────────
   ant-node:
-    image: ${IMAGE_ANTD:-zeros/antd:arm64}
+    image: ${IMAGE_ANTD:-zeros/antd:${IMG_ARCH:-arm64}}
     container_name: ant-node
     devices:
       - /dev/zymkey:/dev/zymkey
