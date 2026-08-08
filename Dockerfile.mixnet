@@ -1,35 +1,38 @@
 ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
 
-FROM --platform=linux/${TARGETARCH} golang:latest AS builder
+FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
 
+ARG TARGETARCH
 ARG KATZENPOST_VERSION=v0.0.84
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    libsnappy-dev \
-    liblz4-dev \
-    libzstd-dev \
-    zlib1g-dev \
-    git \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    && dpkg --add-architecture arm64 \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    libsnappy-dev:arm64 \
-    liblz4-dev:arm64 \
-    libzstd-dev:arm64 \
-    zlib1g-dev:arm64 \
+# Native vs cross toolchain for RocksDB (CGO) + katzenpost
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake libsnappy-dev liblz4-dev libzstd-dev zlib1g-dev git \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+      && dpkg --add-architecture arm64 \
+      && apt-get update && apt-get install -y --no-install-recommends \
+        libsnappy-dev:arm64 liblz4-dev:arm64 libzstd-dev:arm64 zlib1g-dev:arm64; \
+    else \
+      apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake libsnappy-dev liblz4-dev libzstd-dev zlib1g-dev git; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
+# RocksDB from source, target arch
 RUN cd /tmp \
     && git clone --branch v10.2.1 --depth 1 https://github.com/facebook/rocksdb.git \
     && cd rocksdb \
-    && PORTABLE=1 make -j"$(nproc)" shared_lib \
-       CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-       AR=aarch64-linux-gnu-ar \
-       EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2" \
-       LDFLAGS="-L/usr/aarch64-linux-gnu/lib" \
+    && if [ "${TARGETARCH}" = "arm64" ]; then \
+         PORTABLE=1 make -j"$(nproc)" shared_lib \
+           CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+           EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2" \
+           LDFLAGS="-L/usr/aarch64-linux-gnu/lib"; \
+       else \
+         PORTABLE=1 make -j"$(nproc)" shared_lib \
+           EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2"; \
+       fi \
     && cp -a librocksdb.so* /usr/local/lib/ \
     && cp -a include/* /usr/local/include/ \
     && cd /tmp && rm -rf rocksdb
@@ -42,17 +45,23 @@ RUN printf n// Alias for backward compatibilityntype Logger = logging.Loggern \
 
 RUN mkdir /dest && \
     cd /src/katzenpost && \
-    export GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
-           CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-           CGO_CFLAGS="-I/usr/local/include -I/usr/include" \
-           CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/aarch64-linux-gnu -lrocksdb -lsnappy -llz4 -lzstd -lz" && \
+    export GOOS=linux GOARCH=${TARGETARCH} CGO_ENABLED=1 && \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      export CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+             CGO_CFLAGS="-I/usr/local/include -I/usr/include" \
+             CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/aarch64-linux-gnu -lrocksdb -lsnappy -llz4 -lzstd -lz"; \
+    else \
+      export CC=gcc CXX=g++ \
+             CGO_CFLAGS="-I/usr/local/include -I/usr/include" \
+             CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/x86_64-linux-gnu -lrocksdb -lsnappy -llz4 -lzstd -lz"; \
+    fi && \
     for cmd in dirauth server courier kpclientd ping fetch echo-plugin genconfig; do \
         cd /src/katzenpost/cmd/$cmd && \
         go build -trimpath -ldflags="-buildid=" -o /dest/$cmd . && \
         echo "  built $cmd"; \
     done
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+FROM --platform=linux/${TARGETARCH} debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \

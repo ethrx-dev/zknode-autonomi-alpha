@@ -1,0 +1,17 @@
+[Unit]
+Description=zknode-autonomi portable node (USB)
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Unlock + mount + load images + staged deploy. Drop -d to auto-scan.
+ExecStart=/mnt/zknode/zknode-autonomi/scripts/portable/usb-init.sh -m /mnt/zknode --no-deploy
+ExecStartPost=/mnt/zknode/zknode-autonomi/deploy.sh
+ExecStop=/mnt/zknode/zknode-autonomi/scripts/portable/luks-close.sh -m /mnt/zknode
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

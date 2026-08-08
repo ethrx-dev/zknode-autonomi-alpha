@@ -1,0 +1,20 @@
+# Docker image manifest vendored onto the portable drive by usb-prep.sh.
+# One image per line; per-arch tag suffixes are applied by usb-prep.sh
+# based on the build machine's architecture.
+#
+# Resolved at prep time from docker-compose.yml / docker-compose.zymkey.yml.
+# Build-only services (nomadnet) are excluded here.
+
+zeros/mixnet-node:arm64
+zeros/mixnet-node:amd64
+zeros/mixnet-proxy:arm64
+zeros/mixnet-proxy:amd64
+zeros/antd:arm64
+zeros/antd:amd64
+ws-deploy:latest
+zknode-dashboard:latest
+zeros/storage-proved-rs:arm64
+zeros/storage-proved-rs:amd64
+zeros/reticulum:arm64
+zeros/reticulum:amd64
+debian:testing-slim

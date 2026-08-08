@@ -3,6 +3,7 @@ ARG BUILDER_ARCH=amd64
 
 FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
 
+ARG TARGETARCH
 ARG KATZENPOST_VERSION=v0.0.73-rc3
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,16 +15,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN git clone --branch ${KATZENPOST_VERSION} --depth 1 \
     https://github.com/katzenpost/katzenpost.git /src/katzenpost
 
-# Build the mixnet-proxy (Go cross-compile to arm64, pure Go - no CGO)
+# Build the mixnet-proxy (pure Go - no CGO), for the target arch
 WORKDIR /src/proxy
 COPY cmd/mixnet-proxy/ .
 RUN go mod init mixnet-proxy && \
     go mod edit -replace github.com/katzenpost/katzenpost=/src/katzenpost && \
     cat /src/katzenpost/go.sum >> go.sum 2>/dev/null || true && \
-    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+    GOOS=linux GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -trimpath -ldflags="-buildid=" -o /dest/mixnet-proxy .
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+FROM --platform=linux/${TARGETARCH} debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \

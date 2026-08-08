@@ -3,6 +3,7 @@ ARG BUILDER_ARCH=amd64
 
 FROM --platform=linux/${BUILDER_ARCH} rust:latest AS builder
 
+ARG TARGETARCH
 ARG AUTONOMI_BRANCH=main
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -12,42 +13,47 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     protobuf-compiler \
     clang \
     lld \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    && dpkg --add-architecture arm64 \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    libssl-dev:arm64 \
-    liblzma-dev:arm64 \
-    zlib1g-dev:arm64 \
+    && if [ "${TARGETARCH}" = "arm64" ]; then \
+         apt-get install -y --no-install-recommends \
+           gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+         && dpkg --add-architecture arm64 \
+         && apt-get update && apt-get install -y --no-install-recommends \
+           libssl-dev:arm64 liblzma-dev:arm64 zlib1g-dev:arm64; \
+       fi \
     && rm -rf /var/lib/apt/lists/*
 
-RUN rustup target add aarch64-unknown-linux-gnu
-
-# Configure cargo for aarch64 cross-compilation
-RUN mkdir -p /root/.cargo && cat > /root/.cargo/config.toml << 'EOF'
+# Configure cargo cross-compilation (only used for aarch64 target)
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+      rustup target add aarch64-unknown-linux-gnu \
+      && mkdir -p /root/.cargo && cat > /root/.cargo/config.toml << 'EOF'
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
 ar = "aarch64-linux-gnu-ar"
 EOF
+    ; fi
 
 # ant-client is a workspace with ant-core + ant-cli
 RUN git clone --branch ${AUTONOMI_BRANCH} --depth 1 \
     https://github.com/WithAutonomi/ant-client.git /src/ant-client
 
 RUN cd /src/ant-client && \
-    CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
-    AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-    CC=aarch64-linux-gnu-gcc \
-    CXX=aarch64-linux-gnu-g++ \
-    AR=aarch64-linux-gnu-ar \
-    PKG_CONFIG_ALLOW_CROSS=1 \
-    PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
-    PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
-    cargo build --release --target aarch64-unknown-linux-gnu --bin ant
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+      CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+      CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+      AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+      CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+      PKG_CONFIG_ALLOW_CROSS=1 \
+      PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
+      PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
+      cargo build --release --target aarch64-unknown-linux-gnu --bin ant \
+      && mkdir -p /dest && cp target/aarch64-unknown-linux-gnu/release/ant /dest/ant; \
+    else \
+      cargo build --release --bin ant \
+      && mkdir -p /dest && cp target/release/ant /dest/ant; \
+    fi
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:trixie-slim
+FROM --platform=linux/${TARGETARCH} debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -55,7 +61,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblzma5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /src/ant-client/target/aarch64-unknown-linux-gnu/release/ant /usr/local/bin/
+COPY --from=builder /dest/ant /usr/local/bin/ant
 
 RUN mkdir -p /var/lib/antd
 

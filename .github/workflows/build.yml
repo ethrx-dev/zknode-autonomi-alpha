@@ -2,10 +2,11 @@ name: Build & Push
 
 on:
   push:
-    branches: [p4p-wiki-merge]
+    branches: [p4p-wiki-merge, portable-usb]
     paths:
       - 'zknode-dashboard/**'
-      - 'Dockerfile.walletshield'
+      - 'Dockerfile*'
+      - 'cmd/**'
       - '.github/workflows/build.yml'
   workflow_dispatch:
 
@@ -15,6 +16,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    strategy:
+      matrix:
+        platform: [linux/arm64, linux/amd64]
+        # map to the arch suffix used in tags/env
+        include:
+          - platform: linux/arm64
+            arch: arm64
+          - platform: linux/amd64
+            arch: amd64
 
     steps:
       - uses: actions/checkout@v4
@@ -37,9 +48,9 @@ jobs:
         with:
           context: zknode-dashboard
           file: zknode-dashboard/Dockerfile
-          platforms: linux/arm64
+          platforms: ${{ matrix.platform }}
           tags: |
-            ghcr.io/${{ github.repository }}/dashboard:latest
+            ghcr.io/${{ github.repository }}/dashboard:${{ matrix.arch }}
             ghcr.io/${{ github.repository }}/dashboard:${{ github.sha }}
           push: true
 
@@ -48,8 +59,47 @@ jobs:
         with:
           context: .
           file: Dockerfile.walletshield
-          platforms: linux/arm64
+          platforms: ${{ matrix.platform }}
           tags: |
-            ghcr.io/${{ github.repository }}/walletshield:latest
+            ghcr.io/${{ github.repository }}/walletshield:${{ matrix.arch }}
             ghcr.io/${{ github.repository }}/walletshield:${{ github.sha }}
+          push: true
+
+      - name: Build and push mixnet node
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.mixnet
+          build-args: |
+            TARGETARCH=${{ matrix.arch }}
+          platforms: ${{ matrix.platform }}
+          tags: |
+            ghcr.io/${{ github.repository }}/mixnet-node:${{ matrix.arch }}
+            ghcr.io/${{ github.repository }}/mixnet-node:${{ github.sha }}
+          push: true
+
+      - name: Build and push mixnet-proxy
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.mixnet-proxy
+          build-args: |
+            TARGETARCH=${{ matrix.arch }}
+          platforms: ${{ matrix.platform }}
+          tags: |
+            ghcr.io/${{ github.repository }}/mixnet-proxy:${{ matrix.arch }}
+            ghcr.io/${{ github.repository }}/mixnet-proxy:${{ github.sha }}
+          push: true
+
+      - name: Build and push antd
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.antd
+          build-args: |
+            TARGETARCH=${{ matrix.arch }}
+          platforms: ${{ matrix.platform }}
+          tags: |
+            ghcr.io/${{ github.repository }}/antd:${{ matrix.arch }}
+            ghcr.io/${{ github.repository }}/antd:${{ github.sha }}
           push: true
