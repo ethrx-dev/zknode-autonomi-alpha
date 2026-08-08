@@ -1,7 +1,7 @@
 ARG TARGETARCH=arm64
 ARG BUILDER_ARCH=amd64
 
-FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+FROM --platform=linux/${BUILDER_ARCH} golang:1.26-bookworm AS builder
 
 ARG TARGETARCH
 ARG KATZENPOST_VERSION=v0.0.84
@@ -40,7 +40,7 @@ RUN cd /tmp \
 RUN git clone --branch ${KATZENPOST_VERSION} --depth 1 \
     https://github.com/katzenpost/katzenpost.git /src/katzenpost
 
-RUN printf n// Alias for backward compatibilityntype Logger = logging.Loggern \
+RUN printf '\n// Alias for backward compatibility\n\ntype Logger = logging.Logger\n' \
     >> /src/katzenpost/core/log/log.go
 
 RUN mkdir /dest && \
