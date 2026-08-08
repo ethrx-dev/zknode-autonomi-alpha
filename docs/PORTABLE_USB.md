@@ -69,6 +69,27 @@ sudo cp <mount>/zknode-autonomi/scripts/portable/zknode-boot.service /etc/system
 sudo systemctl enable --now zknode-boot
 ```
 
+### Multi-arch builder pin (do not change)
+
+`Dockerfile.mixnet` must build from `golang:1.26-bookworm`, **not**
+`golang:latest`:
+
+- katzenpost `v0.0.84` requires `go >= 1.26.2` (its `go.mod` enforces it).
+- `golang:latest` has moved to Debian 13 (glibc 2.41) while the runtime stage
+  is `debian:bookworm-slim` (glibc 2.36). CGO binaries built there demand
+  `GLIBC_2.39` and fail on the runtime (`/lib/x86_64-linux-gnu/libc.so.6:
+  version 'GLIBC_2.39' not found`).
+- `golang:1.26-bookworm` ships go 1.26.5 on glibc 2.36 → CGO binaries match
+  the bookworm runtime. Verified: both `TARGETARCH=amd64` and `TARGETARCH=arm64`
+  build clean and all seven katzenpost binaries
+  (`dirauth server courier kpclientd ping fetch echo-plugin genconfig`) run.
+
+A second historical foot-gun: the `Logger` alias patch appended to
+`core/log/log.go` must keep its `\n` escapes — an unquoted
+`printf n// Alias...type Logger = logging.Loggern` writes one garbage line and
+breaks the Go build (`log.go:241:1: syntax error`). The committed form
+`printf '\n// Alias ...\n\ntype Logger = logging.Logger\n'` is correct.
+
 `usb-prep.sh` performs: LUKS2 format → open → mkfs.ext4 (label `ZKNODE`) →
 rsync repo → vendor `bin/` (chatd, zkchat, llm-wiki, ant) → vendor `wikis/`
 → `docker save` each image in `images/` → write `.env` for the build arch.
@@ -101,8 +122,9 @@ run the staged deploy (`deploy.sh`). Helpers: `luks-open.sh` / `luks-close.sh`.
 - **zymkey HSM**: not required. The stack runs without it; HSM features
   (attestation, LUKS key sealing) only work on the SCM4 via
   `docker-compose.zymkey.yml`.
-- **amd64 images**: must be built (CI does this). The deployed SCM4 only has
-  arm64 images; run the CI workflow once before vendoring amd64.
+- **amd64/arm64 images**: both verified builds (see "Multi-arch builder pin"
+  above). CI (`build.yml`) cross-builds and pushes to ghcr; run it once before
+  vendoring to a fresh drive. The deployed SCM4 only has arm64 images.
 
 ## Files
 
