@@ -27,8 +27,11 @@ config/mixnet/*/*.sst
 # Private keys and secrets (all formats)
 config/mixnet/**/*.private.pem
 config/mixnet/**/*.pem
+config/mixnet/dummy-mixes/*.pem
 **/*.private.pem
+**/*.private.key
 config/keys/
+config/mixnet/client/.zkchat/
 
 # OS files
 .DS_Store

@@ -35,3 +35,5 @@ RUN mkdir /dest && \
 FROM base
 COPY --from=builder /dest/replica /usr/local/bin/replica
 RUN ldconfig
+RUN useradd -r -s /usr/sbin/nologin katzenpost
+USER katzenpost

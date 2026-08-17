@@ -34,3 +34,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /dest/* /usr/local/bin/
 RUN ldconfig
+RUN useradd -r -s /usr/sbin/nologin katzenpost
+USER katzenpost
