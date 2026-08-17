@@ -1,10 +1,5 @@
-PKISignatureScheme = Ed25519
-WireKEMScheme = MLKEM768
-
-[Listen]
-  [Listen.Tcp]
-    Address = 127.0.0.1:64332
-    Network = tcp
+PKISignatureScheme = "Ed25519"
+WireKEMScheme = "MLKEM768"
 
 [SphinxGeometry]
   PacketLength = 3082
@@ -19,8 +14,8 @@ WireKEMScheme = MLKEM768
   UserForwardPayloadLength = 2000
   NextNodeHopLength = 65
   SPRPKeyMaterialLength = 64
-  NIKEName = x25519
-  KEMName = 
+  NIKEName = "x25519"
+  KEMName = ""
 
 [PigeonholeGeometry]
   MaxPlaintextPayloadLength = 1553
@@ -28,18 +23,18 @@ WireKEMScheme = MLKEM768
   CourierQueryWriteLength = 2000
   CourierQueryReplyReadLength = 1698
   CourierQueryReplyWriteLength = 50
-  NIKEName = CTIDH1024-X25519
-  SignatureSchemeName = Ed25519
+  NIKEName = "CTIDH1024-X25519"
+  SignatureSchemeName = "Ed25519"
 
 [Logging]
-  Level = INFO
+  Level = "INFO"
 
 [UpstreamProxy]
-  Type = none
-  Network = 
-  Address = 
-  User = 
-  Password = 
+  Type = "none"
+  Network = ""
+  Address = ""
+  User = ""
+  Password = ""
 
 [Debug]
   DisableDecoyTraffic = true
@@ -51,8 +46,8 @@ WireKEMScheme = MLKEM768
 [PinnedGateways]
 
   [[PinnedGateways.Gateways]]
-    WireKEMScheme = MLKEM768
-    Name = gateway1
+    WireKEMScheme = "MLKEM768"
+    Name = "gateway1"
     IdentityKey = """-----BEGIN ED25519 PUBLIC KEY-----
 d7my3fxbVTBSwdY66JW0vglFvpXkKN0GxkBOspQb5Gk=
 -----END ED25519 PUBLIC KEY-----"""
@@ -83,17 +78,17 @@ rNOlAlh75UcXskeF9tNedmspUSoWPqJC7PAxcAMlhGo97TXEtOOhljfL+sRBVRfH
 mEI6bZY/E5hGewy1f3YTPikhXmFsWHa8kuMIUVe7RsmFlaIbM5cGFfwR8gIhH0a5
 a+orYE9k5hQBe8hyUIfeStGq7nnuy5IQqxY48UKYOBU=
 -----END MLKEM768 PUBLIC KEY-----"""
-    PKISignatureScheme = Ed25519
-    Addresses = [tcp://127.0.0.1:30004]
+    PKISignatureScheme = "Ed25519"
+    Addresses = ["tcp://127.0.0.1:30004"]
 
 [VotingAuthority]
 
   [[VotingAuthority.Peers]]
-    Identifier = auth1
+    Identifier = "auth1"
     IdentityPublicKey = """-----BEGIN ED25519 PUBLIC KEY-----
 PuypiIQ+YbclJbEdskFLB5p/CG8j9yARaHlTLhwm1WU=
 -----END ED25519 PUBLIC KEY-----"""
-    PKISignatureScheme = Ed25519
+    PKISignatureScheme = "Ed25519"
     LinkPublicKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
 kwCl7ogqRlZtKZY8A7cjO0PPtAW3PNpRhDFRP2s5Tmk/A3sogBtmXBe7xcUVkZE8
 MSdLCXiS2NZpanWX8PE7nUdepOFu9NRIPejFbKsDYlyU37XHhrqNegybSfNUWmEY
@@ -121,15 +116,15 @@ ofApuAnOhUFfOPGRnrYQAgaG1ngAjtASsjNGweKtFtWHQKp3fqagTOsKY2mhPyRQ
 bRAmltIgCsQ5/+ZsoPUooqlzdbaMmgq9dNO2W8ZpROO+SvVmadEBifqg0CUL3dlT
 qlrjc4itxoid1cixPw5qD20kvDZztZCIOx4+ankr4TY=
 -----END MLKEM768 PUBLIC KEY-----"""
-    WireKEMScheme = MLKEM768
-    Addresses = [tcp://127.0.0.1:30001]
+    WireKEMScheme = "MLKEM768"
+    Addresses = ["tcp://127.0.0.1:30001"]
 
   [[VotingAuthority.Peers]]
-    Identifier = auth2
+    Identifier = "auth2"
     IdentityPublicKey = """-----BEGIN ED25519 PUBLIC KEY-----
 8wjf1sQ4FNxILe5QGnBg8m5YhlpG8v5Q6r9tu8JwckQ=
 -----END ED25519 PUBLIC KEY-----"""
-    PKISignatureScheme = Ed25519
+    PKISignatureScheme = "Ed25519"
     LinkPublicKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
 HIBx1n2r0wEqzfnPQ8oBdpY+atNq7x3TOU7K7aOScQa1yNo+K5jbnry3sTuS2xv5
 WSmjMf7phlRDszV6z/mnrfMch3fYGOmWWB+tCZW4+fm11oVUjy+DPDJFCRqS3fNk
@@ -157,15 +152,15 @@ W8eQtGvsH2s/Rx0U9bQxEfzqG8wx5TObI8NUB7qPFQh8RrGOGGBSXgZz6oOT6wm2
 eNwc1dR4C1PfgKqpjh4Y3UG54NcNoAHLpFKNiqCNxzAXC7kJJFmLqLPePqBzYd/G
 tyPC8/Rvl4/tLBIx1k1yOO+G7KK+CgyqMtmYMYRIFn8=
 -----END MLKEM768 PUBLIC KEY-----"""
-    WireKEMScheme = MLKEM768
-    Addresses = [tcp://127.0.0.1:30002]
+    WireKEMScheme = "MLKEM768"
+    Addresses = ["tcp://127.0.0.1:30002"]
 
   [[VotingAuthority.Peers]]
-    Identifier = auth3
+    Identifier = "auth3"
     IdentityPublicKey = """-----BEGIN ED25519 PUBLIC KEY-----
 6hqB8YM3vCBgCsp7A1+3AzHSwbWFDEYLWZX7pqHjPgM=
 -----END ED25519 PUBLIC KEY-----"""
-    PKISignatureScheme = Ed25519
+    PKISignatureScheme = "Ed25519"
     LinkPublicKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
 CnTFmm4BRUUxEHLcGcdmyuVjElF30Y3DW6aLOas/JE4VsD6Vjsv6lN2f+8mF48ln
 IgmlMfGz4/lGQFs6tVbSZB2sqYNx2t/Xmtx12OdcAj40ttvSasU7dmE+cXmBH9PV
@@ -193,5 +188,5 @@ Uq/9fFnOxF5vFQ/f2Xh7whPPHvWXLtYmP7P12/wRE4WU5GhRLFVB7AXa41yfQYXh
 tCxYCuYBuTX6Fwkv7j+2LDg8CLz9ldnLZQ6VViXzQY5+BU35FmHH6MTqLGTCTBPF
 EGYrhBTD98nFx+Z6OCFUqApQLGS+a3zGgrLHb20s4IA=
 -----END MLKEM768 PUBLIC KEY-----"""
-    WireKEMScheme = MLKEM768
-    Addresses = [tcp://127.0.0.1:30003]
+    WireKEMScheme = "MLKEM768"
+    Addresses = ["tcp://127.0.0.1:30003"]

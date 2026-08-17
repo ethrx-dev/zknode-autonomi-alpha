@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""NomadNet dynamic page: read a P4P wiki page via llm-wiki MCP"""
+import urllib.request, urllib.parse, urllib.error, json, os, sys
+
+MCP = "http://127.0.0.1:18765/mcp"
+
+def mcp_call(method, args):
+    data = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call",
+        "params":{"name":method,"arguments":args}}).encode()
+    req = urllib.request.Request(MCP, data=data,
+        headers={"Content-Type":"application/json"})
+    resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
+    if "result" in resp:
+        c = resp["result"].get("content", [])
+        for item in c:
+            if item.get("type") == "text":
+                return item["text"]
+    if "error" in resp:
+        return f"Error: {resp['error']['message']}"
+    return "Page not found."
+
+def to_mu(text):
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    lines = text.split("\n")
+    out = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            out.append(f"# {stripped[2:]}")
+        elif stripped.startswith("## "):
+            out.append(f"## {stripped[3:]}")
+        elif stripped.startswith("### "):
+            out.append(f"### {stripped[4:]}")
+        elif stripped.startswith("#### "):
+            out.append(f"#### {stripped[5:]}")
+        elif stripped.startswith("[") and "](" in stripped:
+            parts = stripped.split("](", 1)
+            text_part = parts[0][1:]
+            url_part = parts[1].rstrip(")")
+            if url_part.startswith("http://") or url_part.startswith("https://"):
+                out.append(f"[{text_part}|{url_part}]")
+            else:
+                out.append(f"[{text_part}|/wiki/page?slug={url_part}]")
+        elif stripped.startswith("- "):
+            out.append(f"  - {stripped[2:]}")
+        elif stripped == "---":
+            continue
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+q = os.environ.get("QUERY_STRING", "").strip()
+params = urllib.parse.parse_qs(q)
+slug = params.get("slug", [""])[0]
+
+if not slug:
+    print("# Wiki Page Error")
+    print()
+    print("Usage: add ?slug=page-uri to the URL")
+    print()
+    print("[Wiki Home|/wiki/index.mu]")
+    sys.exit(0)
+
+content = mcp_call("wiki_content_read", {"wiki":"p4p","uri":slug})
+lines = content.split("\n", 1)
+title = slug.split("/")[-1].replace("-", " ").replace("_", " ")
+
+# Try to extract a proper title from the content
+for line in lines:
+    if line.startswith("# "):
+        title = line[2:].strip()
+        break
+
+print(f"# {title}")
+print()
+print(to_mu(content))
+print()
+print(f"[Wiki Home|/wiki/index.mu]")
