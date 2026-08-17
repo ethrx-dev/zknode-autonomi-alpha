@@ -1,3 +1,8 @@
 [Networks]
 "ethereum" = "https://ethereum-rpc.publicnode.com"
 "ethereum/sepolia" = "https://ethereum-sepolia-rpc.publicnode.com"
+
+[RateLimiting]
+MaxRequestsPerSecond = 10
+MaxRequestsPerMinute = 100
+BurstSize = 20

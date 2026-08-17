@@ -1,0 +1,14 @@
+[Server]
+ListenAddress = "127.0.0.1:8080"
+UnixSocket = "/var/run/katzenpost/http-proxy.sock"
+
+[Upstream]
+RPCURL = "https://ethereum-sepolia.publicnode.com"
+
+[RateLimiting]
+MaxRequestsPerSecond = 10
+MaxRequestsPerMinute = 100
+BurstSize = 20
+
+[Logging]
+Level = "INFO"

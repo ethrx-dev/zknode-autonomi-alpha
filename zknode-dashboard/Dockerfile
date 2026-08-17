@@ -5,5 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY server/ ./server/
 COPY public/ ./public/
+RUN addgroup -S app && adduser -S app -G app
+USER app
 EXPOSE 8080
 CMD ["node", "server/index.js"]
