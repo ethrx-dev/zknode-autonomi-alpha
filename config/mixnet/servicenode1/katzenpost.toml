@@ -63,6 +63,15 @@ KEMName = ""
 [ServiceNode]
 
   [[ServiceNode.CBORPluginKaetzchen]]
+    Capability = "http-proxy"
+    [ServiceNode.CBORPluginKaetzchen.Config]
+      config = "/var/lib/katzenpost/servicenode1/http-proxy-config.toml"
+    Endpoint = "http-proxy"
+    Disable = false
+    Command = "/usr/local/bin/http-proxy-server"
+    MaxConcurrency = 16
+
+  [[ServiceNode.CBORPluginKaetzchen]]
     Capability = "courier"
     Endpoint = "courier"
     Disable = false
@@ -74,7 +83,7 @@ KEMName = ""
   [[ServiceNode.CBORPluginKaetzchen]]
     Capability = "chat"
     Endpoint = "chat"
-    Disable = false
+    Disable = true
     Command = "/usr/local/bin/chatd"
     MaxConcurrency = 4
 
@@ -107,6 +116,3 @@ GenerateOnly = false
     Command = "/usr/local/bin/http-proxy-server"
     MaxConcurrency = 4
     [ServiceNode.CBORPluginKaetzchen.Config]
-      config = "/var/lib/katzenpost/servicenode1/http_proxy/http_proxy_config.toml"
-      log_dir = "/var/lib/katzenpost/servicenode1"
-      log_level = "DEBUG"

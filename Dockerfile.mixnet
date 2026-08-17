@@ -1,6 +1,7 @@
 ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
 
-FROM --platform=linux/${TARGETARCH} golang:latest AS builder
+FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
 
 ARG KATZENPOST_VERSION=v0.0.84
 
@@ -12,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libzstd-dev \
     zlib1g-dev \
     git \
+    patch \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
     && dpkg --add-architecture arm64 \
@@ -37,8 +39,11 @@ RUN cd /tmp \
 RUN git clone --branch ${KATZENPOST_VERSION} --depth 1 \
     https://github.com/katzenpost/katzenpost.git /src/katzenpost
 
-RUN printf n// Alias for backward compatibilityntype Logger = logging.Loggern \
-    >> /src/katzenpost/core/log/log.go
+COPY patches/fix-decoy-sender-nil-pointer.patch /tmp/
+RUN cd /src/katzenpost && \
+    patch -p1 --forward < /tmp/fix-decoy-sender-nil-pointer.patch 2>/dev/null; \
+    sed -i 's/if rates.messageOrLoop <= 0 {/if rates == nil || rates.messageOrLoop <= 0 {/' client/sender.go
+
 
 RUN mkdir /dest && \
     cd /src/katzenpost && \
