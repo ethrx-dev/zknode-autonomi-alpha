@@ -1,0 +1,37 @@
+FROM zk-server-node:fixed2 AS base
+
+FROM golang:latest AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    libsnappy-dev \
+    liblz4-dev \
+    libzstd-dev \
+    zlib1g-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build RocksDB
+RUN cd /tmp \
+    && git clone --branch v10.2.1 --depth 1 https://github.com/facebook/rocksdb.git \
+    && cd rocksdb \
+    && PORTABLE=1 make -j"$(nproc)" shared_lib \
+    && cp -a librocksdb.so* /usr/local/lib/ \
+    && cp -a include/* /usr/local/include/ \
+    && cd /tmp && rm -rf rocksdb
+
+COPY . /src/katzenpost
+
+RUN mkdir /dest && \
+    cd /src/katzenpost && \
+    export GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
+           CGO_CFLAGS="-I/usr/local/include" \
+           CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -lsnappy -llz4 -lzstd -lz -ldl" && \
+    cd cmd/replica && \
+    go build -buildvcs=false -trimpath -ldflags="-buildid=" -o /dest/replica . && \
+    echo "  built replica"
+
+FROM base
+COPY --from=builder /dest/replica /usr/local/bin/replica
+RUN ldconfig

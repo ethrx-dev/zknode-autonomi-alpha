@@ -1,0 +1,6 @@
+Hostname = "zknode01"
+MeasuredAt = 2026-07-08T20:50:07.621891631Z
+NumCPU = 4
+OpsPerSecPerCore = 0.4677264181665724
+OpsPerSecSaturated = 0.45900936975950424
+IterationTime = "2.138001962s"

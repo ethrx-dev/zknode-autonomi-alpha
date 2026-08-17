@@ -1,0 +1,197 @@
+PKISignatureScheme = Ed25519
+WireKEMScheme = MLKEM768
+
+[Listen]
+  [Listen.Tcp]
+    Address = 127.0.0.1:64332
+    Network = tcp
+
+[SphinxGeometry]
+  PacketLength = 3082
+  NrHops = 5
+  HeaderLength = 476
+  RoutingInfoLength = 410
+  PerHopRoutingInfoLength = 82
+  SURBLength = 572
+  SphinxPlaintextHeaderLength = 2
+  PayloadTagLength = 32
+  ForwardPayloadLength = 2574
+  UserForwardPayloadLength = 2000
+  NextNodeHopLength = 65
+  SPRPKeyMaterialLength = 64
+  NIKEName = x25519
+  KEMName = 
+
+[PigeonholeGeometry]
+  MaxPlaintextPayloadLength = 1553
+  CourierQueryReadLength = 359
+  CourierQueryWriteLength = 2000
+  CourierQueryReplyReadLength = 1698
+  CourierQueryReplyWriteLength = 50
+  NIKEName = CTIDH1024-X25519
+  SignatureSchemeName = Ed25519
+
+[Logging]
+  Level = INFO
+
+[UpstreamProxy]
+  Type = none
+  Network = 
+  Address = 
+  User = 
+  Password = 
+
+[Debug]
+  DisableDecoyTraffic = true
+  SessionDialTimeout = 0
+  InitialMaxPKIRetrievalDelay = 0
+  PollingInterval = 0
+  EnableTimeSync = false
+
+[PinnedGateways]
+
+  [[PinnedGateways.Gateways]]
+    WireKEMScheme = MLKEM768
+    Name = gateway1
+    IdentityKey = """-----BEGIN ED25519 PUBLIC KEY-----
+d7my3fxbVTBSwdY66JW0vglFvpXkKN0GxkBOspQb5Gk=
+-----END ED25519 PUBLIC KEY-----"""
+    LinkKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
+focrNfsZQLHOx2pLibsOVYF4CRcNC/UV7aKmEACfDhd0x5Afx5q3+jAf+kHDm6ta
+6tsJgtqIyLsieIQeWhB58aepHwYjD0kG7YKpNGE+/gEZB1Ns41rNzDEeUzklRehb
+hjK973x2gSBlUSxOQZlZjzcBWZIuuFGoGHpzYNRyTPF7s3rPSYCNLlxmc/sr7SYB
+qeJWKPgJYfoyfcuuWiiEHERUQLVaeGtGKTdzYCp5wbrD57cwqKh2aEug62MrhgO6
+UXZplfQMl6TNm3MJiEN3ltx0k+hzl0VrIcGsoWE3g1pI4gJ7wmYoOoqe4atH5zG9
+m+oZGceeHTmHs9g4QAYbwHOEBAXL3YfDdDy93iFXA6dUNFx47/s6NCQGHKkTK9IH
+iPPC78s9g/R0HaF92sAxzwiOY2tIYgd8oWbAgOI2YlB4RVOopfaC7OPMX7MGKfsU
+FmtB9PZrlym4TOlNZ7scAZKC4qFzMMYZU1VL4kpMmZOmh8O9ejF7qxnLZni7D3Kt
+Vrh8amKzlymOSeXOEPayrFeuqZhYk1YCPxVIZ2OWbYBBU1KiNTChG7ee/wK8xFAg
+Hqm1uze3hmYvpYUMKGInxvBkocws1TOVS/ALffy2ELolPsxb0KG1doCa5IOL+3Kh
+F5UDkuNDmzdXSkKW7bNpwUuU8ch3nnSyJPc26FRnp6LOBUG99AFz3hcHobgcJcaz
+ojcObbyrxbRSwIIgCNtoZfpY5sAt3tcJJwGlXRpufunNaKRj/mQT9REy3YvKn3ue
+tCKpBudmCsRjEKOMpdGhgXIuwMFTPBczO7lMehwPIvqLJqe506hpTkciVLCxMBiM
+9GaqfkAkYiu6xjidUuUa/SswjjYEZUS9CpLAf3ua3tISFJSW0CY11YZF6CVeMQka
+bEuHzFe8JrdS26NMFMYnDNNaqrPIZdC1umyUxcuyCxYFK3BoYASnvsofROp7/auI
+plsU3AVE2+BZ9MOC7UwZYFI9ccKrUXATCaStCYppG9mZxQe5hmwXgqqWvks7V8q3
+RxB1LrcOESirPga/EDXG3is6wWhByUQwmhYgYdKIJKcoyrLDICkZC2wFC8bKMYd8
+PoghClKaqXV+DzJLKdpe+rTBE0taJEgeKsVxUDFUVFePXyEQszcG9qxFmKIMCXUe
+tQbMGzVkuAKREHoz8NA5ghHHH3iu8wbIOpiXI7KrD5S1z0ha7gPE3dmIOyMh7TWE
+D6Ke1DovtpsEszW6F4YHloYJjuAK27lD0uxga2tnsrB574whsigocft8FqUKsco2
+MaaiODmHR1rGZfZbdotE7/oKWEJBdChcpsbCUvBo0/AOgbOI/LBbfLhLIKCDBOWb
+0hM9+adSWNYfcUoOnsuwqHhZkBezFlZO2GywrxsOXqoUUFqNXFE096FuywdpVGeV
+rNOlAlh75UcXskeF9tNedmspUSoWPqJC7PAxcAMlhGo97TXEtOOhljfL+sRBVRfH
+mEI6bZY/E5hGewy1f3YTPikhXmFsWHa8kuMIUVe7RsmFlaIbM5cGFfwR8gIhH0a5
+a+orYE9k5hQBe8hyUIfeStGq7nnuy5IQqxY48UKYOBU=
+-----END MLKEM768 PUBLIC KEY-----"""
+    PKISignatureScheme = Ed25519
+    Addresses = [tcp://127.0.0.1:30004]
+
+[VotingAuthority]
+
+  [[VotingAuthority.Peers]]
+    Identifier = auth1
+    IdentityPublicKey = """-----BEGIN ED25519 PUBLIC KEY-----
+PuypiIQ+YbclJbEdskFLB5p/CG8j9yARaHlTLhwm1WU=
+-----END ED25519 PUBLIC KEY-----"""
+    PKISignatureScheme = Ed25519
+    LinkPublicKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
+kwCl7ogqRlZtKZY8A7cjO0PPtAW3PNpRhDFRP2s5Tmk/A3sogBtmXBe7xcUVkZE8
+MSdLCXiS2NZpanWX8PE7nUdepOFu9NRIPejFbKsDYlyU37XHhrqNegybSfNUWmEY
+uIiabDjLMfk70KUWanpyTpHEXvpxH/fBjxgJ7NcP+9JjBuBsl6tWZNgJv6EXqFe+
+ScnB/4UQACGU0gIlOwOfpHhDC4V5elcbxFjL2RFohfSFChJqMBogz8KcVqKs3mIb
+odFsjWVVxphtNDzGndplUlBrCCVPA3iEUVqfUSm3hiEwB9XCbrga8YepVKE1ExMD
+IRDNIHSkNvaMijfI5Jt7brm6P8h9avmF/5m08SVRb6iHw2MF5dW6veAuPoS7cgrQ
+OwBXbFDHqLQwLRV7thsRKXwnp+VDMLVVxzi4iiI8+BNHJuMvFPSPfDgVtnGtdFGr
+eLYGADiLFggQCBKGT7pQiJNLZcTK6zi3f9oy29geaBp/6EGr0+uCwxVXG/zJjsAl
+HlhpNkTIzTOMamxQ3ek3AJAnJ+knQQU31iI6BqknMbCiwJxKmXJ5KGDIW2o5UkUI
+tmHGE1ZGqsiEYBtthmMOOvOtr9xb68dYYSQsF3SawMUTYPhWF0C0xFMObSZu0Yk1
+LGJeOOYtMWHOxNgzA6fI7It4eLsvNfsH9iOGu8S0+8K2HpOvvFuriPeqMGijHuBo
+fdwWqbvDcIqGgWIcAFR7/ko8M/yAFIhiyIdiqvJPXnSFkbRl/NSVIJgrZ9EfBpyI
+ZDkww/jEEBeb/fBoKIshK+Zn/GfOswXFoLTMIgLJApozdhK94tttHdkqdFch9II3
+2bWNAsFvYqwcytV1Aph3IQgankEQvrK43LyzXAqNW8QbqEJinds5zjNpgCbFM9e/
+LphMcblP8BXOiAcw4nopX0U8cgdSgPd0FStr9UZD4TcsmQdHvNsS3IqbNcAul2gB
+lUPGn6VzGGCwhfNeCuKEnpAP0NZBodeDBhG2EUfIaeOj7aZPA2KEQ8G1UOktVak5
+lrKoQDgZnBUyxiLEKSBw8Plc2hmq0twoHiUzHNw5Mxyvo0NpCxyCFyrIepQLzZsb
+lYejHAkxJNErLIeMZyoJgKdQtWynAfKn/bcH2jGbWbsE3uq6JRObe3O+JMuhpsU3
+wiBpHwZWu2oQz1kraBUt6GtN8Vkec0ECZKJQxNpLOPq6KhZm2KqL4vYQYnO0acsd
+gNQ2ZyyTyCNniGi7EhFod2A/dSVWOIu7/2sXFoJq84LMoydWa2NfVHpbfmA0chmk
+u3kG49lSAhdNYuvM9dEOJhFOPkhN4WbEgQV48XOSnJCpZGDKZgatbnkflZIwZGZT
+9FUi1qOCnvJ5YbDAzMrDgTHGB9R5GMkm2jtFT3y3HSICUIgVYKk4XBxykKK6aXWn
+ofApuAnOhUFfOPGRnrYQAgaG1ngAjtASsjNGweKtFtWHQKp3fqagTOsKY2mhPyRQ
+bRAmltIgCsQ5/+ZsoPUooqlzdbaMmgq9dNO2W8ZpROO+SvVmadEBifqg0CUL3dlT
+qlrjc4itxoid1cixPw5qD20kvDZztZCIOx4+ankr4TY=
+-----END MLKEM768 PUBLIC KEY-----"""
+    WireKEMScheme = MLKEM768
+    Addresses = [tcp://127.0.0.1:30001]
+
+  [[VotingAuthority.Peers]]
+    Identifier = auth2
+    IdentityPublicKey = """-----BEGIN ED25519 PUBLIC KEY-----
+8wjf1sQ4FNxILe5QGnBg8m5YhlpG8v5Q6r9tu8JwckQ=
+-----END ED25519 PUBLIC KEY-----"""
+    PKISignatureScheme = Ed25519
+    LinkPublicKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
+HIBx1n2r0wEqzfnPQ8oBdpY+atNq7x3TOU7K7aOScQa1yNo+K5jbnry3sTuS2xv5
+WSmjMf7phlRDszV6z/mnrfMch3fYGOmWWB+tCZW4+fm11oVUjy+DPDJFCRqS3fNk
+3OqSrlZLCyNw6IV7bqLhD8Rl+3DkBGvLIdvbnqDyHpj7izYkmAUQGoCehPQPFWRC
+lqHk5XmfQrRAr3FeAJsYmSUr9Sq82QSz2LqISY/2AC9GqHWysDLQ3MCzLyMbXbOR
+Mr6t8tDGYO8Y8FOA5tQbBc/5fJ2n2VUfCbm3+ByhCUQIkcmYxRRR/SoAIBF85tMN
+8eEKBqVj+/ZIFqGR7J6F+g6sP5kQJst4nf8DM4uRllB39B/VQIK95Qvs6Xx7X8vq
+nDg5KTRyygl6q8UXKEA4xXQBG6cJPrQ1yE/uXjBpPhmBi0VOdm/PtBNpWtKbmZ0J
+2n3EaYcL92sRZXxq0spiCUqGRUQ5s0hdHMUKy2Rw8LtgjBuKnqEzX53TBJHVpN8Q
+Zf/mGBMDHFTSJwIFMQn5bn4Y6OKLQaVhWnPK5EW6n3/oZKjrH5d6ymOjbON3S5Yt
+uA82Nu8o6X1OFRUVqDrQQPqUtKyVU7PwHWhYzOIEQYR+pXlB+G5x4+KNMMOd1z2C
+/9NbnC/eIKR9bN0tGnMjFzNHp1s5vsVWUXDcBROACJ3SCTRMEBxvxtTq1KQzXhOm
+5oA+CsqRph5gVAFdCSL8u53/qq8WMl0z0rNGwQ5zUQqbl8t7C3I+Gt4RYV3Upm5k
+j3IvnS13swiMvnMo/BgNb6+6+LD1xSG5CkC8AGMZj79Svo4sBQKqRoxt/ADMT3L8
+K1Nd8z4ghWKJdLNX9h3M/0vGTQWNj0QYs6WgHqRzQo2iz5ldgN22MduEu12OUzXX
+LE7tdG6ELgqgNGI8mcmEIHG2DQl32OaMrYEDQ8Mji4Lrh6nF9WnJhEASJxAZbx5H
+YPiCfnqg3C+LxSU5QfjOAsVzqmn69akl/g5+/SJYHyAlkCYfTm+3k0t1sFJ66fH8
+dqTQPeg+Fo8WDsncK0UZCLOTwPL0K+N8k6W1t2rDTNvSifm4eSRrCrUGBzX1En4P
+QlMfEdvFdPPBZwqMFfQqYKsUqsYGqoSkqFq8WJP4oMw6WvyIYkKXNAd/5DYWQNY4
+i3B5aq5nt9HF/ht60QY6f3ItRgv2V6WNZsqeYX18HMCkY3RZ76FOgQjq5vJJZ7sB
+PCQh4BDFbRZq3zHGbFn6aNFGEQvGFNV4c/J3QKM8LNoVY2UZ4Z0vxQkP8iKd2kCD
+BqT9FQNRRavmgjF+T/gu9IYSb10OipkQBB5wZQNqKBsIXYWxGpKqp7VvE5MkBVMi
+hB7+ZnDAhXnK4WYJ4AHu8RTCVCFGMFgWPM/hb6Q5CgF0ynvL7uPQCfvF8fPnTpLP
+W8eQtGvsH2s/Rx0U9bQxEfzqG8wx5TObI8NUB7qPFQh8RrGOGGBSXgZz6oOT6wm2
+eNwc1dR4C1PfgKqpjh4Y3UG54NcNoAHLpFKNiqCNxzAXC7kJJFmLqLPePqBzYd/G
+tyPC8/Rvl4/tLBIx1k1yOO+G7KK+CgyqMtmYMYRIFn8=
+-----END MLKEM768 PUBLIC KEY-----"""
+    WireKEMScheme = MLKEM768
+    Addresses = [tcp://127.0.0.1:30002]
+
+  [[VotingAuthority.Peers]]
+    Identifier = auth3
+    IdentityPublicKey = """-----BEGIN ED25519 PUBLIC KEY-----
+6hqB8YM3vCBgCsp7A1+3AzHSwbWFDEYLWZX7pqHjPgM=
+-----END ED25519 PUBLIC KEY-----"""
+    PKISignatureScheme = Ed25519
+    LinkPublicKey = """-----BEGIN MLKEM768 PUBLIC KEY-----
+CnTFmm4BRUUxEHLcGcdmyuVjElF30Y3DW6aLOas/JE4VsD6Vjsv6lN2f+8mF48ln
+IgmlMfGz4/lGQFs6tVbSZB2sqYNx2t/Xmtx12OdcAj40ttvSasU7dmE+cXmBH9PV
+03/6nHbHjLyMyyWFqMLq/6Uc3v4rkHCx90mMK7tqS6d5yHCkyglPBSLLMHjM0Hzv
+PkaFEecOFKJg0Qy6dIY5m+UQ3V4gN1t8x5fXBUzNnB7A+3rMYtYcKggky0+Vm6ut
+ZQjG/AqCCxqGJxGE39GuY+dS0j5HUjBBDCDBKGMiPm8b58sqQF5e5pqb6Vqn7qhY
+hCz3vYPlh0h86/81MG+P5kJ8tI9kq5ZBO6zhV3LDN4r6OQJ2XQSa5M2M1R7CZXEu
+ON0+ZOkRkLBgVkSw/5dqM8K8nJAZVaq3LXBI3W2hyXJMFQ3as2EapqgN/M+kmICb
+H2MHb7YVqBfEFFNHNNK4FhRqftS+Hmqy6tPyrS5tHTt8rpxGrSlM+KfnOS4mW6j0
+XBPFf9QOJ+ZXK5iyN0qKx36EBqkzQcMNNaErNMSZ6bRGq4H7aD+fcGPdJdYHTBTG
+OpYT8U+5Im8WlIN02tR0sklAKmyqOgCQ7IIQhJqW46EqoevvUNSQtFX4vZnsqEzS
+M4tGH3pE1+3PV8KTMtLNdq98EN7+u+o2/TPJsxq6fJ17q+CVtnOFwnNTznIKKQBQ
+6s+EfsWYlCpOLCMFSuFQVF9E9B/IiYln6UAgPnWCZfnFP8bkPab8NBfrqOJfQ7A4
+MIOaQQ0/rO8BqOQNFvGHMLlNB9vVmPHNM/y6uVVwSxJm+we3LBw7YSmqz6WWY78n
+zMvnlZ0+v/TlnsFpc1dx/9A2QWTqQ6rLrGpVnHMVDj9Zv5FtIic4J4iCLWpmDfAN
+H6QaAOkP+D4CQZkG5Clpf/6qSU6B8lSLD0txN32NSGG3e1TR5dxh3ESyTKt/8+/A
+0YfOTj5NKmQ4OYq0JmC+ovP/WeGLE8q+nBvB6kCozgq0+4sw1MkHZqKBpzOkfjwz
+HVuFUZ3vVmsmQ6LD1BRHeYUZ6NOY4K2CEGFv3KLFY5Y2ysWxQlVKYXm3/XPu/qxj
+5tTjLmAdNq4g0vSG1cPeQT2EdGFvmPE6WYfRnB4FGfVchdALaUKJfNR9WEnF8wN1
+n5fL2dYo6ttO+TfQ7vyqCn1x1BjQERBQBDbAE5UDSmH7nLFKAL2HYMA94cclGgVc
+Wji3oQ/UCdX8tFnhnx1F5H4sYld+8W0zH1YIov0U2lcnQDSUEOTsAubZ5VxISzFV
+0X93nrdDpR8a4/jwkppvQ2bexGRn2rGRmQykbnMDNNePjtUaHjs8Mr9MGSHeDkOd
+N5dSP+L9ozDWKb2wNO5q+KHQbQhUfBFQcF6tP6RMMJ8Y2yR+gTqS+p2rJh6wffXB
+Uq/9fFnOxF5vFQ/f2Xh7whPPHvWXLtYmP7P12/wRE4WU5GhRLFVB7AXa41yfQYXh
+tCxYCuYBuTX6Fwkv7j+2LDg8CLz9ldnLZQ6VViXzQY5+BU35FmHH6MTqLGTCTBPF
+EGYrhBTD98nFx+Z6OCFUqApQLGS+a3zGgrLHb20s4IA=
+-----END MLKEM768 PUBLIC KEY-----"""
+    WireKEMScheme = MLKEM768
+    Addresses = [tcp://127.0.0.1:30003]

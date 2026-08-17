@@ -1,0 +1,36 @@
+FROM golang:latest AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake git \
+    librocksdb-dev libsnappy-dev liblz4-dev libzstd-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use local source instead of cloning from GitHub
+COPY katzenpost /src/katzenpost
+
+# Alias for backward compatibility
+RUN printf "\n// Alias for backward compatibility\ntype Logger = logging.Logger\n" >> /src/katzenpost/core/log/log.go
+
+RUN mkdir /dest && \
+    cd /src/katzenpost && \
+    export CGO_ENABLED=1 \
+           CGO_CFLAGS="-I/usr/include" \
+           CGO_LDFLAGS="-L/usr/lib/aarch64-linux-gnu -lrocksdb -lsnappy -llz4 -lzstd -lz -ldl" && \
+    for cmd in dirauth server courier kpclientd ping fetch echo-plugin genconfig replica; do \
+        cd /src/katzenpost/cmd/$cmd && \
+        go build -buildvcs=false -trimpath -ldflags="-buildid=" -o /dest/$cmd . && \
+        echo "  built $cmd"; \
+    done
+
+FROM arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    librocksdb9.10 \
+    libsnappy1v5 \
+    liblz4-1 \
+    libzstd1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/* /usr/local/bin/
+RUN ldconfig
