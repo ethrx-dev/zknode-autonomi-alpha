@@ -2,7 +2,7 @@
 
 **Post-Quantum Mixnet + ZK Storage Proving + Autonomi P2P Storage**
 
-A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P2P Foundation's proof-of-useful-work movement.
+A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P4P proof-of-useful-work movement.
 
 > **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.4 serving on Arbitrum Sepolia. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
 
