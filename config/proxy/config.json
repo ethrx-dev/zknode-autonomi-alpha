@@ -3,7 +3,7 @@
   "mgmt_addr": "127.0.0.1:9090",
   "mgmt_api_key": "",
   "thin_config_path": "/etc/mixnet-proxy/thinclient.toml",
-  "service_name": "echo",
+  "service_name": "http_proxy",
   "wireguard_iface": "wg0",
   "ant_node_addr": "10.0.0.2"
 }
