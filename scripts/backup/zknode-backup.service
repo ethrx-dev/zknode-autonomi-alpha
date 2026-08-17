@@ -1,0 +1,9 @@
+[Unit]
+Description=zknode daily backup
+Documentation=https://github.com/ethrx-dev/zknode-autonomi-alpha
+
+[Service]
+Type=oneshot
+ExecStart=/home/zero-tech/zknode-autonomi/scripts/backup/zknode-backup.sh daily
+User=zero-tech
+Group=zero-tech

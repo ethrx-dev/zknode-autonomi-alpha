@@ -1,0 +1,25 @@
+# NomadNet config for ZKNetwork zknode
+# Serves wiki pages over the Reticulum mesh
+
+[nomadnet]
+  enable_node = true
+  enable_connectable = true
+  announce_interval = 360
+  storage_path = /var/lib/nomadnet
+  loglevel = 4
+  logfile = /var/log/nomadnet/nomadnet.log
+
+[pages]
+  enabled = yes
+  page_path = /var/lib/nomadnet/pages
+  dynamic_pages = yes
+  script_timeout = 30
+
+[propagation]
+  enabled = yes
+  store_message = yes
+  message_retention_hours = 720
+
+[lxmf]
+  delivery_tracking = yes
+  delivery_retention_hours = 168

@@ -30,8 +30,32 @@ config/mixnet/**/*.pem
 config/mixnet/dummy-mixes/*.pem
 **/*.private.pem
 **/*.private.key
+**/*.pem
 config/keys/
 config/mixnet/client/.zkchat/
+
+# Runtime state (databases, spools, logs, temp)
+config/mixnet/**/*.db
+config/mixnet/**/*.log
+config/mixnet/**/*.tmp
+config/mixnet/**/spool.db
+config/mixnet/**/persistence.db
+config/mixnet/servicenode1/chatd/
+config/mixnet/servicenode1/courier/courier.log
+config/nomadnet/storage/
+config/reticulum/config/storage/
+
+# Debug artifacts
+config/mixnet/**/*.toml.fix
+config/mixnet/**/*.toml.orig
+config/mixnet/**/*.toml.test
+config/mixnet/servicenode1/http-proxy-server
+
+# Old/stale config snapshots
+config/mixnet.old/
+config/mixnet.original/
+config/mixnet.regen/
+config/mixnet-fresh*/
 
 # OS files
 .DS_Store
@@ -39,12 +63,16 @@ Thumbs.db
 
 # Editor files
 .vscode/
-.idea/
+.idea
 *.swp
 *.swo
 zknode-autonomi-images.tar.gz
 
 # Backup and binary files
 *.bak
+*.bak-*
 *.tar.gz
 walletshield-fix/walletshield-*
+
+# Lock files (regenerated on npm install)
+# NOTE: package-lock.json IS tracked for reproducible builds

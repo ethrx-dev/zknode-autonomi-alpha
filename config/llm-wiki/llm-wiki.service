@@ -1,0 +1,17 @@
+[Unit]
+Description=llm-wiki — P2P Foundation wiki engine (MCP/HTTP search)
+Documentation=https://github.com/geronimo-iia/llm-wiki
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/tmp/llm-wiki serve --http 0.0.0.0:18765 --wiki /home/alchemical1/zknode-autonomi-v1/data/llm-wiki
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=llm-wiki
+
+[Install]
+WantedBy=default.target

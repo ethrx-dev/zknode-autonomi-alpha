@@ -322,10 +322,6 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         <span class="dot green pulse" id="mixnetStatusDot"></span>
         <span id="mixnetStatusLabel">MIXNET ACTIVE</span>
       </div>
-      <div class="status-badge online" id="healthStatusBadge" style="display:none;">
-        <span class="dot green pulse" id="healthStatusDot"></span>
-        <span id="healthStatusLabel">HEALTHY</span>
-      </div>
       <div id="walletArea">
         <button class="btn-primary" onclick="showWalletSelector()" id="connectWalletBtn">
           <span class="mr-2">></span> CONNECT WALLET
@@ -356,9 +352,9 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           <span class="icon">◉</span><span style="flex:1">P4P WIKI</span>
         </button>
         <button class="sidebar-btn" data-tab="autonomi" onclick="switchTab('autonomi')">
-           <span class="icon">⍉</span><span style="flex:1">AUTONOMI</span>
-         </button>
-                <button class="sidebar-btn" data-tab="mesh" onclick="switchTab('mesh')">
+          <span class="icon">⍉</span><span style="flex:1">AUTONOMI</span>
+        </button>
+        <button class="sidebar-btn" data-tab="mesh" onclick="switchTab('mesh')">
           <span class="icon">◎</span><span style="flex:1">MESH NET</span>
         </button>
       </nav>
@@ -394,7 +390,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           </div>
 
           <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="terminal-card">
+            <div class="terminal-card scan">
               <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>MIXNET</span></div>
               <div class="terminal-body" id="mixnetWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
@@ -510,7 +506,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                   </div>
                   <div class="p-3 rounded" style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,136,0.1);">
                     <p class="text-xs text-gray-500 mb-1">WALLETSHIELD RPC</p>
-                    <div class="font-mono text-xs glowing" style="word-break:break-all;">http://<node-ip>:9200/ethereum</div>
+                    <div class="font-mono text-xs glowing" style="word-break:break-all;">http://<node-ip>:9200</div>
                     <p class="text-xs text-gray-600 mt-2">Configure this URL as a custom network RPC in MetaMask</p>
                   </div>
                 </div>
@@ -534,19 +530,6 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             </div>
             <h2 class="text-2xl font-bold glowing" style="font-family:'Orbitron',sans-serif;">ZKCHAT</h2>
             <p class="text-gray-500 mt-1" style="font-size:0.75rem;">// ENCRYPTED MIXNET GROUP MESSAGING</p>
-          </div>
-          <div class="mb-3 p-3 rounded" style="background:rgba(0,255,136,0.03);border:1px solid rgba(0,255,136,0.1);font-size:0.7rem;">
-            <div class="flex items-center justify-between mb-1">
-              <span style="color:var(--neon-green);font-weight:600;">MY IDENTITY</span>
-              <span style="font-size:0.6rem;color:var(--neon-green);cursor:pointer;" onclick="document.getElementById('chatIdentityPanel').classList.toggle('hidden')">[SHOW QR]</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <code id="chatIdentityFull" style="font-size:0.65rem;word-break:break-all;flex:1;color:#ccc;"></code>
-              <button onclick="navigator.clipboard.writeText(document.getElementById('chatIdentityFull').textContent);showToast('Identity copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
-            </div>
-            <div id="chatIdentityPanel" class="hidden flex justify-center mt-2">
-              <img id="chatIdentityQr" style="width:120px;height:120px;image-rendering:pixelated;" alt="QR">
-            </div>
           </div>
           <div class="flex gap-3" style="height:calc(100vh - 320px);min-height:400px;">
             <div class="terminal-card" style="flex:0 0 260px;display:flex;flex-direction:column;">
@@ -622,8 +605,6 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                 </span>
               </div>
               <div class="terminal-body" id="wikiViewContent" style="max-height:calc(100vh - 480px);overflow-y:auto;">
-                <div class="text-xs text-gray-500">Search or browse the wiki to view pages.</div>
-              </div>
               <div id="wikiEditor" style="display:none;">
                 <input type="text" id="wikiEditSlug" placeholder="Page slug (e.g. my-new-page)" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:6px 10px;border-radius:4px;font-size:0.75rem;margin-bottom:6px;outline:none;"/>
                 <textarea id="wikiEditContent" placeholder="Write markdown content here..." style="width:100%;height:300px;background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px;border-radius:4px;font-size:0.75rem;font-family:monospace;resize:vertical;outline:none;"></textarea>
@@ -633,12 +614,13 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                   <span id="wikiEditStatus" style="font-size:0.7rem;color:var(--neon-green);margin-left:auto;align-self:center;"></span>
                 </div>
               </div>
+                <div class="text-xs text-gray-500">Search or browse the wiki to view pages.</div>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Mesh Tab -->
-        <!-- Autonomi Tab -->
         <div id="tab-autonomi" class="hidden">
           <div class="mb-6">
             <div class="flex items-center gap-2 mb-2">
@@ -768,7 +750,6 @@ function switchTab(tab) {
     d.classList.toggle('hidden', d.id !== 'tab-' + tab);
   });
   if (tab === 'wiki') { wikiInit(); }
-  if (tab === 'autonomi') { setTimeout(updateAutonomi, 100); }
 }
 
 function showToast(msg, type) {
@@ -914,7 +895,7 @@ function wikiInit() {
     const href = link.getAttribute('href');
     if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('#') && !href.startsWith('mailto:')) {
       e.preventDefault();
-      const slug = href;
+      const slug = href.startsWith('wiki/') ? href : 'wiki/' + href;
       viewWikiPage(slug, href.split('/').pop().replace(/[-_]/g, ' '));
     }
   });
@@ -1093,10 +1074,10 @@ async function wikiSavePage() {
   if (!slug) { document.getElementById("wikiEditStatus").textContent = "ERROR: slug required"; return; }
   document.getElementById("wikiEditStatus").textContent = "SAVING...";
   try {
-    const r = await api("/api/wiki/page/write", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ slug, content, message: "Dashboard edit" }) });
+    const r = await api("/api/wiki/page/write", { slug, content, message: "Dashboard edit" });
     if (r.error) { document.getElementById("wikiEditStatus").textContent = "ERROR: " + r.error; return; }
     document.getElementById("wikiEditStatus").textContent = "COMMITTING...";
-    await api("/api/wiki/commit", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ message: "Dashboard edit", slugs: slug }) });
+    await api("/api/wiki/commit", { message: "Dashboard edit" });
     document.getElementById("wikiEditStatus").textContent = "SAVED ✓";
     currentEditSlug = slug;
     setTimeout(() => { wikiCancelEdit(); wikiViewPage(slug); }, 800);
@@ -1163,47 +1144,11 @@ function renderMarkdown(md) {
 
 // ── Refresh dashboard ──
 
-async function antStartDaemon() {
-  const r = await api('/api/ant/daemon/start', { method: 'POST' });
-  showToast(r.ok ? 'Daemon started' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
-  setTimeout(updateAutonomi, 2000);
-}
-async function antStopDaemon() {
-  const r = await api('/api/ant/daemon/stop', { method: 'POST' });
-  showToast(r.ok ? 'Daemon stopped' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
-  setTimeout(updateAutonomi, 2000);
-}
-async function antStartNode() {
-  const r = await api('/api/ant/node/start', { method: 'POST' });
-  showToast(r.ok ? 'Node started' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
-  setTimeout(updateAutonomi, 2000);
-}
-async function antStopNode() {
-  const r = await api('/api/ant/node/stop', { method: 'POST' });
-  showToast(r.ok ? 'Node stopped' : 'Failed: ' + (r.error || ''), r.ok ? 'success' : 'error');
-  setTimeout(updateAutonomi, 2000);
-}
-
-async function updateAutonomi() {
-  const r = await api('/api/ant');
-  if (!r.daemon) return;
-  const d = r.daemon || {}, n = (r.nodes || [])[0] || {}, s = r.storage || {};
-  const de = document.getElementById('autonomiDaemon');
-  const ne = document.getElementById('autonomiNode');
-  const se = document.getElementById('autonomiStorage');
-  const ce = document.getElementById('autonomiConsole');
-  if (de) de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">'+(d.running?'RUNNING':'STOPPED')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(d.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div></div>';
-  if (ne) ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">'+(n.node_id||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">'+(n.name||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">'+(n.version||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs '+(n.status==='running'?'glowing':'text-yellow-400')+'">'+((n.status||'-').toUpperCase())+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(n.uptime_secs||0)+'</span></div></div>';
-  if (se) se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs '+(s.running?'glowing':'text-gray-500')+'">'+(s.running?'ACTIVE':'OFFLINE')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(s.total_chunks||0)+'</span></div></div>';
-  if (ce) ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: '+(d.running?'ONLINE':'OFFLINE')+'</div><div class="text-gray-700">> Nodes running: '+(r.nodes_running||0)+'</div><div class="text-gray-700">> Storage: '+(s.running?'ACTIVE':'OFFLINE')+'</div>';
-}
-
 async function refreshAll() {
-  const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov, hb, health] = await Promise.all([
+  const [sys, cont, mix, ws, chat, wiki, ret, zym, ant, prov] = await Promise.all([
     api('/api/system'), api('/api/containers'), api('/api/mixnet'),
     api('/api/walletshield'), api('/api/zkchat'), api('/api/llm-wiki'),
-    api('/api/reticulum'), api('/api/zymbit'), api('/api/ant'), api('/api/prover'),
-    api('/api/ws-heartbeat'), api('/api/health')
+    api('/api/reticulum'), api('/api/zymbit'), api('/api/ant'), api('/api/prover')
   ]);
 
   const s = sys.error ? null : sys;
@@ -1261,18 +1206,6 @@ async function refreshAll() {
     headerBadge.innerHTML = '<span class="dot green pulse" id="mixnetStatusDot"></span><span id="mixnetStatusLabel">MIXNET ACTIVE</span>';
   }
 
-  // Health badge
-  const healthBadge = document.getElementById('healthStatusBadge');
-  if (health && health.status) {
-    const ok = health.status === 'healthy';
-    healthBadge.style.display = 'inline-flex';
-    healthBadge.className = 'status-badge ' + (ok ? 'online' : 'offline');
-    healthBadge.innerHTML = '<span class="dot ' + (ok ? 'green pulse' : 'yellow') + '" id="healthStatusDot"></span><span id="healthStatusLabel">' + (ok ? 'HEALTHY' : 'DEGRADED') + '</span>';
-    healthBadge.title = 'disk: ' + (health.disk_used_percent || '?') + '% | ws: ' + (health.walletshield_http || '?') + ' | mix: ' + (health.mix_nodes || '?');
-  } else {
-    healthBadge.style.display = 'none';
-  }
-
   // Containers table
   const ct = document.getElementById('containerTable');
   if (cont.error || !Array.isArray(cont)) {
@@ -1297,12 +1230,10 @@ async function refreshAll() {
   const wsDot = document.getElementById('wsStatusDot');
   const wsOnline = state.walletshieldContainer;
   if (wsDot && !state.wallet.connected) { wsDot.className = 'dot ' + (wsOnline ? 'yellow' : 'gray'); }
-  const hbOk = hb && hb.ok;
   wsWidget.innerHTML = '<div class="space-y-2">' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">CONTAINER</span><span class="flex items-center gap-1"><span class="dot ' + (wsOnline ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (wsOnline ? 'glowing' : 'text-gray-500') + '">' + (wsOnline ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">RPC PORT</span><span class="text-xs text-white">9200</span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">API</span><span class="text-xs ' + (wsApiOk ? 'text-green-400' : 'text-yellow-400') + '">' + (wsApiOk ? 'RESPONDING' : 'NO RESPONSE') + '</span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">MIXNET</span><span class="flex items-center gap-1"><span class="dot ' + (hbOk ? 'green pulse' : 'red') + '"></span><span class="text-xs ' + (hbOk ? 'glowing' : 'text-red-400') + '">' + (hbOk ? 'CONNECTED' : 'DEAD') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs ' + (state.wallet.connected ? 'glowing' : 'text-gray-500') + '">' + (state.wallet.connected ? state.wallet.type.toUpperCase() : 'NOT CONNECTED') + '</span></div>' +
     '</div>';
 
@@ -1344,31 +1275,29 @@ async function refreshAll() {
 
   // Ant / Autonomi
   const antWidget = document.getElementById('antWidget');
-  const antRunning = ant && ant.daemon && ant.daemon.running;
-  if (ant && ant.daemon) {
-    const d = ant.daemon;
+  const antDaemon = ant && ant.daemon;
+  const antStorage = ant && ant.storage;
+  if (antDaemon) {
     antWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="dot '+(d.running?'green pulse':'gray')+'"></span><span class="text-xs '+(d.running?'glowing':'text-gray-500')+'">'+(d.running?'RUNNING':'STOPPED')+'</span></span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">STORAGE</span><span class="text-xs '+(ant.storage&&ant.storage.running?'glowing':'text-gray-500')+'">'+(ant.storage&&ant.storage.running?'ACTIVE':'OFFLINE')+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="dot '+(antDaemon.running?'green pulse':'gray')+'"></span><span class="text-xs '+(antDaemon.running?'glowing':'text-gray-500')+'">'+(antDaemon.running?'RUNNING':'STOPPED')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(antDaemon.nodes_running||0)+'/'+(antDaemon.nodes_total||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(antDaemon.uptime_secs||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(antDaemon.port||'-')+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STORAGE</span><span class="text-xs '+(antStorage&&antStorage.running?'glowing':'text-gray-500')+'">'+(antStorage&&antStorage.running?'ACTIVE':'OFFLINE')+'</span></div>' +
       '</div>';
   } else {
     antWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">OFFLINE</span></div></div>';
   }
 
   const provWidget = document.getElementById('proverWidget');
-  const provRunning = prov && prov.running;
-  if (prov) {
-    const p = prov;
+  if (prov && prov.running) {
     provWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(p.running?'green pulse':'gray')+'"></span><span class="text-xs '+(p.running?'glowing':'text-gray-500')+'">'+(p.running?'ACTIVE':'IDLE')+'</span></span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(p.total_chunks||0)+'</span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNK SZ</span><span class="text-xs text-white">'+(p.chunk_size||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot green pulse"></span><span class="text-xs glowing">ACTIVE</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(prov.totalChunks||0)+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNK SIZE</span><span class="text-xs text-white">'+(prov.chunkSize||0)+'</span></div>' +
       '</div>';
   } else {
-    provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">OFFLINE</span></div></div>';
+    provWidget.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs text-gray-500">IDLE</span></div></div>';
   }
 
   // Autonomi tab
@@ -1377,20 +1306,20 @@ async function refreshAll() {
     const ne = document.getElementById('autonomiNode');
     const se = document.getElementById('autonomiStorage');
     const ce = document.getElementById('autonomiConsole');
-    if (de && ant.data) {
-      const d = ant.data.daemon || {};
-      de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">' + (d.running ? 'RUNNING' : 'STOPPED') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">' + (d.pid || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">' + (d.port || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(d.uptime_secs || 0) + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">' + (d.nodes_running || 0) + '/' + (d.nodes_total || 0) + '</span></div><div class="flex justify-center gap-2 mt-2">' + (d.running ? '<button class="btn-xs btn-danger" onclick="antStopDaemon()">STOP DAEMON</button>' : '<button class="btn-xs btn-primary" onclick="antStartDaemon()">START DAEMON</button>') + '</div></div>';
+    if (de && ant && ant.daemon) {
+      const d = ant.daemon;
+      de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">' + (d.running ? 'RUNNING' : 'STOPPED') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">' + (d.pid || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">' + (d.port || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(d.uptime_secs || 0) + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">' + (d.nodes_running || 0) + '/' + (d.nodes_total || 0) + '</span></div></div>';
     }
     if (ne && ant.nodes && ant.nodes.length) {
       const n = ant.nodes[0];
-      ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">' + (n.node_id || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">' + (n.name || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">' + (n.version || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (n.status === 'running' ? 'glowing' : 'text-yellow-400') + '">' + (n.status || '-').toUpperCase() + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(n.uptime_secs || 0) + '</span></div><div class="flex justify-center gap-2 mt-2">' + (n.status === 'running' ? '<button class="btn-xs btn-danger" onclick="antStopNode()">STOP NODE</button>' : '<button class="btn-xs btn-primary" onclick="antStartNode()">START NODE</button>') + '</div></div>';
+      ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">' + (n.node_id || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">' + (n.name || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">' + (n.version || '-') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (n.status === 'running' ? 'glowing' : 'text-yellow-400') + '">' + (n.status || '-').toUpperCase() + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">' + fmtUptime(n.uptime_secs || 0) + '</span></div></div>';
     }
     if (se && ant.storage) {
       const s = ant.storage;
-      se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (s.running ? 'glowing' : 'text-gray-500') + '">' + (s.running ? 'ACTIVE' : 'OFFLINE') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">' + (s.total_chunks || 0) + '</span></div></div>';
+      se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs ' + (s.running ? 'glowing' : 'text-gray-500') + '">' + (s.running ? 'ACTIVE' : 'OFFLINE') + '</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">' + (s.totalChunks || 0) + '</span></div></div>';
     }
-    if (ce) {
-      ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: ' + (ant?.daemon?.running ? 'ONLINE' : 'OFFLINE') + '</div><div class="text-gray-700">> Nodes running: ' + (ant?.totalRunning || 0) + '</div><div class="text-gray-700">> Storage: ' + (ant?.storage?.running ? 'ACTIVE' : 'OFFLINE') + '</div>';
+    if (ce && ant) {
+      ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: ' + (ant.daemon?.running ? 'ONLINE' : 'OFFLINE') + '</div><div class="text-gray-700">> Nodes running: ' + (ant.totalRunning || 0) + '</div><div class="text-gray-700">> Storage: ' + (ant.storage?.running ? 'ACTIVE' : 'OFFLINE') + '</div>';
     }
   }
 
@@ -1451,11 +1380,10 @@ async function refreshAll() {
   }
 
   const zymWidget = document.getElementById('zymbitWidget');
-  const zymActive = zym && zym.zkifc === 'active';
+  const zymActive = zym.data && zym.data.zkifc === 'active';
   zymWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?(zym.zkifc || "").toUpperCase():'UNKNOWN')+'</span></span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym&&zym.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs text-white" style="font-size:0.65rem;">0x8930ce...4d256</span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym.data?zym.data.zkifc.toUpperCase():'UNKNOWN')+'</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym.data&&zym.data.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
     '</div>';
 }
 
@@ -1496,11 +1424,8 @@ async function chatRefreshGroups() {
   }
   list.innerHTML = state.chat.groups.map(g =>
     `<div class="chat-group-item ${state.chat.activeGroupId === g.id ? 'active' : ''}" data-id="${g.id}" data-name="${g.name}" onclick="chatSelectGroup('${g.id}','${g.name}')">
-      <div class="flex items-center justify-between">
-        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.name}</div>
-        ${g.isOwner ? `<button onclick="event.stopPropagation();chatDeleteGroup('${g.id}','${g.name}')" class="text-red-400 hover:text-red-300" title="Delete group" style="font-size:0.7rem;background:none;border:none;cursor:pointer;padding:2px 6px;">✕</button>` : ''}
-      </div>
-      <div style="font-size:0.6rem;color:var(--neon-green);">${g.members} mem${g.isOwner ? ' · OWNER' : ''}</div>
+      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.name}</div>
+      <div style="font-size:0.6rem;color:var(--neon-green);">${g.members} mem</div>
     </div>`
   ).join('');
 }
@@ -1583,23 +1508,6 @@ async function chatDoCreateGroup() {
   }
 }
 
-async function chatDeleteGroup(groupId, groupName) {
-  if (!confirm(`Delete group "${groupName}"? This cannot be undone.`)) return;
-  const r = await api('/api/chat/groups/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id: groupId }) });
-  if (r.deleted) {
-    showToast('Group deleted', 'success');
-    if (state.chat.activeGroupId === groupId) {
-      state.chat.activeGroupId = null;
-      state.chat.activeGroupName = '';
-      document.getElementById('chatActiveGroupTitle').textContent = '# select a group';
-      document.getElementById('chatMessages').innerHTML = '<div class="text-gray-500" style="margin:auto;">Select or create a group to start chatting</div>';
-    }
-    await chatRefreshGroups();
-  } else {
-    showToast('Delete failed: ' + (r.error || 'unknown'), 'error');
-  }
-}
-
 function chatInviteMember() {
   if (!state.chat.activeGroupId) { showToast('Select a group first', 'error'); return; }
   const overlay = document.createElement('div');
@@ -1610,16 +1518,6 @@ function chatInviteMember() {
       <h2 class="text-lg font-bold glowing" style="font-family:'Orbitron',sans-serif;">INVITE TO #${state.chat.activeGroupName}</h2>
       <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-500 hover:text-white" style="font-size:1.5rem;">×</button>
     </div>
-    <div class="mb-4 p-3 rounded" style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,136,0.1);">
-      <div style="font-size:0.6rem;color:var(--neon-green);margin-bottom:4px;">SHARE THIS GROUP ID WITH FRIENDS</div>
-      <div class="flex items-center gap-2">
-        <code id="chatGroupIdDisplay" style="font-size:0.65rem;word-break:break-all;flex:1;color:#ccc;">${state.chat.activeGroupId}</code>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('chatGroupIdDisplay').textContent);showToast('Group ID copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
-      </div>
-      <div style="font-size:0.6rem;color:var(--neon-green);margin-top:4px;">OR SCAN QR TO SHARE YOUR IDENTITY</div>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('zkchat:' + document.getElementById('chatIdentityFull').textContent)}" style="width:100px;height:100px;margin-top:4px;image-rendering:pixelated;" alt="QR">
-    </div>
-    <div class="mb-2" style="font-size:0.7rem;color:#aaa;">INVITE MEMBERS BY ADDRESS</div>
     <textarea id="chatInviteMembers" placeholder="Member addresses (space-separated)..." class="w-full mb-4" style="background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:4px;font-size:0.75rem;outline:none;resize:vertical;height:80px;"></textarea>
     <button onclick="chatDoInvite()" class="btn-primary w-full text-center">INVITE</button>
   </div>`;
@@ -1641,16 +1539,13 @@ async function chatDoInvite() {
 }
 
 async function chatFetchIdentity() {
-  const r = await api('/api/chat/identity');
+  const r = await api('/api/chat/messages');
+  // Try to get identity from poll response metadata
   const e = document.getElementById('chatIdentity');
-  if (r.identity && r.valid) {
-    e.textContent = r.identity.slice(0, 8) + '...' + r.identity.slice(-6);
-    e.title = r.identity;
-    document.getElementById('chatIdentityFull').textContent = r.identity;
-    document.getElementById('chatIdentityQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent('zkchat:' + r.identity);
-  } else {
-    e.textContent = 'no identity';
-  }
+  try {
+    const pollR = await api('/api/chat/poll');
+    e.textContent = 'identity';
+  } catch { e.textContent = 'zkchat'; }
 }
 
 function chatCopyIdentity() {

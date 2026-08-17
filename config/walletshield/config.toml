@@ -1,10 +1,8 @@
 # walletshield thin client config for zknode-autonomi-alpha mixnet
 # Sphinx geometry matches zeros/mixnet-node:arm64 (PacketLength=3082)
 
-Network = "tcp4"
+Network = "tcp"
 Address = "127.0.0.1:64332"
-WireKEMScheme = "MLKEM768"
-PKISignatureScheme = "Ed25519"
 
 [SphinxGeometry]
   PacketLength = 3082
@@ -30,7 +28,3 @@ PKISignatureScheme = "Ed25519"
   CourierQueryReplyWriteLength = 50
   NIKEName = "CTIDH1024-X25519"
   SignatureSchemeName = "Ed25519"
-
-[Logging]
-  Level = "DEBUG"
-  File = "/var/lib/walletshield/walletshield.log"

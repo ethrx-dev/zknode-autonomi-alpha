@@ -1,113 +1,102 @@
-// SPDX-FileCopyrightText: © 2023 David Stainton
-// SPDX-License-Identifier: AGPL-3.0-only
-
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"flag"
 	"fmt"
+	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/fxamacker/cbor/v2"
 
-	"github.com/katzenpost/hpqc/hash"
-	"github.com/katzenpost/hpqc/rand"
-
-	"github.com/katzenpost/katzenpost/client2"
 	"github.com/katzenpost/katzenpost/client2/config"
 	"github.com/katzenpost/katzenpost/client2/thin"
-	sConstants "github.com/katzenpost/katzenpost/core/sphinx/constants"
-
-	"github.com/ZeroKnowledgeNetwork/opt/common"
-	"github.com/ZeroKnowledgeNetwork/opt/server_plugins/cbor_plugins/http_proxy"
 )
 
 var (
-	timeout          = 20 // (default) context timeout
+	timeout          = 120 // (default) context timeout
 	ProxyHTTPService = "proxy"
 
 	// Note: UserForwardPayloadLength should match the same value passed to genconfig.
-	UserForwardPayloadLength = 30000
+	UserForwardPayloadLength = 2000
+	thinClientOnly           = true // thin client mode (connects to existing daemon)
 )
 
-func sendRequest(thin *thin.ThinClient, httpRequestBytes []byte) ([]byte, error) {
-	// Compress the HTTP request
-	compressedPayload, err := common.CompressData(httpRequestBytes)
-	if err != nil {
-		return nil, fmt.Errorf("common.CompressData failed: %w", err)
-	}
-
-	// Create the request wrapper
-	request := &http_proxy.Request{
-		Payload: compressedPayload,
-	}
-
-	// Marshal to CBOR
-	blob, err := cbor.Marshal(request)
-	if err != nil {
-		return nil, fmt.Errorf("cbor.Marshal failed: %w", err)
-	}
-
-	// Validate payload size
-	if len(blob) > UserForwardPayloadLength {
-		return nil, fmt.Errorf("payload size %d exceeds maximum %d bytes", len(blob), UserForwardPayloadLength)
-	}
-
-	surbID := &[sConstants.SURBIDLength]byte{}
-	_, err = rand.Reader.Read(surbID[:])
-	if err != nil {
-		panic(err)
-	}
-
-	// Select a target service node and compute the DestinationIdHash
-	target, err := thin.GetService(ProxyHTTPService)
-	if err != nil {
-		panic(err)
-	}
-	nodeId := hash.Sum256(target.MixDescriptor.IdentityKey)
-
-	timeoutCtx, cancel := context.WithTimeout(context.TODO(), time.Duration(timeout)*time.Second)
-	defer cancel()
-	return thin.BlockingSendMessage(timeoutCtx, blob, &nodeId, target.RecipientQueueID)
+type Server struct {
+	log        *log.Logger
+	thin       *thin.ThinClient
+	configPath string
+	logLevel   string
+	upstream   string
+	mu         sync.Mutex
 }
 
-type Server struct {
-	log    *log.Logger
-	daemon *client2.Daemon
-	thin   *thin.ThinClient
+func (s *Server) reconnect() *thin.ThinClient {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cfgThin, err := thin.LoadFile(s.configPath)
+	if err != nil {
+		s.log.Errorf("Failed to load config for reconnect: %s", err)
+		return s.thin
+	}
+
+	logging := &config.Logging{
+		Disable: false,
+		Level:   s.logLevel,
+	}
+	client := thin.NewThinClient(cfgThin, logging)
+	err = client.Dial()
+	if err != nil {
+		s.log.Errorf("Failed to reconnect: %s", err)
+		return s.thin
+	}
+	s.thin.Close()
+	s.thin = client
+	s.log.Info("Reconnected to client daemon")
+	return client
+}
+
+func (s *Server) getThin() *thin.ThinClient {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.thin
 }
 
 func main() {
 	var logLevel string
 	var listenAddr string
 	var listenAddrClient string
+	var upstream string
 	var configPath string
 	var delayStart int
 	var testProbe bool
 	var testProbeCount int
 	var testProbeResponseDelay int
 	var testProbeSendDelay int
-	var thinClientOnly bool
 
-	flag.StringVar(&configPath, "config", "", "file path of the client configuration TOML file")
+	flag.StringVar(&configPath, "config", "", "file path of the thin client configuration TOML file")
 	flag.IntVar(&delayStart, "delay_start", 0, "max random seconds to delay start")
 	flag.StringVar(&logLevel, "log_level", "DEBUG", "logging level could be set to: DEBUG, INFO, WARNING, ERROR, CRITICAL")
 	flag.StringVar(&listenAddr, "listen", "", "local socket to listen HTTP on")
 	flag.StringVar(&listenAddrClient, "listen_client", "", "local network address for the client daemon")
+	flag.StringVar(&upstream, "upstream", "", "upstream base URL to rewrite requests to")
+	flag.BoolVar(&thinClientOnly, "thin", true, "use thin client mode (connect to existing daemon)")
 	flag.BoolVar(&testProbe, "probe", false, "send test probes instead of handling requests")
 	flag.IntVar(&testProbeCount, "probe_count", 1, "number of test probes to send")
 	flag.IntVar(&testProbeResponseDelay, "probe_response_delay", 0, "test probe response deplay")
 	flag.IntVar(&testProbeSendDelay, "probe_send_delay", 10, "test probe delay between probes")
 	flag.IntVar(&timeout, "timeout", timeout, "seconds to wait for a request")
-	flag.BoolVar(&thinClientOnly, "thin", false, "use thin client mode (connect to existing daemon)")
 	flag.Parse()
 
 	if listenAddr == "" && !testProbe {
@@ -117,7 +106,6 @@ func main() {
 		panic("config flag must be set")
 	}
 
-	// logging
 	level, err := log.ParseLevel(logLevel)
 	if err != nil {
 		panic(err)
@@ -128,46 +116,18 @@ func main() {
 	})
 
 	if delayStart > 0 {
-		d := rand.NewMath().Intn(delayStart)
+		d := rand.Intn(delayStart)
 		mylog.Infof("Delaying start for %d seconds...", d)
 		time.Sleep(time.Duration(d) * time.Second)
 	}
 
-	// start client2 daemon
-	var d *client2.Daemon
-	var cfgThin *thin.Config
-	if !thinClientOnly {
-		cfg, err := config.LoadFile(configPath)
-		if err != nil {
-			panic(err)
-		}
+	cfgThin, err := thin.LoadFile(configPath)
+	if err != nil {
+		panic(fmt.Errorf("failed to load thin client config: %s", err))
+	}
 
-		if listenAddrClient != "" {
-			cfg.ListenAddress = listenAddrClient
-		}
-
-		d, err := client2.NewDaemon(cfg)
-		if err != nil {
-			panic(err)
-		}
-		err = d.Start()
-		if err != nil {
-			panic(err)
-		}
-
-		cfgThin = thin.FromConfig(cfg)
-
-		fmt.Println("Sleeping for 3 seconds to let the client daemon startup...")
-		time.Sleep(time.Second * 3) // XXX ugly hack but works: FIXME
-	} else {
-		cfgThin, err = thin.LoadFile(configPath)
-
-		if listenAddrClient != "" {
-			cfgThin.Address = listenAddrClient
-		}
-		if err != nil {
-			panic(fmt.Errorf("failed to open thin client config: %s", err))
-		}
+	if listenAddrClient != "" {
+		cfgThin.Address = listenAddrClient
 	}
 
 	logging := &config.Logging{
@@ -175,56 +135,93 @@ func main() {
 		Level:   level.String(),
 	}
 
-	thin := thin.NewThinClient(cfgThin, logging)
-	err = thin.Dial()
+	thinClient := thin.NewThinClient(cfgThin, logging)
+	err = thinClient.Dial()
 	if err != nil {
 		panic(err)
 	}
 
-	// http server
 	server := &Server{
-		log:    mylog,
-		thin:   thin,
-		daemon: d,
+		log:        mylog,
+		thin:       thinClient,
+		configPath: configPath,
+		logLevel:   level.String(),
+		upstream:   upstream,
 	}
+
+	go func() {
+		eventSink := thinClient.EventSink()
+		defer thinClient.StopEventSink(eventSink)
+		everConnected := false
+		for event := range eventSink {
+			switch v := event.(type) {
+			case *thin.ConnectionStatusEvent:
+				if v.IsConnected {
+					everConnected = true
+				} else if everConnected {
+					mylog.Warn("Connection lost, attempting reconnect...")
+					server.reconnect()
+					everConnected = false
+				}
+			}
+		}
+		mylog.Warn("Event sink closed, connection to daemon may be lost")
+	}()
 
 	if testProbe {
 		server.SendTestProbes(testProbeSendDelay, testProbeCount, testProbeResponseDelay)
-		d.Shutdown()
 	} else {
 		http.HandleFunc("/", server.Handler)
-		err := http.ListenAndServe(listenAddr, nil)
-		if err != nil {
-			// Check if the error is related to the port being in use
-			if strings.Contains(err.Error(), "bind: address already in use") {
-				mylog.Errorf("Cannot start server: Listen port %s is already in use. Please check if another instance of walletshield is running or use another port.", listenAddr)
-			} else {
-				mylog.Errorf("Failed to start HTTP server: %s", err)
-			}
-		}
+		http.ListenAndServe(listenAddr, nil)
 	}
 }
 
 func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 	s.log.Infof("Received HTTP request for %s", req.URL)
 
-	myurl, err := url.Parse(req.RequestURI)
-	if err != nil {
-		s.log.Errorf("url.Parse(req.RequestURI) failed: %s", err)
-		return
+	// Build the raw request payload sent through the mixnet.
+	// When an upstream is configured, use an absolute-form request line so the
+	// mixnet http-proxy can forward to the correct scheme://host.
+	var buf bytes.Buffer
+	if s.upstream != "" {
+		body, rerr := io.ReadAll(req.Body)
+		if rerr != nil {
+			s.log.Errorf("io.ReadAll failed: %s", rerr)
+			return
+		}
+		u, uerr := url.Parse(s.upstream)
+		if uerr != nil {
+			s.log.Errorf("url.Parse(upstream) failed: %s", uerr)
+			return
+		}
+		fmt.Fprintf(&buf, "POST %s HTTP/1.1\r\n", s.upstream)
+		fmt.Fprintf(&buf, "Host: %s\r\n", u.Host)
+		fmt.Fprintf(&buf, "Content-Type: application/json\r\n")
+		fmt.Fprintf(&buf, "Content-Length: %d\r\n", len(body))
+		fmt.Fprintf(&buf, "\r\n")
+		buf.Write(body)
+	} else {
+		myurl, err := url.Parse(req.RequestURI)
+		if err != nil {
+			s.log.Errorf("url.Parse(req.RequestURI) failed: %s", err)
+			return
+		}
+		req.URL = myurl
+		req.RequestURI = ""
+		req.Write(&buf)
 	}
-	req.URL = myurl
-	req.RequestURI = ""
-
-	buf := new(bytes.Buffer)
-	req.Write(buf)
 
 	s.log.Debugf("RAW HTTP REQUEST:\n%s", string(buf.Bytes()))
 
-	rawReply, err := sendRequest(s.thin, buf.Bytes())
+	thin := s.getThin()
+	rawReply, err := sendRequest(thin, buf.Bytes())
+	if err != nil {
+		s.log.Warnf("Thin client error, reconnecting: %s", err)
+		thin = s.reconnect()
+		rawReply, err = sendRequest(thin, buf.Bytes())
+	}
 	if err != nil {
 		s.log.Errorf("Failed to send message: %s", err)
-		// Check if it's a payload size error
 		if strings.Contains(err.Error(), "exceeds maximum") {
 			http.Error(w, "custom 500", http.StatusInternalServerError)
 		} else {
@@ -233,36 +230,60 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// use the streaming decoder and simply return the first cbor object
-	// and then discard the decoder and buffer
-	response := new(http_proxy.Response)
-	dec := cbor.NewDecoder(bytes.NewReader(rawReply))
-	err = dec.Decode(response)
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(rawReply)), nil)
 	if err != nil {
-		s.log.Errorf("Failed to decode response: %s", err)
+		s.log.Errorf("Failed to parse response: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
 
-	if response.Error != "" {
-		s.log.Errorf("Response Error: %s", response.Error)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	responsePayload, err := common.DecompressData(response.Payload)
+	responsePayload, err := io.ReadAll(resp.Body)
 	if err != nil {
-		s.log.Errorf("common.DecompressData failed: %s", err)
+		s.log.Errorf("Failed to read response body: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	responsePayload = bytes.TrimRight(responsePayload, "\x00")
 
 	s.log.Infof("Response: %s", responsePayload)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responsePayload)))
-	w.WriteHeader(http.StatusOK)
+	for k, v := range resp.Header {
+		kLower := strings.ToLower(k)
+		if kLower == "content-type" || kLower == "content-length" || kLower == "date" || kLower == "host" || kLower == "transfer-encoding" || kLower == "connection" {
+			continue
+		}
+		for _, hv := range v {
+			w.Header().Add(k, hv)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
 	fmt.Fprintf(w, string(responsePayload))
+}
+
+func sendRequest(thin *thin.ThinClient, httpRequestBytes []byte) ([]byte, error) {
+	if len(httpRequestBytes) > UserForwardPayloadLength {
+		return nil, fmt.Errorf("payload size %d exceeds maximum %d bytes", len(httpRequestBytes), UserForwardPayloadLength)
+	}
+
+	doc := thin.PKIDocument()
+	if doc == nil {
+		return nil, fmt.Errorf("PKI document is not available")
+	}
+	fmt.Printf("PKI doc epoch=%d, num service nodes=%d\n", doc.Epoch, len(doc.ServiceNodes))
+
+	target, err := thin.GetService(ProxyHTTPService)
+	if err != nil {
+		return nil, fmt.Errorf("GetService(%s) failed: %w", ProxyHTTPService, err)
+	}
+	nodeId := sha256.Sum256(target.MixDescriptor.IdentityKey)
+	fmt.Printf("GetService(%s) ok: endpoint=%s, node=%x\n", ProxyHTTPService, target.RecipientQueueID, nodeId[:8])
+
+	timeoutCtx, cancel := context.WithTimeout(context.TODO(), time.Duration(timeout)*time.Second)
+	defer cancel()
+	return thin.BlockingSendMessage(timeoutCtx, httpRequestBytes, &nodeId, target.RecipientQueueID)
 }
 
 func (s *Server) SendTestProbes(testProbeSendDelay int, testProbeCount int, testProbeResponseDelay int) {
@@ -284,7 +305,7 @@ func (s *Server) SendTestProbes(testProbeSendDelay int, testProbeCount int, test
 		packetsTransmitted++
 		t := time.Now()
 
-		_, err = sendRequest(s.thin, httpRequestBytes)
+		_, err = sendRequest(s.getThin(), httpRequestBytes)
 		elapsed := time.Since(t).Seconds()
 		if err != nil {
 			s.log.Errorf("Probe failed after %.2fs: %s", elapsed, err)
@@ -307,7 +328,6 @@ func (s *Server) SendTestProbes(testProbeSendDelay int, testProbeCount int, test
 		s.log.Infof("Probe packet transmitted/received/loss = %d/%d/%.1f%% | rtt min/avg/max = %.2f/%.2f/%.2f s",
 			packetsTransmitted, packetsReceived, packetLoss, rttMin, rttAvg, rttMax)
 
-		// probe indefinitely if testProbeCount is 0
 		if testProbeCount != 0 && packetsTransmitted >= testProbeCount {
 			os.Exit(0)
 		}

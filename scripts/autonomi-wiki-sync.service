@@ -1,0 +1,12 @@
+[Unit]
+Description=Autonomi Wiki Sync — download archive from Autonomi, update llm-wiki
+Documentation=https://github.com/Alchemi1/zknode-autonomi-alpha
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/user/zknode-autonomi/scripts/autonomi-wiki-sync.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=autonomi-wiki-sync
