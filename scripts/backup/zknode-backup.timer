@@ -1,0 +1,10 @@
+[Unit]
+Description=zknode daily backup timer
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

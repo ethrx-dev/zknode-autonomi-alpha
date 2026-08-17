@@ -1,0 +1,6 @@
+config/
+*.sock
+*.socket
+*.log
+node_modules/
+p2p-wiki/
