@@ -40,7 +40,7 @@ A self-contained private Autonomi storage node with traffic anonymized through a
 │  │  │dirauth 3 │  │ mix-3  │  │        │  │ (echo/proxy) │  │   │
 │  │  └──────────┘  └────────┘  └────────┘  └──────────────┘  │   │
 │  │                                                          │   │
-│  │  PKI epoch 238999 · MLKEM768 · BLAKE2b-256 · 3-hop       │   │
+│  │  PKI · MLKEM768 · BLAKE2b-256 · 3-hop                │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘

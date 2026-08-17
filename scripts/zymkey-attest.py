@@ -72,7 +72,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Zymkey ZK Attestation")
     parser.add_argument("--merkle-root", required=True, help="Storage Merkle root")
-    parser.add_argument("--node-address", default="0xef902cC111D5435C5116c123771D9459FC77AD4B",
+    parser.add_argument("--node-address", default="0x0000000000000000000000000000000000000000",
                         help="Node rewards address")
     parser.add_argument("--verify", metavar="FILE", help="Verify attestation JSON file")
 

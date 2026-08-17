@@ -9,7 +9,7 @@ WorkingDirectory=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1
 ExecStart=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node \
     --root-dir %h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1 \
     --port 12000 \
-    --rewards-address 0xef902cC111D5435C5116c123771D9459FC77AD4B \
+    --rewards-address 0x0000000000000000000000000000000000000000 \
     --evm-network arbitrum-sepolia \
     --network-mode testnet \
     --ipv4-only \

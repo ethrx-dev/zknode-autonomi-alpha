@@ -200,7 +200,7 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ## 9. Next Steps
 
-1. ~~**Register ant-node on-chain** — wallet funded (0.04 ETH on Arbitrum Sepolia)~~ **DONE** — Node live on Autonomi Testnet since 2026-07-03. See [Live Node Status](LIVE_NODE_STATUS.md).
+1. ~~**Register ant-node on-chain** — wallet funded on Arbitrum Sepolia~~ **DONE** — Node live on Autonomi Testnet. See [Live Node Status](LIVE_NODE_STATUS.md).
 2. **Bridge networking** — replace host networking for production multi-instance isolation
 3. **Zymkey HSM signing** — ant-node code changes for HSM-backed EVM transactions
 4. **USB pool setup** — LUKS encrypted chunk storage on external drives
@@ -211,9 +211,9 @@ gunzip -c /media/sdcard/zknode-autonomi-images.tar.gz | docker load
 
 ### What Works
 
-- **ant-node v0.14.2** running on zknode01 SCM4 via `systemd --user`
+- **ant-node v0.14.4** running on SCM4 via `systemd --user`
 - **Binary runs directly on host** — statically linked ARM64, no Docker dependency for ant-node
-- **Node is discoverable** — public IP 24.31.26.231:12000, confirmed by multiple DHT peers
+- **Node is discoverable** — public IP <your-public-ip>:12000, confirmed by multiple DHT peers
 - **Replication active** — `/rr/autonomi.ant.replication.v2` protocol traffic flowing
 - **Auto-restart** — systemd `Restart=always` with 10s backoff
 - **LMDB storage** — chunks.mdb + paid_list.mdb working

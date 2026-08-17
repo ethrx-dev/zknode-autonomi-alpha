@@ -144,7 +144,7 @@ sudo zbcli manifest
 
 ```bash
 # Create a signed image of your root filesystem
-sudo zbcli imager --include /home/zymbit/zknode-autonomi
+sudo zbcli imager --include /home/<node-user>/zknode-autonomi
 
 # Verify signature
 sudo zbcli manifest --verify

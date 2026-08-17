@@ -1,7 +1,7 @@
 # Live Node Status — Autonomi Testnet
 
 **Activated:** 2026-07-03 21:20 UTC
-**Host:** zknode01 SCM4 (Raspberry Pi SCM4, 8GB RAM, aarch64)
+**Host:** SCM4 (Raspberry Pi SCM4, 8GB RAM, aarch64)
 **Management:** `systemd --user` service (auto-start on boot, auto-restart on failure)
 
 ---
@@ -9,8 +9,8 @@
 ## Node Identity
 
 ```
-Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
-Binary:       ant-node 0.14.2 (statically linked ARM64)
+Peer ID:      <peer-id>
+Binary:       ant-node 0.14.4 (statically linked ARM64)
 Port:         UDP/QUIC :12000, IPv4-only mode
 Network:      Autonomi Testnet
 EVM:          Arbitrum Sepolia
@@ -20,8 +20,8 @@ Bootstrap:    7 peers (standard testnet bootstrap_peers.toml)
 ## Wallet
 
 ```
-Address:      0xef902c...XXXXX...77AD4B
-Balance:      ~0.04 ETH (Arbitrum Sepolia)
+Address:      0x0000...0000
+Balance:      <balance> (Arbitrum Sepolia)
 Network:      Arbitrum Sepolia testnet
 Purpose:      Rewards address for storage payments
 ```
@@ -54,7 +54,7 @@ WorkingDirectory=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1
 ExecStart=%h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1/ant-node \
     --root-dir %h/zknode-autonomi/data/antd/.local/share/ant/nodes/node-1 \
     --port 12000 \
-    --rewards-address 0xef902c...XXXXX...77AD4B \
+    --rewards-address 0x0000...0000 \
     --evm-network arbitrum-sepolia \
     --network-mode testnet \
     --ipv4-only \
@@ -105,7 +105,7 @@ tail -f ~/zknode-autonomi/data/logs/ant-node.YYYY-MM-DD.log  # File logs (daily 
 | DHT peers | ~230 connected |
 | NAT traversal coordinators | 5 bootstrap peers |
 | Replication protocol | `/rr/autonomi.ant.replication.v2` (active) |
-| Public IP | 24.31.26.231 (confirmed by multiple peers) |
+| Public IP | <your-public-ip> (confirmed by multiple peers) |
 | Memory usage | ~20MB resident |
 | File descriptors | ~50 open |
 
@@ -143,7 +143,7 @@ The `storage-proved-rs` Docker container reads chunk files from `/mnt/autonomi/z
 | Service | `zkifc.service` (systemd, host) |
 | Device | `/dev/ttyACM7` (USB serial, symlink `/dev/zscm_7`) |
 | Uptime | 19+ hours |
-| Wallet | Stored at `/var/lib/zymbit/2712AF4B7AC2F93FD13F8B33BA15A44C36C52F2F1495246261BBC0FEE6D52475/` |
+| Wallet | Stored at `/var/lib/zymbit/<device-id>/` |
 | RTC sync | Working, NTP-ready |
 
 **Note:** The Docker compose `zkifc` container is **deprecated** — the zymkey is managed by the host-level systemd service. The compose container was removed because:

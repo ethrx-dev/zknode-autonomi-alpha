@@ -1,5 +1,5 @@
-Hostname = "zknode01"
-MeasuredAt = 2026-07-04T22:56:07.470856741Z
+Hostname = "<node-hostname>"
+MeasuredAt = 2026-01-01T00:00:00Z
 NumCPU = 4
 OpsPerSecPerCore = 93.6855981776727
 OpsPerSecSaturated = 77.32724292626717

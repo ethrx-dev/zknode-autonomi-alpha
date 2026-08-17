@@ -40,3 +40,8 @@ Thumbs.db
 *.swp
 *.swo
 zknode-autonomi-images.tar.gz
+
+# Backup and binary files
+*.bak
+*.tar.gz
+walletshield-fix/walletshield-*

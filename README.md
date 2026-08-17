@@ -4,12 +4,12 @@
 
 A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P2P Foundation's proof-of-useful-work movement.
 
-> **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.2 serving on Arbitrum Sepolia since 2026-07-03. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
+> **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.4 serving on Arbitrum Sepolia. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
 
 **Hardware**: SCM4/CM4 (8GB RAM, aarch64) with zymkey HSM.  
 **Mixnet**: Katzenpost v0.0.73-rc3+ (MLKEM768 PQ wire KEM, BLAKE2b-256 hashing, 3-hop Sphinx).  
 **ZK Proofs**: Merkle storage proofs (BLAKE2b), bandwidth proofs, zymkey hardware attestation.  
-**Storage**: Autonomi ant-node v0.14.2 with LMDB chunk store — managed via systemd --user.
+**Storage**: Autonomi ant-node v0.14.4 with LMDB chunk store — managed via systemd --user.
 
 ---
 ## Architecture
@@ -107,14 +107,14 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/wa
 
 ---
 
-## Live Node (zknode01 SCM4)
+## Live Node (<node-hostname> SCM4)
 
 ```
-Peer ID:      d9f87b16195ee7ac9614d70ba9d8bbd59361cb55f4c85415ee5511a7bb77bedd
-Version:      ant-node 0.14.2
+Peer ID:      <peer-id>
+Version:      ant-node 0.14.4
 Network:      Autonomi Testnet, Arbitrum Sepolia
-Public IP:    24.31.26.231:12000 (QUIC/UDP)
-Wallet:       0xef902c...XXXXX...77AD4B (0.04 ETH)
+Public IP:    <your-public-ip>:12000 (QUIC/UDP)
+Wallet:       0x0000...0000 (rewards address)
 Service:      systemd --user (enabled, Restart=always, RestartSec=10)
 DHT Peers:    ~100 connected
 Replication:  Active (/rr/autonomi.ant.replication.v2)
@@ -221,22 +221,27 @@ zknode-autonomi/
 
 | Issue | Status | Resolution |
 |-------|--------|------------|
-| **Live testnet node** | ✅ Deployed | ant-node v0.14.2 running via `systemd --user` on zknode01 SCM4 since 2026-07-03. UDP :12000, Arbitrum Sepolia, ~100 DHT peers. See [Live Node Status](docs/LIVE_NODE_STATUS.md). |
+| **Live testnet node** | ✅ Deployed | ant-node v0.14.4 running via `systemd --user` on SCM4. UDP :12000, Arbitrum Sepolia, ~100 DHT peers. See [Live Node Status](docs/LIVE_NODE_STATUS.md). |
 | **Host networking** | 🔶 Planned | Mixnet containers share host network. Bridge networking with BindAddresses in katzenpost.toml for production multi-instance isolation. |
 | **Dirauth startup race** | ✅ Mitigated | Entrypoints use `while true; do ...; sleep 2; done` retry loops. All 3 auths converge within 2 epochs after clean restart. |
 | **LMDB overcommit_memory** | ✅ Fixed | `privileged: true` on antd container with `echo 1 > /proc/sys/vm/overcommit_memory` at startup. |
 | **walletshield** | ✅ Fixed | Rebuilt with matching Sphinx geometry (PacketLength=3082). Running in compose at `:9200` connected to kpclientd on :64332. |
 | **Rust Winterfell STARKs** | ✅ Fixed | `storage-proved-rs` built and deployed (109MB). Cross-compiled for arm64, serves Merkle proof API on :9201. |
+| **mixnet-proxy rewrite** | ✅ Fixed | Proxy now properly serializes HTTP requests via `httputil.DumpRequest`, decodes CBOR responses, caches service descriptor, real SHA-256 hash chain bandwidth proof. Service changed from `echo` to `http_proxy`. |
+| **antd log bloat** | ✅ Fixed | Log level changed from `debug` to `info`. Old logs (15.5GB) cleaned up. Log growth reduced from ~70MB/min to ~350K/min. |
+| **VPS mixnet deployment** | ✅ Running | VPS mixnet at `<vps-ip>` running with systemd units installed. 3 dirauths + 3 mixes + gateway + servicenode + courier + kpclientd + http_proxy all active. |
 | **Zymkey HSM signing** | 🔌 Planned | zymkey stores wallet key in slot 23/24. ant-node code changes needed for HSM-backed EVM transaction signing. |
 | **kpclientd epoch sync** | 🔶 Workaround | Ping binary achieves 100% mixnet success. kpclientd PKI doc retrieval uses `currentDocument()` fallback — needs auth restarted at epoch start for full consensus with node descriptors. |
 | **Bridge network isolation** | 📋 Future | Each mixnet node on unique bridge network with BindAddress for production multi-tenant deployments. |
+| **Gap 2: mixnet-proxy → http_proxy** | ✅ Fixed | Proxy now sends real HTTP requests through the `http_proxy` kaetzchen service on the VPS servicenode, with CBOR response decoding. See `cmd/mixnet-proxy/main.go`. |
+| **Alchemi1 remote cleanup** | ✅ Done | Dead `alchemi` remote removed from SCM4. Primary repo is `ethrx-dev/zknode-autonomi-alpha`. |
 
 ---
 
 ## Documentation
 
 - [P4P Reference Architecture](docs/P4P_ARCHITECTURE.md) — Complete technical reference
-- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on zknode01 SCM4
+- [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on SCM4
 - [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md) — Full deployment walkthrough
 - [Architecture](docs/ARCHITECTURE.md) — System layers and data flow
 - [Hardware Setup](docs/HARDWARE_SETUP.md) — SCM4 hardware, storage, USB pool

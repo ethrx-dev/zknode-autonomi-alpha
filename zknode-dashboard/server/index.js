@@ -363,7 +363,7 @@ app.get('/api/wiki/suggest/:slug', async (req, res) => {
 const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
 
 function zkchatCmd(args, timeout = 10000) {
-  const cmd = 'docker run --rm --network host -v /home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost -v /home/zero-tech/zknode01/bin:/usr/local/bin zeros/mixnet-node-fixed:v0.0.84 /usr/local/bin/zkchat ' + args + ' 2>&1';
+  const cmd = 'docker run --rm --network host -v /home/<node-user>/zknode-autonomi/config/mixnet:/var/lib/katzenpost -v /home/<node-user>/ant/bin:/usr/local/bin zeros/mixnet-node-fixed:v0.0.84 /usr/local/bin/zkchat ' + args + ' 2>&1';
   const r = runShell(cmd, timeout);
   if (!r.ok) {
     const err = r.stderr || r.error || '';
@@ -619,7 +619,7 @@ app.post('/api/ant/node/stop', async (req, res) => {
 });
 
 const ARB_SEPOLIA_RPC = process.env.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc';
-const ANT_TOKEN_ADDR = process.env.ANT_TOKEN_ADDR || '0xa2e8920fFbD5E5De5fF38E48b9B5621d0E7Cfd66'; // ANT on Arb Sepolia
+const ANT_TOKEN_ADDR = process.env.ANT_TOKEN_ADDR || '0x0000000000000000000000000000000000000000'; // ANT on Arb Sepolia
 
 async function getTokenBalance(rpcUrl, tokenAddr, walletAddr) {
   const data = tokenAddr
