@@ -46,7 +46,13 @@ geometry mismatch between proxy and mixnet.
 3. Test with `docker run` directly (bypass Docker Compose)
 4. Enable debug logging in proxy config
 
-**Status**: Needs investigation
+**Status**: ✅ Completed — Rebuilt mixnet-proxy with current code. Fixed three issues:
+1. `client2` imports → `client` (package was renamed but imports not updated)
+2. Thinclient.toml format: `[Dial.Tcp]` nesting → top-level `Network`/`Address` fields
+3. Service name: `http_proxy` → `proxy` (capability name, not endpoint)
+4. HTTP request URL: set `req.RequestURI` to absolute URL so http_proxy kaetzchen can forward
+
+SOCKS5 proxy now routes HTTP traffic through mixnet (3-hop Sphinx path → service node http_proxy kaetzchen → upstream). Verified: `curl --socks5 127.0.0.1:1080 http://httpbin.org/ip` returns VPS exit IP, not SCM4 IP.
 
 ---
 
@@ -174,6 +180,6 @@ that can be run from a fresh OS install.
 | CI/CD pipeline | High | Medium | ✅ Completed |
 | Recovery documentation | Medium | Small | ✅ Completed |
 | Peer onboarding | Medium | Medium | ✅ Completed |
-| mixnet-proxy fix | High | Medium | Next week |
+| mixnet-proxy fix | High | Medium | ✅ Completed |
 | Mesh chat bridge | Low | Large | Future |
 | Key rotation | Low | Medium | Future |
