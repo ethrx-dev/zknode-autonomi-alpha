@@ -5,7 +5,6 @@ import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg }
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
-import https from 'https';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
@@ -15,7 +14,6 @@ const DOCKER_SOCK = '/var/run/docker.sock';
 let cachedChainId = null;
 let cachedNetVersion = null;
 let wsHeartbeatState = { ok: false, lastOk: null, lastError: null, error: null };
-const wsAgent = new HttpAgent({ keepAlive: true, keepAliveMsecs: 10000, maxSockets: 10 });
 let ZKCHAT_MESSAGES = [];
 const CHAT_HISTORY_FILE = "/app/public/chat-history.json";
 let ZKCHAT_GROUP_HISTORY = {};
@@ -711,28 +709,23 @@ app.get('/api/containers', async (req, res) => res.json(await getContainers()));
 app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
 app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
 app.get('/api/ws-heartbeat', (req, res) => res.json(wsHeartbeatState));
-const DIRECT_RPC = process.env.DIRECT_RPC || 'https://ethereum-rpc.publicnode.com';
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 10 });
+const wsAgent = new HttpAgent({ keepAlive: true, keepAliveMsecs: 10000, maxSockets: 10 });
 
 function wsProxy(bodyStr) {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const url = new URL(DIRECT_RPC);
     const opts = {
-      hostname: url.hostname,
-      port: url.port || 443,
-      path: url.pathname,
-      method: 'POST',
-      agent: httpsAgent,
+      hostname: '127.0.0.1', port: 9200, path: '/ethereum',
+      method: 'POST', agent: wsAgent,
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) }
     };
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
       r.destroy();
-      reject(new Error('rpc timeout'));
-    }, 15000);
-    const r = https.request(opts, (resp) => {
+      reject(new Error('walletshield timeout'));
+    }, 30000);
+    const r = httpRequest(opts, (resp) => {
       let data = '';
       resp.on('data', c => data += c);
       resp.on('end', () => {
