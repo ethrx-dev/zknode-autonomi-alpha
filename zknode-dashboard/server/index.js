@@ -1,10 +1,11 @@
 import { request as httpRequest, Agent as HttpAgent } from 'http';
 import { existsSync, writeFileSync } from "fs";
-import { execSync, spawnSync } from 'child_process';
+import { execSync, spawnSync, exec as execAsync } from 'child_process';
 import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
+import https from 'https';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
@@ -32,6 +33,15 @@ function runShell(cmd, timeoutMs = 15000) {
     const stderr = e.stderr ? e.stderr.toString().trim() : '';
     return { ok: false, error: e.message, stderr };
   }
+}
+
+function runShellAsync(cmd, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    execAsync(cmd, { timeout: timeoutMs, encoding: 'utf8', maxBuffer: 1024 * 1024, shell: '/bin/sh' }, (err, stdout, stderr) => {
+      if (err) return resolve({ ok: false, error: err.message, stderr: stderr?.trim() || '' });
+      resolve({ ok: true, data: stdout.trim() });
+    });
+  });
 }
 
 function dockerApi(path) {
@@ -239,17 +249,13 @@ async function mcpCall(method, params = {}) {
 
 // ─── SYSTEM DATA FUNCTIONS ────────────────────────────────────
 
-function getSystemStats() {
+async function getSystemStats() {
   const mem = { total: totalmem(), free: freemem(), used: totalmem() - freemem() };
-  const disk = (() => {
-    try {
-      const out = execSync('df -B1 / /mnt/autonomi 2>/dev/null || df -B1 /', { timeout: 3000, encoding: 'utf8' });
-      return out.trim().split('\n').slice(1).map(l => {
-        const [, fs, sz, u, av, use, mp] = l.match(/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+(\S+)/) || [];
-        return fs ? { filesystem: fs, size: +sz, used: +u, available: +av, usePercent: +use, mount: mp } : null;
-      }).filter(Boolean);
-    } catch { return []; }
-  })();
+  const diskResult = await runShellAsync('df -B1 / /mnt/autonomi 2>/dev/null || df -B1 /', 3000);
+  const disk = diskResult.ok ? diskResult.data.trim().split('\n').slice(1).map(l => {
+    const [, fs, sz, u, av, use, mp] = l.match(/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+(\S+)/) || [];
+    return fs ? { filesystem: fs, size: +sz, used: +u, available: +av, usePercent: +use, mount: mp } : null;
+  }).filter(Boolean) : [];
   return {
     hostname: hostname(), platform: process.platform, arch: process.arch,
     uptime: uptime(), loadavg: loadavg(), cpuCount: cpus().length, memory: mem,
@@ -276,14 +282,16 @@ async function getMixnetStatus() {
   const containers = await getContainers();
   if (containers.error) return { error: containers.error };
   const authHosts = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
-  const authorities = authHosts.map((name, aidx) => {
+  const authorities = await Promise.all(authHosts.map(async (name, aidx) => {
     const c = containers.find(ct => ct.name === name);
     const running = c && c.state === 'running';
     const da = `mix-dirauth-${aidx + 1}`;
-    const epoch = running ? runShell(`docker exec ${da} sh -c "grep 'Epoch:' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*Epoch: //;s/ .*//'"`, 5000) : null;
-    const consensus = running ? runShell(`docker exec ${da} sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*: //;s/ .*//'"`, 5000) : null;
-    const nodeCount = running ? runShell(`docker exec ${da} sh -c "grep 'ServiceNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'servicenode' | wc -l"`, 5000) : null;
-    const gwCount = running ? runShell(`docker exec ${da} sh -c "grep 'GatewayNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'gateway' | wc -l"`, 5000) : null;
+    const [epoch, consensus, nodeCount, gwCount] = running ? await Promise.all([
+      runShellAsync(`docker exec ${da} sh -c "grep 'Epoch:' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*Epoch: //;s/ .*//'"`, 5000),
+      runShellAsync(`docker exec ${da} sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*: //;s/ .*//'"`, 5000),
+      runShellAsync(`docker exec ${da} sh -c "grep 'ServiceNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'servicenode' | wc -l"`, 5000),
+      runShellAsync(`docker exec ${da} sh -c "grep 'GatewayNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'gateway' | wc -l"`, 5000)
+    ]) : [null, null, null, null];
     return {
       host: `127.0.0.1:${30001 + aidx}`,
       data: running ? {
@@ -293,7 +301,7 @@ async function getMixnetStatus() {
         GatewayNodes: gwCount?.ok ? parseInt(gwCount.data.trim()) || 0 : 0
       } : { error: 'offline' }
     };
-  });
+  }));
   const mixnetNames = ['mix-1', 'mix-2', 'mix-3', 'mix-gateway', 'mix-servicenode', 'mix-client',
     'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3', 'mixnet-proxy'];
   const nodes = {};
@@ -316,14 +324,13 @@ async function getStorageStatus() {
   return { running: false, error: data?.error || 'no response' };
 }
 
-function getAntDaemonPort() {
-  try {
-    try { return parseInt(execSync('docker exec antd cat /root/.local/share/ant/daemon.port 2>/dev/null', { timeout: 3000, encoding: 'utf8' }).trim(), 10); } catch { return 12000; }
-  } catch { return null; }
+async function getAntDaemonPort() {
+  const r = await runShellAsync('docker exec antd cat /root/.local/share/ant/daemon.port 2>/dev/null', 3000);
+  return r.ok && r.data ? parseInt(r.data, 10) : 12000;
 }
 
 async function getAntDaemonStatus() {
-  const port = getAntDaemonPort();
+  const port = await getAntDaemonPort();
   if (!port) return { running: false, error: 'no daemon port file' };
   const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/status`);
   if (data && !data.error) return data;
@@ -699,54 +706,108 @@ app.get('/api/mesh/rns', (req, res) => {
 
 // ─── SYSTEM ENDPOINTS ─────────────────────────────────────────
 
-app.get('/api/system', (req, res) => res.json(getSystemStats()));
+app.get('/api/system', async (req, res) => res.json(await getSystemStats()));
 app.get('/api/containers', async (req, res) => res.json(await getContainers()));
 app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
 app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
 app.get('/api/ws-heartbeat', (req, res) => res.json(wsHeartbeatState));
-app.all('/ethereum', async (req, res) => {
-  try {
-    const method = req.body?.method;
-    const id = req.body?.id ?? 1;
+const DIRECT_RPC = process.env.DIRECT_RPC || 'https://ethereum-rpc.publicnode.com';
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 10 });
 
-    if (method === 'eth_chainId' && cachedChainId !== null) {
-      return res.json({ jsonrpc: '2.0', id, result: cachedChainId });
-    }
-    if (method === 'net_version' && cachedNetVersion !== null) {
-      return res.json({ jsonrpc: '2.0', id, result: cachedNetVersion });
-    }
-
-    const bodyStr = JSON.stringify(req.body || {});
-    const txt = await new Promise((resolve, reject) => {
-      const opts = {
-        hostname: '127.0.0.1', port: 9200, path: '/ethereum',
-        method: 'POST', agent: wsAgent,
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) }
-      };
-      const r = httpRequest(opts, (res) => {
-        let data = '';
-        res.on('data', c => data += c);
-        res.on('end', () => resolve(data));
+function wsProxy(bodyStr) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const url = new URL(DIRECT_RPC);
+    const opts = {
+      hostname: url.hostname,
+      port: url.port || 443,
+      path: url.pathname,
+      method: 'POST',
+      agent: httpsAgent,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) }
+    };
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      r.destroy();
+      reject(new Error('rpc timeout'));
+    }, 15000);
+    const r = https.request(opts, (resp) => {
+      let data = '';
+      resp.on('data', c => data += c);
+      resp.on('end', () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(data);
       });
-      r.on('error', reject);
-      r.setTimeout(20000, () => { r.destroy(); reject(new Error('timeout')); });
-      r.write(bodyStr);
-      r.end();
     });
+    r.on('error', (e) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(e);
+    });
+    r.write(bodyStr);
+    r.end();
+  });
+}
 
+function cachedResponse(method, id) {
+  if (method === 'eth_chainId' && cachedChainId !== null)
+    return { jsonrpc: '2.0', id, result: cachedChainId };
+  if ((method === 'net_version' || method === 'eth_chainId') && cachedNetVersion !== null && method === 'net_version')
+    return { jsonrpc: '2.0', id, result: cachedNetVersion };
+  return null;
+}
+
+app.all('/ethereum', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  try {
+    const body = req.body;
+    const isBatch = Array.isArray(body);
+
+    if (isBatch) {
+      const results = await Promise.all(body.map(async (item) => {
+        const method = item.method;
+        const id = item.id ?? 1;
+        const cached = cachedResponse(method, id);
+        if (cached) return cached;
+        try {
+          const txt = await wsProxy(JSON.stringify(item));
+          const p = JSON.parse(txt);
+          if (method === 'eth_chainId' && p.result) cachedChainId = p.result;
+          if (method === 'net_version' && p.result) cachedNetVersion = p.result;
+          return p;
+        } catch (e) {
+          const c = cachedResponse(method, id);
+          if (c) return c;
+          return { jsonrpc: '2.0', id, error: { code: -32603, message: e.message } };
+        }
+      }));
+      return res.json(results);
+    }
+
+    const method = body?.method;
+    const id = body?.id ?? 1;
+    const cached = cachedResponse(method, id);
+    if (cached) return res.json(cached);
+
+    const txt = await wsProxy(JSON.stringify(body || {}));
     try { const p = JSON.parse(txt); if (method === 'eth_chainId' && p.result) cachedChainId = p.result; } catch {}
     try { const p = JSON.parse(txt); if (method === 'net_version' && p.result) cachedNetVersion = p.result; } catch {}
-
     res.set('Content-Type', 'application/json');
     res.send(txt);
   } catch (e) {
-    if (req.body?.method === 'eth_chainId' && cachedChainId !== null) {
-      return res.json({ jsonrpc: '2.0', id: req.body.id ?? 1, result: cachedChainId });
-    }
-    if (req.body?.method === 'net_version' && cachedNetVersion !== null) {
-      return res.json({ jsonrpc: '2.0', id: req.body.id ?? 1, result: cachedNetVersion });
-    }
-    res.status(502).json({ error: e.message });
+    const method = req.body?.method;
+    const id = req.body?.id ?? 1;
+    const cached = cachedResponse(method, id);
+    if (cached) return res.json(cached);
+    if (Array.isArray(req.body)) return res.status(502).json(req.body.map(item => ({ jsonrpc: '2.0', id: item.id ?? 1, error: { code: -32603, message: e.message } })));
+    res.status(502).json({ jsonrpc: '2.0', id, error: { code: -32603, message: e.message } });
   }
 });
 
@@ -922,7 +983,7 @@ app.get('/api/services', async (req, res) => {
     getMixnetStatus(),
     getWalletshieldStatus(),
     getStorageStatus(),
-    Promise.resolve(getSystemStats())
+    getSystemStats()
   ]);
   const [antNodes, antDaemon] = await Promise.all([
     getAntNodeStatus(),
@@ -946,14 +1007,20 @@ app.get('/api/services', async (req, res) => {
 app.get('/api/health', async (req, res) => {
   try {
     const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
-      .filter(n => { try { return execSync('docker ps --format \"{{.Names}}\" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
+      .filter(n => { try { return execSync('docker ps --format "{{.Names}}" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
     const wsOk = wsHeartbeatState.ok ? '200' : '000';
 
-    const lastBackup = (() => { try { const r = execSync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', { timeout: 3000 }).toString().trim(); if (!r) return -1; const age = execSync('echo $(( ($(date +%s) - $(stat -c %Y "' + r + '")) / 3600 ))', { timeout: 3000 }).toString().trim(); return parseInt(age) || -1; } catch { return -1; }})();
-    const disk = parseFloat(execSync("df / | tail -1 | awk '{print \$5}' | sed 's/%//'", { timeout: 3000 }).toString().trim());
+    const [lastBackup, disk, dirauthConsensus] = await Promise.all([
+      runShellAsync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', 3000).then(r => {
+        if (!r.ok || !r.data) return -1;
+        return runShellAsync('echo $(( ($(date +%s) - $(stat -c %Y "' + r.data + '")) / 3600 ))', 3000).then(r2 => parseInt(r2.data) || -1).catch(() => -1);
+      }).catch(() => -1),
+      runShellAsync("df / | tail -1 | awk '{print $5}' | sed 's/%//'", 3000).then(r => parseFloat(r.data) || 0).catch(() => 0),
+      runShellAsync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false)
+    ]);
     res.json({
       status: mixOk >= 5 && wsOk === '200' ? 'healthy' : 'degraded',
-      dirauth_consensus: execSync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', { timeout: 3000 }).toString().trim() !== '0',
+      dirauth_consensus: dirauthConsensus,
       mix_nodes: mixOk + '/6',
       walletshield_http: wsOk,
       dashboard_http: '200',
@@ -979,12 +1046,8 @@ setInterval(() => {
 
 async function wsHeartbeat() {
   try {
-    const r = await fetch('http://127.0.0.1:9200/ethereum', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 'hb', method: 'eth_blockNumber', params: [] })
-    });
-    const txt = await r.text();
+    const bodyStr = JSON.stringify({ jsonrpc: '2.0', id: 'hb', method: 'eth_blockNumber', params: [] });
+    const txt = await wsProxy(bodyStr);
     const p = JSON.parse(txt);
     if (p.result) {
       wsHeartbeatState.ok = true;
@@ -1001,7 +1064,7 @@ async function wsHeartbeat() {
     console.log('[ws-hb] walletshield unreachable:', e.message);
   }
 }
-setInterval(wsHeartbeat, 10000);
+setInterval(wsHeartbeat, 30000);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`ZKNode Dashboard running on http://0.0.0.0:${PORT}`);
