@@ -1,7 +1,5 @@
-[Dial]
-  [Dial.Tcp]
-    Address = "localhost:64332"
-    Network = "tcp"
+Network = "tcp"
+Address = "127.0.0.1:64332"
 
 [SphinxGeometry]
   PacketLength = 3082
