@@ -1610,20 +1610,43 @@ function chatInviteMember() {
       <h2 class="text-lg font-bold glowing" style="font-family:'Orbitron',sans-serif;">INVITE TO #${state.chat.activeGroupName}</h2>
       <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-500 hover:text-white" style="font-size:1.5rem;">×</button>
     </div>
-    <div class="mb-4 p-3 rounded" style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,136,0.1);">
-      <div style="font-size:0.6rem;color:var(--neon-green);margin-bottom:4px;">SHARE THIS GROUP ID WITH FRIENDS</div>
-      <div class="flex items-center gap-2">
-        <code id="chatGroupIdDisplay" style="font-size:0.65rem;word-break:break-all;flex:1;color:#ccc;">${state.chat.activeGroupId}</code>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('chatGroupIdDisplay').textContent);showToast('Group ID copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
+    <div class="mb-4 p-3 rounded" style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.2);">
+      <div style="font-size:0.6rem;color:var(--neon-green);margin-bottom:6px;font-weight:600;">INVITE LINK</div>
+      <div id="chatInviteLinkWrap" class="flex items-center gap-2">
+        <code id="chatInviteLink" style="font-size:0.55rem;word-break:break-all;flex:1;color:#ccc;">generating...</code>
+        <button id="chatInviteLinkCopy" onclick="navigator.clipboard.writeText(document.getElementById('chatInviteLink').textContent);showToast('Link copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;display:none;">COPY</button>
       </div>
-      <div style="font-size:0.6rem;color:var(--neon-green);margin-top:4px;">OR SCAN QR TO SHARE YOUR IDENTITY</div>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('zkchat:' + document.getElementById('chatIdentityFull').textContent)}" style="width:100px;height:100px;margin-top:4px;image-rendering:pixelated;" alt="QR">
+      <div id="chatInviteQrWrap" style="display:none;flex-direction:column;align-items:center;margin-top:8px;">
+        <img id="chatInviteQr" style="width:150px;height:150px;image-rendering:pixelated;" alt="QR">
+        <div style="font-size:0.55rem;color:#888;margin-top:4px;">Scan to join this group</div>
+      </div>
     </div>
-    <div class="mb-2" style="font-size:0.7rem;color:#aaa;">INVITE MEMBERS BY ADDRESS</div>
-    <textarea id="chatInviteMembers" placeholder="Member addresses (space-separated)..." class="w-full mb-4" style="background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:4px;font-size:0.75rem;outline:none;resize:vertical;height:80px;"></textarea>
-    <button onclick="chatDoInvite()" class="btn-primary w-full text-center">INVITE</button>
+    <div class="mb-2" style="font-size:0.7rem;color:#aaa;">OR INVITE MEMBERS BY ADDRESS MANUALLY</div>
+    <textarea id="chatInviteMembers" placeholder="Member addresses (space-separated hex...)" class="w-full mb-4" style="background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:4px;font-size:0.75rem;outline:none;resize:vertical;height:60px;"></textarea>
+    <button onclick="chatDoInvite()" class="btn-primary w-full text-center">INVITE BY ADDRESS</button>
   </div>`;
   document.body.appendChild(overlay);
+  chatGenerateInviteLink();
+}
+
+async function chatGenerateInviteLink() {
+  const linkEl = document.getElementById('chatInviteLink');
+  const copyBtn = document.getElementById('chatInviteLinkCopy');
+  const qrWrap = document.getElementById('chatInviteQrWrap');
+  const qrEl = document.getElementById('chatInviteQr');
+  try {
+    const r = await api('/api/chat/groups/invite-token', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id: state.chat.activeGroupId }) });
+    if (r.link) {
+      linkEl.textContent = r.link;
+      copyBtn.style.display = '';
+      qrWrap.style.display = 'flex';
+      qrEl.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(r.link);
+    } else {
+      linkEl.textContent = 'Error: ' + (r.error || 'unknown');
+    }
+  } catch (e) {
+    linkEl.textContent = 'Error: ' + e.message;
+  }
 }
 
 async function chatDoInvite() {
@@ -1637,6 +1660,63 @@ async function chatDoInvite() {
     await chatRefreshGroups();
   } else {
     showToast('Invite failed: ' + (r.error || 'unknown'), 'error');
+  }
+}
+
+async function chatCheckInviteLink() {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#invite=')) return;
+  const token = hash.slice(8);
+  window.location.hash = '';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()" style="max-width:420px;">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold glowing" style="font-family:'Orbitron',sans-serif;">JOIN GROUP</h2>
+    </div>
+    <div id="chatJoinInfo" style="text-align:center;">
+      <div style="color:#aaa;font-size:0.75rem;">Verifying invite token...</div>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const infoEl = document.getElementById('chatJoinInfo');
+  try {
+    const info = await api('/api/chat/groups/invite-info?token=' + encodeURIComponent(token));
+    if (info.error) {
+      infoEl.innerHTML = '<div style="color:#f44;font-size:0.8rem;">' + info.error + '</div><button onclick="this.closest(\'.modal-overlay\').remove()" class="btn-primary w-full text-center mt-4">CLOSE</button>';
+      return;
+    }
+    infoEl.innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="font-size:0.6rem;color:var(--neon-green);">GROUP ID</div>
+        <code style="font-size:0.65rem;word-break:break-all;color:#ccc;">${info.group_id}</code>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:0.6rem;color:var(--neon-green);">INVITED BY</div>
+        <code style="font-size:0.65rem;color:#ccc;">${info.inviter.slice(0,8)}...${info.inviter.slice(-6)}</code>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.6rem;color:var(--neon-green);margin-bottom:4px;">YOUR IDENTITY (paste from your node)</div>
+        <input id="chatJoinIdentity" placeholder="your 32-char hex identity" style="background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:8px 12px;border-radius:4px;font-size:0.7rem;outline:none;width:100%;" />
+      </div>
+      <button onclick="chatAcceptInvite('${token}')" class="btn-primary w-full text-center">JOIN GROUP</button>
+      <button onclick="this.closest('.modal-overlay').remove()" class="w-full text-center mt-2" style="font-size:0.7rem;color:#666;cursor:pointer;">CANCEL</button>
+    `;
+  } catch (e) {
+    infoEl.innerHTML = '<div style="color:#f44;font-size:0.8rem;">Error: ' + e.message + '</div>';
+  }
+}
+
+async function chatAcceptInvite(token) {
+  const identity = document.getElementById('chatJoinIdentity').value.trim();
+  if (!identity || identity.length !== 32) { showToast('Enter your 32-char hex identity', 'error'); return; }
+  const r = await api('/api/chat/groups/join-token', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ token, identity }) });
+  if (r.joined) {
+    showToast('Joined group ' + r.group_id.slice(0,8) + '...', 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    await chatRefreshGroups();
+  } else {
+    showToast('Join failed: ' + (r.error || 'unknown'), 'error');
   }
 }
 
@@ -1697,6 +1777,7 @@ document.addEventListener('DOMContentLoaded', function() {
   setTimeout(() => {
     chatRefreshGroups();
     chatFetchIdentity();
+    chatCheckInviteLink();
     if (state.chat && state.chat.activeGroupId) {
       chatSelectGroup(state.chat.activeGroupId, state.chat.activeGroupName);
     }
