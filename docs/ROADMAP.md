@@ -67,7 +67,7 @@ exchange and CLI commands.
 
 **Files**: `zknode-dashboard/server/invite.js`, `zknode-dashboard/public/invite.js`
 
-**Status**: ⏳ In progress — QR codes and identity display added to dashboard. Invite link generation remaining.
+**Status**: ✅ Completed — Invite token generation (`POST /api/chat/groups/invite-token`), token verification (`GET /api/chat/groups/invite-info`), auto-join (`POST /api/chat/groups/join-token`), QR code of invite link, and `/#invite=<token>` URL fragment handling for auto-join modal on page load. HMAC-signed tokens expire after 30 days.
 
 ---
 
@@ -173,7 +173,7 @@ that can be run from a fresh OS install.
 | Monitoring/alerting | High | Small | ✅ Completed |
 | CI/CD pipeline | High | Medium | ✅ Completed |
 | Recovery documentation | Medium | Small | ✅ Completed |
-| Peer onboarding | Medium | Medium | ⏳ In progress |
+| Peer onboarding | Medium | Medium | ✅ Completed |
 | mixnet-proxy fix | High | Medium | Next week |
 | Mesh chat bridge | Low | Large | Future |
 | Key rotation | Low | Medium | Future |
