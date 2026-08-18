@@ -74,7 +74,7 @@ func defaultConfig() AppConfig {
 		SocksAddr:      "127.0.0.1:1080",
 		MgmtAddr:       "127.0.0.1:9090",
 		ThinCfgPath:    "/etc/mixnet-proxy/thinclient.toml",
-		ServiceName:    "http_proxy",
+		ServiceName:    "proxy",
 		WireGuardIface: "wg0",
 		AntNodeAddr:    "10.0.0.2",
 	}
@@ -293,6 +293,7 @@ func handleConn(client net.Conn, tc *thin.ThinClient) {
 		if req.URL.Scheme == "" {
 			req.URL.Scheme = "http"
 		}
+		req.RequestURI = req.URL.String()
 
 		rawReq, err := httputil.DumpRequest(req, true)
 		if err != nil {
@@ -341,9 +342,16 @@ func handleConn(client net.Conn, tc *thin.ThinClient) {
 
 func forwardViaMixnet(tc *thin.ThinClient, svc *clientcommon.ServiceDescriptor, payload []byte) ([]byte, error) {
 	ikh := hash.Sum256(svc.MixDescriptor.IdentityKey)
+	log.Printf("proxy: sending %d bytes to node=%s queue=%s ikh=%x", len(payload), svc.MixDescriptor.Name, string(svc.RecipientQueueID), ikh)
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeoutSec*time.Second)
 	defer cancel()
-	return tc.BlockingSendMessage(ctx, payload, &ikh, svc.RecipientQueueID)
+	reply, err := tc.BlockingSendMessage(ctx, payload, &ikh, svc.RecipientQueueID)
+	if err != nil {
+		log.Printf("proxy: send failed: %v", err)
+		return nil, err
+	}
+	log.Printf("proxy: received %d bytes reply", len(reply))
+	return reply, nil
 }
 
 func updateProofChain(data []byte) {
@@ -359,7 +367,6 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 	thinMu.RLock()
 	c := thinClient != nil && thinClient.IsConnected()
 	thinMu.RUnlock()
-	svc := getService()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(Status{
 		MixnetConnected: c,
