@@ -4,6 +4,7 @@ import { execSync, spawnSync, exec as execAsync } from 'child_process';
 import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createHmac, randomBytes } from 'crypto';
 import express from 'express';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -595,6 +596,71 @@ app.post('/api/chat/groups/invite', (req, res) => {
   if (!group_id || !members || !members.length) return res.status(400).json({ error: 'group_id and members required' });
   const r = zkchatCmd(`group invite ${ZKCONF} ${group_id} ${members.join(' ')}`);
   res.json(r.ok ? { invited: true, output: r.data } : { error: r.error });
+});
+
+function getInviteSecret() {
+  const identity = getIdentityHex();
+  if (!identity) return null;
+  return createHmac('sha256', 'zknode-invite-v1').update(identity).digest('hex');
+}
+
+function createInviteToken(groupId) {
+  const identity = getIdentityHex();
+  if (!identity) return null;
+  const secret = getInviteSecret();
+  const ts = Math.floor(Date.now() / 1000);
+  const payload = `${groupId}.${identity}.${ts}`;
+  const sig = createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
+  const token = Buffer.from(`${payload}.${sig}`).toString('base64url');
+  return token;
+}
+
+function verifyInviteToken(token) {
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf8');
+    const parts = decoded.split('.');
+    if (parts.length !== 4) return null;
+    const [groupId, inviterId, tsStr, sig] = parts;
+    const ts = parseInt(tsStr, 10);
+    if (isNaN(ts)) return null;
+    const ageDays = (Date.now() / 1000 - ts) / 86400;
+    if (ageDays > 30) return null;
+    const secret = getInviteSecret();
+    if (!secret) return null;
+    const expectedSig = createHmac('sha256', secret).update(`${groupId}.${inviterId}.${tsStr}`).digest('hex').slice(0, 32);
+    if (sig !== expectedSig) return null;
+    return { groupId, inviterId, ts };
+  } catch { return null; }
+}
+
+app.post('/api/chat/groups/invite-token', (req, res) => {
+  const { group_id } = req.body || {};
+  if (!group_id) return res.status(400).json({ error: 'group_id required' });
+  const identity = getIdentityHex();
+  if (!identity) return res.status(500).json({ error: 'cannot determine identity' });
+  const token = createInviteToken(group_id);
+  if (!token) return res.status(500).json({ error: 'cannot create token' });
+  const host = req.headers.host || `${hostname()}:${PORT}`;
+  const link = `http://${host}/#invite=${token}`;
+  res.json({ token, link, group_id, inviter: identity });
+});
+
+app.post('/api/chat/groups/join-token', (req, res) => {
+  const { token, identity: joinerIdentity } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+  if (!joinerIdentity || joinerIdentity.length !== 32) return res.status(400).json({ error: 'valid 32-char identity hex required' });
+  const verified = verifyInviteToken(token);
+  if (!verified) return res.status(400).json({ error: 'invalid or expired invite token' });
+  const r = zkchatCmd(`group invite ${ZKCONF} ${verified.groupId} ${joinerIdentity}`);
+  res.json(r.ok ? { joined: true, group_id: verified.groupId, inviter: verified.inviterId, output: r.data } : { error: r.error || r.stderr || 'join failed' });
+});
+
+app.get('/api/chat/groups/invite-info', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  const verified = verifyInviteToken(token);
+  if (!verified) return res.status(400).json({ error: 'invalid or expired invite token' });
+  res.json({ group_id: verified.groupId, inviter: verified.inviterId, timestamp: verified.ts });
 });
 
 app.post('/api/chat/groups/leave', (req, res) => {
