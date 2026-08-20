@@ -15,6 +15,7 @@ RUN git clone --depth 1 https://github.com/ZeroKnowledgeNetwork/opt.git /src/opt
 
 # Override walletshield main.go with our fixed version (service=proxy)
 COPY walletshield-fix/main.go /src/opt/apps/walletshield/main.go
+COPY walletshield-fix/thin /src/opt/apps/walletshield/thin
 
 RUN cd /src/opt/apps/walletshield && \
     GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
