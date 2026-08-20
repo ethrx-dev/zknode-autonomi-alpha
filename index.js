@@ -792,7 +792,7 @@ app.get('/api/health', async (req, res) => {
   try {
     const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
       .filter(n => { try { return execSync('docker ps --format \"{{.Names}}\" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
-    const wsOk = (() => { try { const r = execSync('curl -s -o /dev/null -w \"%{http_code}\" --max-time 5 -X POST http://127.0.0.1:9200/ethereum -H \"Content-Type: application/json\" -d \'{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}\'', { timeout: 5000 }); return r.toString().trim(); } catch { return '000'; }})();
+    const wsOk = (() => { try { const r = execSync('curl -s -o /dev/null -w \"%{http_code}\" --max-time 30 -X POST http://127.0.0.1:9200/ethereum -H \"Content-Type: application/json\" -d \'{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}\'', { timeout: 35000 }); return r.toString().trim(); } catch { return '000'; }})();
     const lastBackup = (() => { try { const r = execSync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', { timeout: 3000 }).toString().trim(); if (!r) return -1; const age = execSync('echo $(( ($(date +%s) - $(stat -c %Y "' + r + '")) / 3600 ))', { timeout: 3000 }).toString().trim(); return parseInt(age) || -1; } catch { return -1; }})();
     const disk = parseFloat(execSync("df / | tail -1 | awk '{print \$5}' | sed 's/%//'", { timeout: 3000 }).toString().trim());
     res.json({

@@ -20,8 +20,8 @@ for m in mix-1 mix-2 mix-3 mix-gateway mix-servicenode mix-client; do
 done
 echo '  "mix_nodes_running": "'$MIX_OK'/6",'
 
-# Walletshield
-WS_OK=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:9200/ethereum \
+# Walletshield (30s timeout: mixnet roundtrip through 5 Sphinx hops + service node + upstream RPC)
+WS_OK=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 http://127.0.0.1:9200/ethereum \
   -X POST -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' 2>/dev/null || echo "000")
 echo '  "walletshield_http": "'$WS_OK'",'
