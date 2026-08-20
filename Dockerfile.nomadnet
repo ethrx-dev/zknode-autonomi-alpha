@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-dev \
     ca-certificates \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
@@ -20,7 +21,5 @@ EXPOSE 37428/udp 4242/tcp
 
 VOLUME ["/var/lib/nomadnet"]
 
-# Static pages are volume-mounted at runtime from config/nomadnet/pages/
-
-ENTRYPOINT ["nomadnet"]
-CMD ["--daemon", "--config", "/etc/nomadnet/config"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["nomadnet", "--daemon", "--console", "--config", "/etc/nomadnet", "--rnsconfig", "/etc/reticulum"]
