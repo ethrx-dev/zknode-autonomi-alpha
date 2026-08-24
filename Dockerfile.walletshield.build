@@ -1,0 +1,41 @@
+ARG TARGETARCH=arm64
+ARG BUILDER_ARCH=amd64
+
+FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy local katzenpost for replace directive
+COPY katzenpost /src/katzenpost
+
+# Create a minimal walletshield module with just what we need
+WORKDIR /src/walletshield
+COPY walletshield-fix/main.go ./main.go
+COPY walletshield-fix/thin ./thin
+COPY walletshield-fix/go.mod ./go.mod
+COPY walletshield-fix/go.sum ./go.sum
+
+# Update replace directive to use local katzenpost
+RUN sed -i 's|replace github.com/katzenpost/katzenpost => .*|replace github.com/katzenpost/katzenpost => /src/katzenpost|' go.mod && \
+    go mod tidy && \
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
+    CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+    go build -buildvcs=false -trimpath -ldflags="-buildid=" -o /dest/walletshield .
+
+FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /dest/walletshield /usr/local/bin/walletshield
+
+EXPOSE 9200
+
+ENTRYPOINT ["walletshield"]
+CMD ["-h"]
