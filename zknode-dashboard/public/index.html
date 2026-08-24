@@ -14,21 +14,21 @@
   --bg-card: #0d0d0d;
   --bg-card-hover: #111111;
   --bg-terminal: #030303;
-  --neon-green: #00ff88;
-  --neon-green-dim: #00cc6a;
-  --neon-green-glow: rgba(0,255,136,0.3);
-  --neon-cyan: #00d4ff;
-  --neon-cyan-dim: #00a8cc;
-  --neon-cyan-glow: rgba(0,212,255,0.3);
-  --neon-purple: #bf00ff;
-  --neon-purple-glow: rgba(191,0,255,0.3);
-  --neon-yellow: #ffff00;
+  --neon-green: #28D628;
+  --neon-green-dim: #1fa31f;
+  --neon-green-glow: rgba(40,214,40,0.3);
+  --neon-cyan: #28D628;
+  --neon-cyan-dim: #1fa31f;
+  --neon-cyan-glow: rgba(40,214,40,0.3);
+  --neon-purple: #28D628;
+  --neon-purple-glow: rgba(40,214,40,0.3);
+  --neon-yellow: #28D628;
   --neon-red: #ff0044;
   --text-primary: #e0e0e0;
   --text-secondary: #808080;
   --text-dim: #404040;
-  --border-subtle: rgba(0,255,136,0.15);
-  --border-active: rgba(0,255,136,0.4);
+  --border-subtle: rgba(40,214,40,0.15);
+  --border-active: rgba(40,214,40,0.4);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { height:100%; }
@@ -37,7 +37,7 @@ body {
   background:var(--bg-primary);
   color:var(--text-primary);
   min-height:100vh;
-  background-image:linear-gradient(rgba(0,255,136,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.02) 1px,transparent 1px);
+  background-image:linear-gradient(rgba(40,214,40,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(40,214,40,0.02) 1px,transparent 1px);
   background-size:50px 50px;
   -webkit-font-smoothing:antialiased;
   overflow-x:hidden;
@@ -68,19 +68,14 @@ body::before {
   display:flex; align-items:center; gap:8px; padding:4px 12px; border-radius:4px;
   font-size:0.65rem; letter-spacing:0.1em; border:1px solid;
 }
-.status-badge.online { background:rgba(0,255,136,0.1); color:var(--neon-green); border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green-glow); }
-.status-badge.offline { background:rgba(255,255,0,0.1); color:var(--neon-yellow); border-color:var(--neon-yellow); }
-.dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
-.dot.green { background:var(--neon-green); box-shadow:0 0 8px var(--neon-green-glow); }
-.dot.yellow { background:var(--neon-yellow); }
-.dot.red { background:var(--neon-red); }
-.dot.gray { background:var(--text-dim); }
+.status-badge.online {   background:rgba(40,214,40,0.1); color:var(--neon-green); border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green-glow); }
+.status-badge.offline { background:rgba(40,214,40,0.1); color:var(--neon-green); border-color:var(--neon-green); }
 
 .wallet-badge {
   display:flex; align-items:center; gap:8px; padding:4px 12px; border-radius:4px;
   font-size:0.7rem; letter-spacing:0.05em;
 }
-.wallet-addr { padding:8px 16px; border-radius:4px; background:rgba(0,255,136,0.05); border:1px solid rgba(0,255,136,0.2); font-size:0.8rem; }
+.wallet-addr { padding:8px 16px; border-radius:4px; background:rgba(40,214,40,0.05); border:1px solid rgba(40,214,40,0.2); font-size:0.8rem; }
 
 /* Buttons */
 .btn-primary {
@@ -88,22 +83,22 @@ body::before {
   border-radius:6px; border:1px solid var(--neon-green); cursor:pointer;
   transition:all 0.2s; font-family:'JetBrains Mono',monospace; font-size:0.8rem;
   text-transform:uppercase; letter-spacing:0.05em;
-  box-shadow:0 0 15px var(--neon-green-glow),inset 0 0 15px rgba(0,255,136,0.05);
+  box-shadow:0 0 15px var(--neon-green-glow),inset 0 0 15px rgba(40,214,40,0.05);
 }
 .btn-primary:hover { background:var(--neon-green); color:var(--bg-primary); box-shadow:0 0 30px var(--neon-green-glow); }
 .btn-secondary {
   background:transparent; color:var(--neon-cyan); font-weight:500; padding:10px 20px;
-  border-radius:6px; border:1px solid rgba(0,212,255,0.3); cursor:pointer;
+  border-radius:6px; border:1px solid rgba(40,214,40,0.3); cursor:pointer;
   transition:all 0.2s; font-family:'JetBrains Mono',monospace; font-size:0.8rem;
 }
-.btn-secondary:hover { background:rgba(0,212,255,0.1); border-color:var(--neon-cyan); }
+.btn-secondary:hover { background:rgba(40,214,40,0.1); border-color:var(--neon-cyan); }
 .btn-danger {
   background:transparent; color:var(--neon-red); border:1px solid var(--neon-red); padding:8px 16px; font-size:0.7rem;
   border-radius:6px; cursor:pointer; font-family:'JetBrains Mono',monospace;
 }
 .btn-danger:hover { background:rgba(255,0,68,0.1); }
-.btn-purple { border-color:rgba(191,0,255,0.3); color:var(--neon-purple); }
-.btn-purple:hover { background:rgba(191,0,255,0.1); border-color:var(--neon-purple); }
+.btn-purple { border-color:rgba(40,214,40,0.3); color:var(--neon-purple); }
+.btn-purple:hover { background:rgba(40,214,40,0.1); border-color:var(--neon-purple); }
 
 /* Layout */
 .layout { display:flex; flex:1; }
@@ -122,10 +117,10 @@ body::before {
   cursor:pointer; border:1px solid transparent; background:transparent;
   font-family:'JetBrains Mono',monospace; font-size:0.8rem; text-align:left; width:100%;
 }
-.sidebar-btn:hover { background:rgba(0,255,136,0.05); color:var(--text-primary); border-color:var(--border-subtle); }
-.sidebar-btn.active { background:rgba(0,255,136,0.1); color:var(--neon-green); border-color:var(--border-active); box-shadow:0 0 15px rgba(0,255,136,0.1); }
+.sidebar-btn:hover { background:rgba(40,214,40,0.05); color:var(--text-primary); border-color:var(--border-subtle); }
+.sidebar-btn.active { background:rgba(40,214,40,0.1); color:var(--neon-green); border-color:var(--border-active); box-shadow:0 0 15px rgba(40,214,40,0.1); }
 .sidebar-btn .icon { font-size:1.1rem; width:24px; text-align:center; }
-.sidebar-footer { padding:1rem; border-top:1px solid rgba(0,255,136,0.1); }
+.sidebar-footer { padding:1rem; border-top:1px solid rgba(40,214,40,0.1); }
 .sidebar-footer .ver { font-size:0.6rem; color:var(--text-dim); letter-spacing:0.1em; }
 
 main { flex:1; padding:1.5rem; overflow-y:auto; max-height:calc(100vh - 60px); }
@@ -138,15 +133,11 @@ main { flex:1; padding:1.5rem; overflow-y:auto; max-height:calc(100vh - 60px); }
 
 .terminal-card { background:var(--bg-terminal); border:1px solid var(--border-subtle); border-radius:8px; overflow:hidden; }
 .terminal-header {
-  background:rgba(0,255,136,0.05); border-bottom:1px solid var(--border-subtle);
+  background:rgba(40,214,40,0.05); border-bottom:1px solid var(--border-subtle);
   padding:8px 12px; display:flex; align-items:center; gap:8px;
   font-size:0.7rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-secondary);
 }
-.terminal-dots { display:flex; gap:6px; }
-.terminal-dot { width:8px; height:8px; border-radius:50%; }
-.terminal-dot.red { background:var(--neon-red); }
-.terminal-dot.yellow { background:var(--neon-yellow); }
-.terminal-dot.green { background:var(--neon-green); }
+
 .terminal-body { padding:1rem; }
 
 .stat-card {
@@ -156,7 +147,7 @@ main { flex:1; padding:1.5rem; overflow-y:auto; max-height:calc(100vh - 60px); }
 .stat-card::before { content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--neon-green); box-shadow:0 0 10px var(--neon-green-glow); }
 .stat-card.cyan::before { background:var(--neon-cyan); box-shadow:0 0 10px var(--neon-cyan-glow); }
 .stat-card.purple::before { background:var(--neon-purple); box-shadow:0 0 10px var(--neon-purple-glow); }
-.stat-card.yellow::before { background:var(--neon-yellow); box-shadow:0 0 10px rgba(255,255,0,0.3); }
+.stat-card.yellow::before { background:var(--neon-yellow); box-shadow:0 0 10px rgba(40,214,40,0.3); }
 .stat-value { font-size:1.75rem; font-weight:700; font-family:'Orbitron',sans-serif; color:var(--neon-green); text-shadow:0 0 20px var(--neon-green-glow); }
 .stat-label { font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.15em; margin-top:8px; }
 
@@ -214,34 +205,34 @@ main { flex:1; padding:1.5rem; overflow-y:auto; max-height:calc(100vh - 60px); }
 .text-white { color:var(--text-primary); }
 
 .badge { padding:4px 8px; border-radius:4px; font-size:0.65rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
-.badge-success { background:rgba(0,255,136,0.1); color:var(--neon-green); border:1px solid rgba(0,255,136,0.3); }
-.badge-warning { background:rgba(255,255,0,0.1); color:var(--neon-yellow); border:1px solid rgba(255,255,0,0.3); }
+.badge-success { background:rgba(40,214,40,0.1); color:var(--neon-green); border:1px solid rgba(40,214,40,0.3); }
+.badge-warning { background:rgba(255,255,0,0.1); color:var(--neon-yellow); border:1px solid rgba(40,214,40,0.3); }
 .badge-danger { background:rgba(255,0,68,0.1); color:var(--neon-red); border:1px solid rgba(255,0,68,0.3); }
-.badge-info { background:rgba(0,212,255,0.1); color:var(--neon-cyan); border:1px solid rgba(0,212,255,0.3); }
+.badge-info { background:rgba(40,214,40,0.1); color:var(--neon-cyan); border:1px solid rgba(40,214,40,0.3); }
 
 /* Table */
 .table-wrap { border:1px solid var(--border-subtle); border-radius:8px; overflow:hidden; }
 table { width:100%; border-collapse:collapse; }
-th { background:rgba(0,255,136,0.05); border-bottom:1px solid var(--border-subtle); padding:12px 16px; text-align:left; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-secondary); }
+th { background:rgba(40,214,40,0.05); border-bottom:1px solid var(--border-subtle); padding:12px 16px; text-align:left; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-secondary); }
 td { padding:12px 16px; border-bottom:1px solid var(--border-subtle); font-size:0.85rem; }
-tr:hover td { background:rgba(0,255,136,0.02); }
+tr:hover td { background:rgba(40,214,40,0.02); }
 
 .input { width:100%; background:var(--bg-terminal); border:1px solid var(--border-subtle); border-radius:6px; padding:12px 16px; color:var(--neon-green); font-size:0.9rem; font-family:'JetBrains Mono',monospace; transition:all 0.2s; }
 .input:focus { outline:none; border-color:var(--neon-green); box-shadow:0 0 15px var(--neon-green-glow); }
 
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; z-index:1000; }
-.modal-content { background:var(--bg-card); border:1px solid var(--border-active); border-radius:8px; padding:1.5rem; max-width:480px; width:90%; box-shadow:0 0 50px rgba(0,255,136,0.2); }
+.modal-content { background:var(--bg-card); border:1px solid var(--border-active); border-radius:8px; padding:1.5rem; max-width:480px; width:90%; box-shadow:0 0 50px rgba(40,214,40,0.2); }
 
-.progress-bar { height:6px; background:rgba(0,255,136,0.1); border-radius:3px; overflow:hidden; border:1px solid var(--border-subtle); }
+.progress-bar { height:6px; background:rgba(40,214,40,0.1); border-radius:3px; overflow:hidden; border:1px solid var(--border-subtle); }
 .progress-fill { height:100%; background:linear-gradient(90deg,var(--neon-green),var(--neon-cyan)); box-shadow:0 0 10px var(--neon-green-glow); transition:width 0.5s; }
 
 /* Chat */
 .chat-group-item { padding:8px; cursor:pointer; border-bottom:1px solid var(--border-subtle); transition:all 0.2s; }
-.chat-group-item:hover { background:rgba(0,255,136,0.05); }
-.chat-group-item.active { background:rgba(0,255,136,0.1); border-left:2px solid var(--neon-green); }
+.chat-group-item:hover { background:rgba(40,214,40,0.05); }
+.chat-group-item.active { background:rgba(40,214,40,0.1); border-left:2px solid var(--neon-green); }
 
-.zk-btn { background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); color:var(--neon-green); padding:4px 10px; border-radius:4px; font-size:0.7rem; cursor:pointer; transition:all 0.2s; font-family:'JetBrains Mono',monospace; }
-.zk-btn:hover { background:rgba(0,255,136,0.2); border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green-glow); }
+.zk-btn { background:rgba(40,214,40,0.1); border:1px solid rgba(40,214,40,0.3); color:var(--neon-green); padding:4px 10px; border-radius:4px; font-size:0.7rem; cursor:pointer; transition:all 0.2s; font-family:'JetBrains Mono',monospace; }
+.zk-btn:hover { background:rgba(40,214,40,0.2); border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green-glow); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width:6px; height:6px; }
@@ -252,7 +243,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
 /* Animations */
 @keyframes spin { to { transform:rotate(360deg); } }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-@keyframes glowPulse { 0%,100%{box-shadow:0 0 10px var(--neon-green-glow)} 50%{box-shadow:0 0 25px var(--neon-green-glow),0 0 50px rgba(0,255,136,0.2)} }
+@keyframes glowPulse { 0%,100%{box-shadow:0 0 10px var(--neon-green-glow)} 50%{box-shadow:0 0 25px var(--neon-green-glow),0 0 50px rgba(40,214,40,0.2)} }
 @keyframes scanLine { 0%{top:0;opacity:1} 100%{top:100%;opacity:0} }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
@@ -263,8 +254,8 @@ tr:hover td { background:rgba(0,255,136,0.02); }
 .scan::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--neon-green),transparent); animation:scanLine 3s linear infinite; }
 .cursor-blink::after { content:'_'; animation:blink 1s step-end infinite; }
 
-.console-box { background:#030303; border:1px solid rgba(0,255,136,0.1); border-radius:6px; font-size:0.7rem; font-family:'JetBrains Mono',monospace; }
-.console-header { padding:8px 12px; border-bottom:1px solid rgba(0,255,136,0.1); display:flex; align-items:center; gap:8px; }
+.console-box { background:#030303; border:1px solid rgba(40,214,40,0.1); border-radius:6px; font-size:0.7rem; font-family:'JetBrains Mono',monospace; }
+.console-header { padding:8px 12px; border-bottom:1px solid rgba(40,214,40,0.1); display:flex; align-items:center; gap:8px; }
 .console-body { padding:8px 12px; height:200px; overflow-y:auto; }
 
 .toast-container { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; }
@@ -290,15 +281,15 @@ tr:hover td { background:rgba(0,255,136,0.02); }
 
 /* Wiki specific */
 .wiki-result { cursor:pointer; transition:all 0.2s; }
-.wiki-result:hover { background:rgba(0,255,136,0.05); }
+.wiki-result:hover { background:rgba(40,214,40,0.05); }
 .wiki-page-content { line-height:1.6; font-size:0.8rem; }
 .wiki-page-content h1 { font-size:1.2rem; color:var(--neon-green); margin:1rem 0 0.5rem; font-family:'Orbitron',sans-serif; }
 .wiki-page-content h2 { font-size:1rem; color:var(--neon-cyan); margin:0.8rem 0 0.4rem; }
 .wiki-page-content h3 { font-size:0.9rem; color:var(--text-primary); margin:0.6rem 0 0.3rem; }
 .wiki-page-content p { margin:0.5rem 0; }
 .wiki-page-content b, .wiki-page-content strong { color:var(--neon-green); }
-.wiki-page-content code { background:rgba(0,255,136,0.1); padding:1px 4px; border-radius:3px; font-size:0.75rem; }
-.wiki-page-content pre { background:rgba(0,0,0,0.4); padding:0.8rem; border-radius:4px; overflow-x:auto; margin:0.5rem 0; border:1px solid rgba(0,255,136,0.1); }
+.wiki-page-content code { background:rgba(40,214,40,0.1); padding:1px 4px; border-radius:3px; font-size:0.75rem; }
+.wiki-page-content pre { background:rgba(0,0,0,0.4); padding:0.8rem; border-radius:4px; overflow-x:auto; margin:0.5rem 0; border:1px solid rgba(40,214,40,0.1); }
 .wiki-page-content a { color:var(--neon-cyan); text-decoration:underline; }
 .wiki-page-content ul, .wiki-page-content ol { padding-left:1.5rem; margin:0.5rem 0; }
 .wiki-page-content li { margin:0.25rem 0; }
@@ -310,7 +301,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
   <header class="header">
     <div class="flex items-center gap-3">
       <div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
-        <span style="font-size:1.5rem;color:var(--neon-green);text-shadow:0 0 8px var(--neon-green-glow);">⬡</span>
+        <img src="logo.svg" alt="ZKNet" style="width:32px;height:32px;filter:drop-shadow(0 0 8px var(--neon-green-glow));">
       </div>
       <div>
         <h1 class="logo"><span class="zk">ZK</span><span class="net">NODE</span></h1>
@@ -319,11 +310,11 @@ tr:hover td { background:rgba(0,255,136,0.02); }
     </div>
     <div class="flex items-center gap-4">
       <div class="status-badge online" id="mixnetStatusBadge">
-        <span class="dot green pulse" id="mixnetStatusDot"></span>
+        
         <span id="mixnetStatusLabel">MIXNET ACTIVE</span>
       </div>
       <div class="status-badge online" id="healthStatusBadge" style="display:none;">
-        <span class="dot green pulse" id="healthStatusDot"></span>
+        
         <span id="healthStatusLabel">HEALTHY</span>
       </div>
       <div id="walletArea">
@@ -366,7 +357,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
         <p class="ver">ZKNODE BETA</p>
         <p class="ver">v1.0.0-alpha</p>
         <div class="flex items-center gap-2 mt-2">
-          <span class="dot green pulse" id="nodeStatusDot"></span>
+          
           <span class="ver" id="nodeStatusLabel">NODE: SYNCING</span>
         </div>
       </div>
@@ -395,35 +386,35 @@ tr:hover td { background:rgba(0,255,136,0.02); }
 
           <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>MIXNET</span></div>
+              <div class="terminal-header"><span>MIXNET</span></div>
               <div class="terminal-body" id="mixnetWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>WALLETSHIELD</span></div>
+              <div class="terminal-header"><span>WALLETSHIELD</span></div>
               <div class="terminal-body" id="walletshieldWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>ZKCHAT</span></div>
+              <div class="terminal-header"><span>ZKCHAT</span></div>
               <div class="terminal-body" id="zkchatWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>P4P WIKI</span></div>
+              <div class="terminal-header"><span>P4P WIKI</span></div>
               <div class="terminal-body" id="wikiWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>RETICULUM</span></div>
+              <div class="terminal-header"><span>RETICULUM</span></div>
               <div class="terminal-body" id="reticulumWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>AUTONOMI</span></div>
+              <div class="terminal-header"><span>AUTONOMI</span></div>
               <div class="terminal-body" id="antWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>ZK PROVER</span></div>
+              <div class="terminal-header"><span>ZK PROVER</span></div>
               <div class="terminal-body" id="proverWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>ZYMBIT HSM</span></div>
+              <div class="terminal-header"><span>ZYMBIT HSM</span></div>
               <div class="terminal-body" id="zymbitWidget"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
           </div>
@@ -451,7 +442,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             <div class="stat-card"><span class="stat-label">NODES</span><div class="stat-value" id="mixNodes" style="font-size:1.2rem">-</div></div>
           </div>
           <div class="terminal-card">
-            <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>AUTHORITY STATUS</span></div>
+            <div class="terminal-header"><span>AUTHORITY STATUS</span></div>
             <div class="terminal-body" id="authStatusList"><div class="text-xs text-gray-500">Fetching...</div></div>
           </div>
         </div>
@@ -479,12 +470,12 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>CONNECTION</span></div>
+              <div class="terminal-header"><span>CONNECTION</span></div>
               <div class="terminal-body">
                 <div class="space-y-4">
-                  <div class="flex items-center justify-between p-3 rounded" style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,136,0.1);">
+                  <div class="flex items-center justify-between p-3 rounded" style="background:rgba(0,0,0,0.3);border:1px solid rgba(40,214,40,0.1);">
                     <div><div class="text-xs text-gray-500" style="letter-spacing:0.1em;">NETWORK ID</div><div class="font-mono glowing" style="font-size:0.9rem;" id="wsNetworkId">0x134FDD1</div></div>
-                    <div><span class="dot" id="wsStatusDot"></span></div>
+                    <div></div>
                   </div>
                   <div><label class="text-xs text-gray-500 block mb-2" style="letter-spacing:0.1em;">RPC ENDPOINT</label><input type="text" class="input font-mono" id="wsRpcEndpoint" value="http://localhost:9200" placeholder="http://localhost:9200"></div>
                   <div class="flex gap-3">
@@ -494,7 +485,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
               </div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>WALLET CONNECT</span></div>
+              <div class="terminal-header"><span>WALLET CONNECT</span></div>
               <div class="terminal-body">
                 <p class="text-xs text-gray-500 mb-4" style="letter-spacing:0.05em;">CONNECT A WALLET TO ACCESS ZKNODE</p>
                 <div class="space-y-3">
@@ -504,11 +495,11 @@ tr:hover td { background:rgba(0,255,136,0.02); }
                     <div style="color:#f6851b;">›</div>
                   </div>
                   <div class="wallet-option" onclick="connectZkID()">
-                    <div class="wallet-icon-box" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.4);">◈</div>
+                    <div class="wallet-icon-box" style="background:rgba(40,214,40,0.1);border:1px solid rgba(40,214,40,0.4);">◈</div>
                     <div class="flex-1 text-left"><div class="text-sm font-bold text-white">zkID</div><div class="text-xs text-gray-500">Zero-knowledge identity via walletshield</div></div>
                     <div style="color:#00ff88;">›</div>
                   </div>
-                  <div class="p-3 rounded" style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,136,0.1);">
+                  <div class="p-3 rounded" style="background:rgba(0,0,0,0.4);border:1px solid rgba(40,214,40,0.1);">
                     <p class="text-xs text-gray-500 mb-1">WALLETSHIELD RPC</p>
                     <div class="font-mono text-xs glowing" style="word-break:break-all;">http://<node-ip>:9200/ethereum</div>
                     <p class="text-xs text-gray-600 mt-2">Configure this URL as a custom network RPC in MetaMask</p>
@@ -518,7 +509,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             </div>
           </div>
           <div class="terminal-card">
-            <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>CONSOLE</span></div>
+            <div class="terminal-header"><span>CONSOLE</span></div>
             <div class="console-body" id="wsConsole" style="height:150px;">
               <div class="text-gray-600">> WalletShield RPC Client Ready</div>
               <div class="text-gray-700">[]> Waiting for connection check...</div>
@@ -535,14 +526,14 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             <h2 class="text-2xl font-bold glowing" style="font-family:'Orbitron',sans-serif;">ZKCHAT</h2>
             <p class="text-gray-500 mt-1" style="font-size:0.75rem;">// ENCRYPTED MIXNET GROUP MESSAGING</p>
           </div>
-          <div class="mb-3 p-3 rounded" style="background:rgba(0,255,136,0.03);border:1px solid rgba(0,255,136,0.1);font-size:0.7rem;">
+          <div class="mb-3 p-3 rounded" style="background:rgba(40,214,40,0.03);border:1px solid rgba(40,214,40,0.1);font-size:0.7rem;">
             <div class="flex items-center justify-between mb-1">
               <span style="color:var(--neon-green);font-weight:600;">MY IDENTITY</span>
               <span style="font-size:0.6rem;color:var(--neon-green);cursor:pointer;" onclick="document.getElementById('chatIdentityPanel').classList.toggle('hidden')">[SHOW QR]</span>
             </div>
             <div class="flex items-center gap-2">
               <code id="chatIdentityFull" style="font-size:0.65rem;word-break:break-all;flex:1;color:#ccc;"></code>
-              <button onclick="navigator.clipboard.writeText(document.getElementById('chatIdentityFull').textContent);showToast('Identity copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('chatIdentityFull').textContent);showToast('Identity copied','success')" style="background:rgba(40,214,40,0.1);border:1px solid rgba(40,214,40,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;">COPY</button>
             </div>
             <div id="chatIdentityPanel" class="hidden flex justify-center mt-2">
               <img id="chatIdentityQr" style="width:120px;height:120px;image-rendering:pixelated;" alt="QR">
@@ -550,7 +541,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           </div>
           <div class="flex gap-3" style="height:calc(100vh - 320px);min-height:400px;">
             <div class="terminal-card" style="flex:0 0 260px;display:flex;flex-direction:column;">
-              <div class="terminal-header" style="flex-shrink:0;"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>GROUPS</span></div>
+              <div class="terminal-header" style="flex-shrink:0;"><span>GROUPS</span></div>
               <div style="padding:6px 8px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-shrink:0;">
                 <button class="zk-btn" onclick="chatCreateGroup()" title="Create Group">+</button>
                 <button class="zk-btn" onclick="chatRefreshGroups()" title="Refresh Groups">&#x21bb;</button>
@@ -561,7 +552,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
               </div>
             </div>
             <div class="terminal-card" style="flex:1;display:flex;flex-direction:column;">
-              <div class="terminal-header" style="flex-shrink:0;"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span id="chatActiveGroupTitle">SELECT A GROUP</span></div>
+              <div class="terminal-header" style="flex-shrink:0;"><span id="chatActiveGroupTitle">SELECT A GROUP</span></div>
               <div id="chatMessages" class="terminal-body" style="flex:1;overflow-y:auto;padding:8px;font-size:0.75rem;display:flex;flex-direction:column;gap:4px;">
                 <div class="text-gray-500" style="margin:auto;">Select or create a group to start chatting</div>
               </div>
@@ -595,7 +586,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           <div class="grid md:grid-cols-1 gap-4" style="min-height:500px;">
             <!-- Search Panel -->
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>SEARCH</span></div>
+              <div class="terminal-header"><span>SEARCH</span></div>
               <div class="terminal-body">
                 <div class="flex gap-2 mb-3">
                   <input type="text" class="input" id="wikiSearchInput" placeholder="Search 497 pages..." oninput="debouncedSearch()" style="font-size:0.8rem;padding:8px 12px;">
@@ -610,7 +601,7 @@ tr:hover td { background:rgba(0,255,136,0.02); }
             <!-- Content Panel -->
             <div class="terminal-card" style="flex:1;">
               <div class="terminal-header">
-                <div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div>
+                
                 <span id="wikiViewTitle">WELCOME</span>
                 <span class="ml-auto flex gap-2">
                   <button class="btn-secondary" onclick="wikiBack()" id="wikiBackBtn" style="padding:4px 8px;font-size:0.6rem;display:none;" title="Back">◀</button>
@@ -649,26 +640,26 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           </div>
           <div class="grid grid-cols-3 gap-4 mb-4">
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>DAEMON</span></div>
+              <div class="terminal-header"><span>DAEMON</span></div>
               <div class="terminal-body" id="autonomiDaemon">
                 <div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;"></span> Loading...</div>
               </div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>NODE</span></div>
+              <div class="terminal-header"><span>NODE</span></div>
               <div class="terminal-body" id="autonomiNode">
                 <div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;"></span> Loading...</div>
               </div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>STORAGE</span></div>
+              <div class="terminal-header"><span>STORAGE</span></div>
               <div class="terminal-body" id="autonomiStorage">
                 <div class="text-xs text-gray-500"><span class="loading-spinner" style="width:12px;height:12px;display:inline-block;"></span> Loading...</div>
               </div>
             </div>
           </div>
           <div class="terminal-card">
-            <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>CONSOLE</span></div>
+            <div class="terminal-header"><span>CONSOLE</span></div>
             <div class="console-body" id="autonomiConsole" style="height:200px;">
               <div class="text-gray-600">> Autonomi node manager ready</div>
               <div class="text-gray-700">> Waiting for status update...</div>
@@ -686,35 +677,35 @@ tr:hover td { background:rgba(0,255,136,0.02); }
           </div>
           <div class="grid md:grid-cols-3 gap-4">
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>RNS TRANSPORT</span></div>
+              <div class="terminal-header"><span>RNS TRANSPORT</span></div>
               <div class="terminal-body" id="meshRnsTransport"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>WIFI MESH</span></div>
+              <div class="terminal-header"><span>WIFI MESH</span></div>
               <div class="terminal-body" id="meshWifiStatus"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card" style="grid-row: span 2;">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>INTERFACES</span></div>
+              <div class="terminal-header"><span>INTERFACES</span></div>
               <div class="terminal-body" id="meshInterfaces" style="max-height:260px;overflow-y:auto;"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
           </div>
           <div class="grid md:grid-cols-3 gap-4 mt-4">
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>RETICULUM</span></div>
+              <div class="terminal-header"><span>RETICULUM</span></div>
               <div class="terminal-body" id="meshReticulumStatus"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>NOMADNET</span></div>
+              <div class="terminal-header"><span>NOMADNET</span></div>
               <div class="terminal-body" id="meshNomadnetStatus"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>P4P WIKI</span></div>
+              <div class="terminal-header"><span>P4P WIKI</span></div>
               <div class="terminal-body" id="meshWikiStatus"><div class="text-xs text-gray-500">Loading...</div></div>
             </div>
           </div>
           <div class="grid md:grid-cols-1 gap-4 mt-4">
             <div class="terminal-card">
-              <div class="terminal-header"><div class="terminal-dots"><span class="terminal-dot red"></span><span class="terminal-dot yellow"></span><span class="terminal-dot green"></span></div><span>WIKI BROWSER</span></div>
+              <div class="terminal-header"><span>WIKI BROWSER</span></div>
               <div class="terminal-body" id="meshWikiContent" style="max-height:400px;overflow-y:auto;"><div class="text-xs text-gray-500">Open a wiki page from the P4P tab to view here.</div></div>
             </div>
           </div>
@@ -799,12 +790,12 @@ function showWalletSelector() {
     '    <div class="wallet-icon-box" style="background:#f6851b15;border:1px solid #f6851b40;">🦊</div>' +
     '    <div class="flex-1 text-left"><div class="text-sm font-bold text-white">MetaMask</div><div class="text-xs text-gray-500">Connect via walletshield RPC on '+state.walletshieldRpc+'</div></div>' +
     '    <div style="color:#f6851b;">›</div></div>' +
-    '  <div class="wallet-option" onclick="this.closest(\'.modal-overlay\').remove();connectZkID()" style="border:1px solid rgba(0,255,136,0.3);">' +
-    '    <div class="wallet-icon-box" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.4);">◈</div>' +
+    '  <div class="wallet-option" onclick="this.closest(\'.modal-overlay\').remove();connectZkID()" style="border:1px solid rgba(40,214,40,0.3);">' +
+    '    <div class="wallet-icon-box" style="background:rgba(40,214,40,0.1);border:1px solid rgba(40,214,40,0.4);">◈</div>' +
     '    <div class="flex-1 text-left"><div class="text-sm font-bold text-white">zkID</div><div class="text-xs text-gray-500">Zero-knowledge identity via walletshield</div></div>' +
     '    <div style="color:#00ff88;">›</div></div>' +
     '</div>' +
-    '<div class="mt-4 p-3 rounded" style="background:rgba(0,0,0,0.4);border:1px solid rgba(0,255,136,0.1);">' +
+    '<div class="mt-4 p-3 rounded" style="background:rgba(0,0,0,0.4);border:1px solid rgba(40,214,40,0.1);">' +
     '<p class="text-xs text-gray-500 mb-1">WALLETSHIELD RPC ENDPOINT</p>' +
     '<div class="font-mono text-xs glowing" id="wsRpcUrl" style="word-break:break-all;">'+state.walletshieldRpc+'</div>' +
     '<p class="text-xs text-gray-600 mt-2">Configure this as your custom RPC in MetaMask</p></div></div>';
@@ -1240,7 +1231,7 @@ async function refreshAll() {
     document.getElementById('mixNodes').textContent = nodes;
 
     mxWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot green pulse"></span><span class="text-xs glowing">ONLINE</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="text-xs glowing">ONLINE</span></span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">AUTHORITIES</span><span class="text-xs glow-cyan">' + alive + '/' + total + '</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">EPOCH</span><span class="text-xs text-white">' + epoch + '</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">CONSENSUS</span><span class="text-xs glowing">' + consensus + '</span></div>' +
@@ -1250,15 +1241,15 @@ async function refreshAll() {
     const authList = document.getElementById('authStatusList');
     authList.innerHTML = mix.authorities.map(a => {
       const ok = a.data && !a.data.error;
-      return '<div class="flex items-center justify-between p-3" style="border-bottom:1px solid rgba(0,255,136,0.05);">' +
+      return '<div class="flex items-center justify-between p-3" style="border-bottom:1px solid rgba(40,214,40,0.05);">' +
         '<span class="text-xs font-mono text-gray-400">' + a.host + '</span>' +
-        '<span class="flex items-center gap-2"><span class="dot ' + (ok ? 'green pulse' : 'red') + '"></span>' +
+        '<span class="flex items-center gap-2">' +
         '<span class="text-xs ' + (ok ? 'text-green-400' : 'text-red-400') + '">' + (ok ? 'ONLINE' : 'OFFLINE') + '</span></span></div>';
     }).join('');
 
     const headerBadge = document.getElementById('mixnetStatusBadge');
     headerBadge.className = 'status-badge online';
-    headerBadge.innerHTML = '<span class="dot green pulse" id="mixnetStatusDot"></span><span id="mixnetStatusLabel">MIXNET ACTIVE</span>';
+    headerBadge.innerHTML = '<span id="mixnetStatusLabel">MIXNET ACTIVE</span>';
   }
 
   // Health badge
@@ -1267,7 +1258,7 @@ async function refreshAll() {
     const ok = health.status === 'healthy';
     healthBadge.style.display = 'inline-flex';
     healthBadge.className = 'status-badge ' + (ok ? 'online' : 'offline');
-    healthBadge.innerHTML = '<span class="dot ' + (ok ? 'green pulse' : 'yellow') + '" id="healthStatusDot"></span><span id="healthStatusLabel">' + (ok ? 'HEALTHY' : 'DEGRADED') + '</span>';
+    healthBadge.innerHTML = '<span id="healthStatusLabel">' + (ok ? 'HEALTHY' : 'DEGRADED') + '</span>';
     healthBadge.title = 'disk: ' + (health.disk_used_percent || '?') + '% | ws: ' + (health.walletshield_http || '?') + ' | mix: ' + (health.mix_nodes || '?');
   } else {
     healthBadge.style.display = 'none';
@@ -1281,7 +1272,7 @@ async function refreshAll() {
     ct.innerHTML = '<div class="p-4 text-xs text-gray-500">No containers found</div>';
   } else {
     let running = cont.filter(c => c.state === 'running').length;
-    ct.innerHTML = '<div class="p-3" style="border-bottom:1px solid var(--border-subtle);background:rgba(0,255,136,0.03);">' +
+    ct.innerHTML = '<div class="p-3" style="border-bottom:1px solid var(--border-subtle);background:rgba(40,214,40,0.03);">' +
       '<span class="text-xs text-gray-500">' + running + '/' + cont.length + ' CONTAINERS RUNNING</span></div>' +
       '<table><thead><tr><th>NAME</th><th>IMAGE</th><th>STATUS</th><th>PORTS</th></tr></thead><tbody>' +
       cont.map(c => '<tr><td class="font-mono">' + c.name + '</td><td class="text-xs text-gray-400">' + (c.image || '-') + '</td>' +
@@ -1299,23 +1290,23 @@ async function refreshAll() {
   if (wsDot && !state.wallet.connected) { wsDot.className = 'dot ' + (wsOnline ? 'yellow' : 'gray'); }
   const hbOk = hb && hb.ok;
   wsWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">CONTAINER</span><span class="flex items-center gap-1"><span class="dot ' + (wsOnline ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (wsOnline ? 'glowing' : 'text-gray-500') + '">' + (wsOnline ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">CONTAINER</span><span class="flex items-center gap-1"><span class="text-xs ' + (wsOnline ? 'glowing' : 'text-gray-500') + '">' + (wsOnline ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">RPC PORT</span><span class="text-xs text-white">9200</span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">API</span><span class="text-xs ' + (wsApiOk ? 'text-green-400' : 'text-yellow-400') + '">' + (wsApiOk ? 'RESPONDING' : 'NO RESPONSE') + '</span></div>' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">MIXNET</span><span class="flex items-center gap-1"><span class="dot ' + (hbOk ? 'green pulse' : 'red') + '"></span><span class="text-xs ' + (hbOk ? 'glowing' : 'text-red-400') + '">' + (hbOk ? 'CONNECTED' : 'DEAD') + '</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">MIXNET</span><span class="flex items-center gap-1"><span class="text-xs ' + (hbOk ? 'glowing' : 'text-red-400') + '">' + (hbOk ? 'CONNECTED' : 'DEAD') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs ' + (state.wallet.connected ? 'glowing' : 'text-gray-500') + '">' + (state.wallet.connected ? state.wallet.type.toUpperCase() : 'NOT CONNECTED') + '</span></div>' +
     '</div>';
 
   const chatWidget = document.getElementById('zkchatWidget');
   const chatRunning = chat.data && chat.data.running;
   chatWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot ' + (chatRunning ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (chatRunning ? 'glowing' : 'text-gray-500') + '">' + (chatRunning ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="text-xs ' + (chatRunning ? 'glowing' : 'text-gray-500') + '">' + (chatRunning ? 'RUNNING' : 'OFFLINE') + '</span></span></div>' +
     '</div>';
 
   // Wiki widgets
   const wikiRunning = wiki.data && wiki.data.mcpOk;
   document.getElementById('wikiWidget').innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot ' + (wikiRunning ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (wikiRunning ? 'glowing' : 'text-gray-500') + '">' + (wikiRunning ? 'ACTIVE' : 'INACTIVE') + '</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="text-xs ' + (wikiRunning ? 'glowing' : 'text-gray-500') + '">' + (wikiRunning ? 'ACTIVE' : 'INACTIVE') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">SESSION</span><span class="text-xs text-white">' + (wiki.data?.sessionId || '-') + '</span></div>' +
     '</div>';
 
@@ -1338,7 +1329,7 @@ async function refreshAll() {
   const retData = ret.data?.rnsd;
   const retRunning = retData && !retData.includes('error') && !retData.includes('invalid');
   retWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">RNSD</span><span class="flex items-center gap-1"><span class="dot ' + (retRunning ? 'green pulse' : 'gray') + '"></span><span class="text-xs ' + (retRunning ? 'glowing' : 'text-gray-500') + '">' + (Array.isArray(retData) ? retData[0] : retData || 'UNKNOWN') + '</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">RNSD</span><span class="flex items-center gap-1"><span class="text-xs ' + (retRunning ? 'glowing' : 'text-gray-500') + '">' + (Array.isArray(retData) ? retData[0] : retData || 'UNKNOWN') + '</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">NOMADNET</span><span class="text-xs text-white">' + ((ret.data?.nomadnet || 'UNKNOWN') + '').toUpperCase() + '</span></div>' +
     '</div>';
 
@@ -1348,7 +1339,7 @@ async function refreshAll() {
   if (ant && ant.daemon) {
     const d = ant.daemon;
     antWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="dot '+(d.running?'green pulse':'gray')+'"></span><span class="text-xs '+(d.running?'glowing':'text-gray-500')+'">'+(d.running?'RUNNING':'STOPPED')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="text-xs '+(d.running?'glowing':'text-gray-500')+'">'+(d.running?'RUNNING':'STOPPED')+'</span></span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div>' +
@@ -1363,7 +1354,7 @@ async function refreshAll() {
   if (prov) {
     const p = prov;
     provWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+(p.running?'green pulse':'gray')+'"></span><span class="text-xs '+(p.running?'glowing':'text-gray-500')+'">'+(p.running?'ACTIVE':'IDLE')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="text-xs '+(p.running?'glowing':'text-gray-500')+'">'+(p.running?'ACTIVE':'IDLE')+'</span></span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(p.total_chunks||0)+'</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">CHUNK SZ</span><span class="text-xs text-white">'+(p.chunk_size||0)+'</span></div>' +
       '</div>';
@@ -1435,7 +1426,7 @@ async function refreshAll() {
           const peers = iface.peers || 0;
           const tx = (iface.txb/1024).toFixed(1);
           const rx = (iface.rxb/1024).toFixed(1);
-          html += '<tr><td style="padding:4px 6px;color:var(--neon-green);" title="'+name+'">'+shortName+'</td><td style="padding:4px 6px;color:var(--text-secondary);">'+type.slice(0,12)+'</td><td style="padding:4px 6px;"><span class="dot '+(st?'green pulse':'gray')+'"></span></td><td style="padding:4px 6px;">'+peers+'</td><td style="padding:4px 6px;">'+tx+'K</td><td style="padding:4px 6px;">'+rx+'K</td></tr>';
+          html += '<tr><td style="padding:4px 6px;color:var(--neon-green);" title="'+name+'">'+shortName+'</td><td style="padding:4px 6px;color:var(--text-secondary);">'+type.slice(0,12)+'</td><td style="padding:4px 6px;"></td><td style="padding:4px 6px;">'+peers+'</td><td style="padding:4px 6px;">'+tx+'K</td><td style="padding:4px 6px;">'+rx+'K</td></tr>';
         }
         html += '</table>';
         ifEl.innerHTML = html;
@@ -1443,17 +1434,17 @@ async function refreshAll() {
     }
 
     const retEl = document.getElementById('meshReticulumStatus');
-    if (retEl) retEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">SERVICE</span><span class="flex items-center gap-1"><span class="dot '+(r.rnsd==='running'?'green pulse':'gray')+'"></span><span class="text-xs '+(r.rnsd==='running'?'glowing':'text-gray-500')+'">'+(r.rnsd||'UNKNOWN').toUpperCase()+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(r.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">IDENTITY</span><span class="text-xs font-mono text-gray-400">'+(r.identity?r.identity.slice(0,16)+'...':'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PAGES</span><span class="text-xs text-white">'+(Array.isArray(r.pages)?r.pages.length:r.pages||0)+'</span></div></div>';
+    if (retEl) retEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">SERVICE</span><span class="flex items-center gap-1"><span class="text-xs '+(r.rnsd==='running'?'glowing':'text-gray-500')+'">'+(r.rnsd||'UNKNOWN').toUpperCase()+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(r.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">IDENTITY</span><span class="text-xs font-mono text-gray-400">'+(r.identity?r.identity.slice(0,16)+'...':'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PAGES</span><span class="text-xs text-white">'+(Array.isArray(r.pages)?r.pages.length:r.pages||0)+'</span></div></div>';
     const nomEl = document.getElementById('meshNomadnetStatus');
-    if (nomEl) nomEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+((n.pages&&n.pages.length)?'green pulse':'yellow')+'"></span><span class="text-xs '+((n.pages&&n.pages.length)?'glowing':'text-gray-500')+'">'+((n.pages&&n.pages.length)?'ACTIVE':'IDLE')+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PAGES</span><span class="text-xs text-white">'+((n.pages&&n.pages.length)||'0')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">LOG</span><span class="text-xs text-gray-400">'+((n.recentLog&&n.recentLog.length)?n.recentLog.length+' lines':'-')+'</span></div></div>';
+    if (nomEl) nomEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="text-xs '+((n.pages&&n.pages.length)?'glowing':'text-gray-500')+'">'+((n.pages&&n.pages.length)?'ACTIVE':'IDLE')+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PAGES</span><span class="text-xs text-white">'+((n.pages&&n.pages.length)||'0')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">LOG</span><span class="text-xs text-gray-400">'+((n.recentLog&&n.recentLog.length)?n.recentLog.length+' lines':'-')+'</span></div></div>';
     const wikiEl = document.getElementById('meshWikiStatus');
-    if (wikiEl) wikiEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">WIKI PAGES</span><span class="text-xs text-white">'+((r.wiki&&r.wiki.pages)||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="dot '+((r.wiki&&r.wiki.pages>0)?'green pulse':'yellow')+'"></span><span class="text-xs '+((r.wiki&&r.wiki.pages>0)?'glowing':'text-gray-500')+'">'+((r.wiki&&r.wiki.pages>0)?'PUBLISHED':'EMPTY')+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NOMADNET PAGES</span><span class="text-xs text-white">'+(r.nomadPages||0)+'</span></div></div>';
+    if (wikiEl) wikiEl.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">WIKI PAGES</span><span class="text-xs text-white">'+((r.wiki&&r.wiki.pages)||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="flex items-center gap-1"><span class="text-xs '+((r.wiki&&r.wiki.pages>0)?'glowing':'text-gray-500')+'">'+((r.wiki&&r.wiki.pages>0)?'PUBLISHED':'EMPTY')+'</span></span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NOMADNET PAGES</span><span class="text-xs text-white">'+(r.nomadPages||0)+'</span></div></div>';
   }
 
   const zymWidget = document.getElementById('zymbitWidget');
   const zymActive = zym && zym.zkifc === 'active';
   zymWidget.innerHTML = '<div class="space-y-2">' +
-    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="dot '+(zymActive?'green pulse':'gray')+'"></span><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?(zym.zkifc || "").toUpperCase():'UNKNOWN')+'</span></span></div>' +
+    '<div class="flex justify-between"><span class="text-xs text-gray-500">zkifc</span><span class="flex items-center gap-1"><span class="text-xs '+(zymActive?'glowing':'text-gray-500')+'">'+(zym?(zym.zkifc || "").toUpperCase():'UNKNOWN')+'</span></span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">/dev/zymkey</span><span class="text-xs text-white">'+(zym&&zym.devZymkey?'PRESENT':'ABSENT')+'</span></div>' +
     '<div class="flex justify-between"><span class="text-xs text-gray-500">WALLET</span><span class="text-xs text-white" style="font-size:0.65rem;">0x8930ce...4d256</span></div>' +
     '</div>';
@@ -1610,11 +1601,11 @@ function chatInviteMember() {
       <h2 class="text-lg font-bold glowing" style="font-family:'Orbitron',sans-serif;">INVITE TO #${state.chat.activeGroupName}</h2>
       <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-500 hover:text-white" style="font-size:1.5rem;">×</button>
     </div>
-    <div class="mb-4 p-3 rounded" style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.2);">
+    <div class="mb-4 p-3 rounded" style="background:rgba(40,214,40,0.05);border:1px solid rgba(40,214,40,0.2);">
       <div style="font-size:0.6rem;color:var(--neon-green);margin-bottom:6px;font-weight:600;">INVITE LINK</div>
       <div id="chatInviteLinkWrap" class="flex items-center gap-2">
         <code id="chatInviteLink" style="font-size:0.55rem;word-break:break-all;flex:1;color:#ccc;">generating...</code>
-        <button id="chatInviteLinkCopy" onclick="navigator.clipboard.writeText(document.getElementById('chatInviteLink').textContent);showToast('Link copied','success')" style="background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;display:none;">COPY</button>
+        <button id="chatInviteLinkCopy" onclick="navigator.clipboard.writeText(document.getElementById('chatInviteLink').textContent);showToast('Link copied','success')" style="background:rgba(40,214,40,0.1);border:1px solid rgba(40,214,40,0.3);color:var(--neon-green);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;white-space:nowrap;display:none;">COPY</button>
       </div>
       <div id="chatInviteQrWrap" style="display:none;flex-direction:column;align-items:center;margin-top:8px;">
         <img id="chatInviteQr" style="width:150px;height:150px;image-rendering:pixelated;" alt="QR">

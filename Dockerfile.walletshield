@@ -1,26 +1,4 @@
 ARG TARGETARCH=arm64
-ARG BUILDER_ARCH=amd64
-
-FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Clone ZKNetwork/opt for dependencies (go.mod/go.sum)
-RUN git clone --depth 1 https://github.com/ZeroKnowledgeNetwork/opt.git /src/opt
-
-# Override walletshield main.go with our fixed version (service=proxy)
-COPY walletshield-fix/main.go /src/opt/apps/walletshield/main.go
-COPY walletshield-fix/thin /src/opt/apps/walletshield/thin
-
-RUN cd /src/opt/apps/walletshield && \
-    GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
-    CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-    go build -trimpath -ldflags="-buildid=" -o /dest/walletshield .
 
 FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
 
@@ -28,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /dest/walletshield /usr/local/bin/
+COPY walletshield-fix/walletshield-arm64 /usr/local/bin/walletshield
 
 EXPOSE 9200
 

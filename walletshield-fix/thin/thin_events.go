@@ -64,6 +64,9 @@ type ConnectionStatusEvent struct {
 	// Err contains any error that caused a disconnection. This field is
 	// nil when IsConnected is true or when the disconnection was intentional.
 	Err error `cbor:"err"`
+
+	// InstanceToken is the client instance token for session resumption.
+	InstanceToken [16]byte `cbor:"instance_token"`
 }
 
 // String returns a string representation of the ConnectionStatusEvent.

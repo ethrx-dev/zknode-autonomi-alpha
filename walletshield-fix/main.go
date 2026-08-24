@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"flag"
 	"fmt"
 	"io"
@@ -18,13 +17,15 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/katzenpost/hpqc/hash"
 
-	"github.com/katzenpost/katzenpost/client2/config"
-	"github.com/katzenpost/katzenpost/client2/thin"
+	"github.com/katzenpost/katzenpost/client/config"
+	"github.com/katzenpost/katzenpost/client/thin"
+	"github.com/katzenpost/katzenpost/client/thin/transport"
 )
 
 var (
-	timeout          = 120 // (default) context timeout
+	timeout          = 300 // (default) context timeout
 	ProxyHTTPService = "proxy"
 
 	// Note: UserForwardPayloadLength should match the same value passed to genconfig.
@@ -64,7 +65,29 @@ func (s *Server) reconnect() *thin.ThinClient {
 	s.thin.Close()
 	s.thin = client
 	s.log.Info("Reconnected to client daemon")
+	s.startEventHandler(client)
 	return client
+}
+
+func (s *Server) startEventHandler(thinClient *thin.ThinClient) {
+	go func() {
+		eventSink := thinClient.EventSink()
+		defer thinClient.StopEventSink(eventSink)
+		everConnected := false
+		for event := range eventSink {
+			switch v := event.(type) {
+			case *thin.ConnectionStatusEvent:
+				if v.IsConnected {
+					everConnected = true
+				} else if everConnected {
+					s.log.Warn("Connection lost, attempting reconnect...")
+					s.reconnect()
+					everConnected = false
+				}
+			}
+		}
+		s.log.Warn("Event sink closed, connection to daemon may be lost")
+	}()
 }
 
 func (s *Server) getThin() *thin.ThinClient {
@@ -127,7 +150,13 @@ func main() {
 	}
 
 	if listenAddrClient != "" {
-		cfgThin.Address = listenAddrClient
+		if cfgThin.Dial == nil {
+			cfgThin.Dial = &transport.DialConfig{}
+		}
+		if cfgThin.Dial.Tcp == nil {
+			cfgThin.Dial.Tcp = &transport.TcpDialConfig{}
+		}
+		cfgThin.Dial.Tcp.Address = listenAddrClient
 	}
 
 	logging := &config.Logging{
@@ -149,24 +178,7 @@ func main() {
 		upstream:   upstream,
 	}
 
-	go func() {
-		eventSink := thinClient.EventSink()
-		defer thinClient.StopEventSink(eventSink)
-		everConnected := false
-		for event := range eventSink {
-			switch v := event.(type) {
-			case *thin.ConnectionStatusEvent:
-				if v.IsConnected {
-					everConnected = true
-				} else if everConnected {
-					mylog.Warn("Connection lost, attempting reconnect...")
-					server.reconnect()
-					everConnected = false
-				}
-			}
-		}
-		mylog.Warn("Event sink closed, connection to daemon may be lost")
-	}()
+	server.startEventHandler(thinClient)
 
 	if testProbe {
 		server.SendTestProbes(testProbeSendDelay, testProbeCount, testProbeResponseDelay)
@@ -278,8 +290,8 @@ func sendRequest(thin *thin.ThinClient, httpRequestBytes []byte) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("GetService(%s) failed: %w", ProxyHTTPService, err)
 	}
-	nodeId := sha256.Sum256(target.MixDescriptor.IdentityKey)
-	fmt.Printf("GetService(%s) ok: endpoint=%s, node=%x\n", ProxyHTTPService, target.RecipientQueueID, nodeId[:8])
+	nodeId := hash.Sum256(target.MixDescriptor.IdentityKey)
+	fmt.Printf("GetService(%s) ok: endpoint=%s, node=%x identityKeyLen=%d identityKeyBytes=%x\n", ProxyHTTPService, target.RecipientQueueID, nodeId[:8], len(target.MixDescriptor.IdentityKey), target.MixDescriptor.IdentityKey)
 
 	timeoutCtx, cancel := context.WithTimeout(context.TODO(), time.Duration(timeout)*time.Second)
 	defer cancel()

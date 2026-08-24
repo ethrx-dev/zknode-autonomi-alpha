@@ -164,8 +164,9 @@ import (
 	"github.com/katzenpost/hpqc/hash"
 	"github.com/katzenpost/hpqc/rand"
 
-	"github.com/katzenpost/katzenpost/client2/common"
-	"github.com/katzenpost/katzenpost/client2/config"
+	"github.com/katzenpost/katzenpost/client/common"
+	"github.com/katzenpost/katzenpost/client/config"
+	"github.com/katzenpost/katzenpost/client/thin/transport"
 	"github.com/katzenpost/katzenpost/core/epochtime"
 	"github.com/katzenpost/katzenpost/core/log"
 	cpki "github.com/katzenpost/katzenpost/core/pki"
@@ -317,6 +318,12 @@ type Config struct {
 	// For TCP: "host:port" (e.g., "localhost:64331")
 	// For Unix: path to socket file (e.g., "/tmp/katzenpost.sock")
 	Address string
+
+	// Dial is the thin client dial configuration for connecting to the daemon.
+	Dial *transport.DialConfig `toml:"Dial"`
+
+	// Listen is the thin client listen configuration for the daemon.
+	Listen *transport.ListenConfig `toml:"Listen"`
 }
 
 // FromConfig creates a thin client Config from a client daemon config.Config.
@@ -346,8 +353,8 @@ func FromConfig(cfg *config.Config) *Config {
 	return &Config{
 		SphinxGeometry:     cfg.SphinxGeometry,
 		PigeonholeGeometry: cfg.PigeonholeGeometry,
-		Network:            cfg.ListenNetwork,
-		Address:            cfg.ListenAddress,
+		Network:            cfg.Listen.Tcp.Network,
+		Address:            cfg.Listen.Tcp.Address,
 	}
 }
 
@@ -376,9 +383,11 @@ func LoadFile(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	cfg := new(Config)
-	err = toml.Unmarshal(b, cfg)
-	if err != nil {
+	cfg := &Config{
+		SphinxGeometry:     new(geo.Geometry),
+		PigeonholeGeometry: new(pigeonholeGeo.Geometry),
+	}
+	if err := toml.Unmarshal(b, cfg); err != nil {
 		return nil, err
 	}
 
