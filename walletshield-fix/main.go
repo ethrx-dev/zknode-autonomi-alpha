@@ -229,6 +229,14 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 	thin := s.getThin()
 	rawReply, err := sendRequest(thin, buf.Bytes())
 	if err != nil {
+		// Oversized payloads are deterministic — reconnect+retry cannot
+		// succeed and the reconnect churn disrupts every other in-flight
+		// request. Fail immediately.
+		if strings.Contains(err.Error(), "exceeds maximum") {
+			s.log.Errorf("Failed to send message: %s", err)
+			http.Error(w, "custom 500", http.StatusInternalServerError)
+			return
+		}
 		s.log.Warnf("Thin client error, reconnecting: %s", err)
 		// Retry the reconnect up to 3 times with backoff: a single
 		// reconnect may fail while the daemon is still re-establishing
@@ -238,6 +246,9 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 			thin = s.reconnect()
 			rawReply, err = sendRequest(thin, buf.Bytes())
 			if err == nil {
+				break
+			}
+			if strings.Contains(err.Error(), "exceeds maximum") {
 				break
 			}
 			s.log.Warnf("Retry %d/3 after reconnect failed: %s", attempt, err)
