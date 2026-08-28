@@ -998,17 +998,20 @@ app.post('/api/ant/daemon/stop', async (req, res) => {
 });
 
 app.post('/api/ant/node/start', async (req, res) => {
-  const port = getAntDaemonPort();
-  if (!port) return res.json({ ok: false, message: 'daemon not running' });
-  const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/nodes/1/start`, 10000, { method: 'POST' });
-  res.json({ ok: !data.error, message: data.error || data.current_state?.status || 'started' });
+  // The antd entrypoint starts the daemon AND the direct node (and its
+  // monitor loop restarts the node if killed), so container-level control
+  // is the reliable start/stop surface. restart covers the case where the
+  // container is already up but the node died.
+  const r = runShell('docker start antd 2>&1 || docker restart antd 2>&1', 90000);
+  res.json({ ok: r.ok, message: r.ok ? 'antd container started — daemon + node launching' : r.error });
 });
 
 app.post('/api/ant/node/stop', async (req, res) => {
-  const port = getAntDaemonPort();
-  if (!port) return res.json({ ok: false, message: 'daemon not running' });
-  const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/nodes/1/stop`, 10000, { method: 'POST' });
-  res.json({ ok: !data.error, message: data.error || data.current_state?.status || 'stopped' });
+  // Killing the ant-node process alone is futile: the entrypoint monitor
+  // loop respawns it within 30s. Stopping the container stops node,
+  // daemon and monitor together.
+  const r = runShell('docker stop antd 2>&1', 60000);
+  res.json({ ok: r.ok, message: r.ok ? 'antd container stopped — node, daemon and monitor halted' : r.error });
 });
 
 const ARB_SEPOLIA_RPC = process.env.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc';
