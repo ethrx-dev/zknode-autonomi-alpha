@@ -792,15 +792,16 @@ app.get('/api/containers', async (req, res) => res.json(await getContainers()));
 app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
 app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
 app.get('/api/ws-heartbeat', (req, res) => res.json(wsHeartbeatState));
-const wsAgent = new HttpAgent({ keepAlive: true, keepAliveMsecs: 10000, maxSockets: 10 });
-
+// walletshield's Rust HTTP server does not flush/complete responses on
+// keep-alive connections — the request hangs until timeout while the same
+// POST with `Connection: close` returns in ~2s. Always close; no agent.
 function wsProxy(bodyStr) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const opts = {
       hostname: '127.0.0.1', port: 9200, path: '/ethereum',
-      method: 'POST', agent: wsAgent,
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) }
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr), 'Connection': 'close' }
     };
     const timer = setTimeout(() => {
       if (settled) return;
@@ -845,6 +846,17 @@ app.all('/ethereum', async (req, res) => {
   try {
     const body = req.body;
     const isBatch = Array.isArray(body);
+
+    // The mixnet tunnel caps a single payload at UserForwardPayloadLength
+    // (2000 bytes). MetaMask sends large batched/filter-poll requests
+    // (64KB+); proxying them is pointless — walletshield would fail to
+    // send and the reconnect churn would disrupt every other request.
+    // Reject oversized bodies up front with a clean JSON-RPC error.
+    const raw = JSON.stringify(body);
+    if (Buffer.byteLength(raw) > 1900) {
+      const oversizeErr = (id) => ({ jsonrpc: '2.0', id, error: { code: -32005, message: 'request too large for mixnet tunnel (max ~1900 bytes): limit batch size or reduce params' } });
+      return res.json(isBatch ? body.map(item => oversizeErr(item.id ?? 1)) : oversizeErr(body.id ?? 1));
+    }
 
     if (isBatch) {
       const results = await Promise.all(body.map(async (item) => {
