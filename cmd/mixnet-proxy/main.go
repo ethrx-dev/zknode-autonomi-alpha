@@ -16,6 +16,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -183,9 +184,14 @@ func refreshService() {
 	thinMu.RLock()
 	client := thinClient
 	thinMu.RUnlock()
-	if client == nil {
+	if client == nil || !client.IsConnected() {
 		return
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("proxy: service lookup recovered from panic: %v", r)
+		}
+	}()
 	svc, err := client.GetService(cfg.ServiceName)
 	if err != nil {
 		log.Printf("proxy: service %q lookup failed: %v", cfg.ServiceName, err)
@@ -266,6 +272,25 @@ func handleConn(client net.Conn, tc *thin.ThinClient) {
 	log.Printf("CONNECT %s:%d via %q", host, port, cfg.ServiceName)
 
 	reader := bufio.NewReader(client)
+
+	peek, err := reader.Peek(2)
+	if err != nil {
+		log.Printf("proxy: peek failed: %v", err)
+		return
+	}
+
+	if peek[0] == 0x16 && peek[1] == 0x03 {
+		log.Printf("proxy: TLS detected for %s:%d, tunneling raw bytes", host, port)
+		tunnelRawBytes(client, reader, host, port)
+		return
+	}
+
+	if !isLikelyHTTP(peek[0]) {
+		log.Printf("proxy: non-HTTP protocol detected (%02x), tunneling raw bytes to %s:%d", peek[0], host, port)
+		tunnelRawBytes(client, reader, host, port)
+		return
+	}
+
 	for {
 		req, err := http.ReadRequest(reader)
 		if err != nil {
@@ -440,6 +465,30 @@ func storageProofHandler(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	w.Header().Set("Content-Type", "application/json")
 	io.Copy(w, resp.Body)
+}
+
+func isLikelyHTTP(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
+}
+
+func tunnelRawBytes(client net.Conn, reader *bufio.Reader, host string, port int) {
+	target := net.JoinHostPort(host, strconv.Itoa(port))
+	dest, err := net.DialTimeout("tcp", target, 10*time.Second)
+	if err != nil {
+		log.Printf("proxy: TCP dial %s failed: %v", target, err)
+		return
+	}
+	defer dest.Close()
+
+	done := make(chan struct{})
+	go func() {
+		io.Copy(dest, reader)
+		close(done)
+	}()
+	io.Copy(client, dest)
+	client.Close()
+	<-done
+	log.Printf("proxy: TLS tunnel to %s closed", target)
 }
 
 func securityHeaders(next http.Handler) http.Handler {

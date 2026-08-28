@@ -773,7 +773,7 @@ const state = {
   activeTab: 'dashboard',
   wiki: { results: [], currentPage: null, stats: null, history: { stack: [], index: -1 } }
 };
-function setWsDot(c){ const e=document.getElementById('wsStatusDot'); if(e) e.className=c; }
+
 function switchTab(tab) {
   state.activeTab = tab;
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -846,7 +846,7 @@ function showWalletSelector() {
 
 async function connectMetaMask() {
   wsLog('[NET] Connecting via walletshield RPC...');
-  setWsDot('dot yellow pulse');
+  document.getElementById('wsStatusDot').className = 'dot yellow pulse';
   if (typeof window.ethereum !== 'undefined') {
     try {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -857,7 +857,7 @@ async function connectMetaMask() {
       renderWalletConnected('metamask', 'MetaMask', '🦊', '#f6851b');
       wsLog('[OK] MetaMask connected: ' + accounts[0].slice(0,8)+'...'+accounts[0].slice(-6));
       showToast('MetaMask connected', 'success');
-      setWsDot('dot green');
+      document.getElementById('wsStatusDot').className = 'dot green';
       return;
     } catch(e) { wsLog('[ERR] MetaMask: ' + e.message); }
   }
@@ -916,14 +916,14 @@ function renderWalletConnected(id, name, icon, color) {
     '<span class="text-sm text-green-400 font-mono">'+state.wallet.balance+'</span>' +
     '<div class="wallet-addr"><span class="glowing" style="font-size:0.8rem;">'+shortAddr+'</span></div>' +
     '<button class="btn-danger" style="padding:8px 16px;font-size:0.7rem;" onclick="disconnectWallet()">DISCONNECT</button></div>';
-  setWsDot('dot green pulse');
+  document.getElementById('wsStatusDot').className = 'dot green pulse';
 }
 
 function disconnectWallet() {
   state.wallet = { connected: false, address: null, type: null, balance: null };
   document.getElementById('walletArea').innerHTML = '<button class="btn-primary" onclick="showWalletSelector()"><span class="mr-2">></span> CONNECT WALLET</button>';
   wsLog('[INFO] Wallet disconnected');
-  setWsDot('dot gray');
+  document.getElementById('wsStatusDot').className = 'dot gray';
   showToast('Wallet disconnected', 'success');
 }
 
@@ -1103,8 +1103,8 @@ async function wikiShowStats() {
     return;
   }
   document.getElementById('wikiViewContent').innerHTML =
-    '<div class="space-y-3 p-4" style="background:rgba(0,0,0,0.3);border:1px solid var(--border-subtle);border-radius:6px;overflow:hidden;">' +
-    Object.entries(s).map(([k,v]) => '<div class="flex justify-between gap-2" style="word-break:break-word;"><span class="text-xs text-gray-500 uppercase tracking-wider" style="flex-shrink:0;">' + k.replace(/_/g,' ') + '</span><span class="text-xs text-white" style="word-break:break-all;white-space:pre-wrap;text-align:right;flex:1;min-width:0;overflow-wrap:break-word;">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</span></div>').join('') +
+    '<div class="space-y-3 p-4" style="background:rgba(0,0,0,0.3);border:1px solid var(--border-subtle);border-radius:6px;">' +
+    Object.entries(s).map(([k,v]) => '<div class="flex justify-between"><span class="text-xs text-gray-500 uppercase tracking-wider">' + k.replace(/_/g,' ') + '</span><span class="text-xs text-white">' + (typeof v === 'object' ? JSON.stringify(v) : v) + '</span></div>').join('') +
     '</div>';
 }
 
@@ -1237,7 +1237,7 @@ async function updateAutonomi() {
   const ne = document.getElementById('autonomiNode');
   const se = document.getElementById('autonomiStorage');
   const ce = document.getElementById('autonomiConsole');
-  if (de) de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">'+((d.running||ant.totalRunning>0)?'RUNNING':'STOPPED')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(d.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+'+(ant.totalRunning||0)+'/'+((ant.totalRunning||0)+(ant.totalStopped||0))+'</span></div></div>';
+  if (de) de.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs glowing">'+(d.running?'RUNNING':'STOPPED')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PID</span><span class="text-xs text-white">'+(d.pid||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div></div>';
   if (ne) ne.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">ID</span><span class="text-xs text-white">'+(n.node_id||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">NAME</span><span class="text-xs glowing">'+(n.name||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">VERSION</span><span class="text-xs text-white">'+(n.version||'-')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs '+(n.status==='running'?'glowing':'text-yellow-400')+'">'+((n.status||'-').toUpperCase())+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(n.uptime_secs||0)+'</span></div></div>';
   if (se) se.innerHTML = '<div class="space-y-2"><div class="flex justify-between"><span class="text-xs text-gray-500">STATUS</span><span class="text-xs '+(s.running?'glowing':'text-gray-500')+'">'+(s.running?'ACTIVE':'OFFLINE')+'</span></div><div class="flex justify-between"><span class="text-xs text-gray-500">CHUNKS</span><span class="text-xs text-white">'+(s.total_chunks||0)+'</span></div></div>';
   if (ce) ce.innerHTML = '<div class="text-gray-600">> Autonomi node manager connected</div><div class="text-gray-700">> Daemon: '+(d.running?'ONLINE':'OFFLINE')+'</div><div class="text-gray-700">> Nodes running: '+(r.nodes_running||0)+'</div><div class="text-gray-700">> Storage: '+(s.running?'ACTIVE':'OFFLINE')+'</div>';
@@ -1389,12 +1389,12 @@ async function refreshAll() {
 
   // Ant / Autonomi
   const antWidget = document.getElementById('antWidget');
-  const antRunning = ant && (ant.daemon && ant.daemon.running || ant.totalRunning > 0);
+  const antRunning = ant && ant.daemon && ant.daemon.running;
   if (ant && ant.daemon) {
     const d = ant.daemon;
     antWidget.innerHTML = '<div class="space-y-2">' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="text-xs '+((d.running||ant.totalRunning>0)?'glowing':'text-gray-500')+'">'+((d.running||ant.totalRunning>0)?'RUNNING':'STOPPED')+'</span></span></div>' +
-      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+'+(ant.totalRunning||0)+'/'+((ant.totalRunning||0)+(ant.totalStopped||0))+'</span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">DAEMON</span><span class="flex items-center gap-1"><span class="text-xs '+(d.running?'glowing':'text-gray-500')+'">'+(d.running?'RUNNING':'STOPPED')+'</span></span></div>' +
+      '<div class="flex justify-between"><span class="text-xs text-gray-500">NODES</span><span class="text-xs text-white">'+(d.nodes_running||0)+'/'+(d.nodes_total||0)+'</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">UPTIME</span><span class="text-xs text-white">'+fmtUptime(d.uptime_secs||0)+'</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">PORT</span><span class="text-xs text-white">'+(d.port||'-')+'</span></div>' +
       '<div class="flex justify-between"><span class="text-xs text-gray-500">STORAGE</span><span class="text-xs '+(ant.storage&&ant.storage.running?'glowing':'text-gray-500')+'">'+(ant.storage&&ant.storage.running?'ACTIVE':'OFFLINE')+'</span></div>' +
@@ -1513,16 +1513,16 @@ async function checkWsConnection() {
     if (d.connected) {
       wsLog('[OK] WalletShield connected at ' + rpc);
       wsLog('[RPC] RPC endpoint active');
-      setWsDot('dot green pulse');
+      document.getElementById('wsStatusDot').className = 'dot green pulse';
       state.walletshieldConnected = true;
     } else {
       wsLog('[WARN] WalletShield container not responding');
       wsLog('[INFO] Ensure walletshield container is running');
-      setWsDot('dot yellow');
+      document.getElementById('wsStatusDot').className = 'dot yellow';
     }
   } catch(e) {
     wsLog('[ERR] Connection failed: ' + e.message);
-    setWsDot('dot red');
+    document.getElementById('wsStatusDot').className = 'dot red';
   }
 }
 

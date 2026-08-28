@@ -6,6 +6,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHmac, randomBytes } from 'crypto';
 import express from 'express';
+import zkid from './zkid.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
@@ -23,6 +24,7 @@ try { ZKCHAT_GROUP_HISTORY = JSON.parse(execSync('cat "' + CHAT_HISTORY_FILE + '
 const app = express();
 app.use(express.json());
 app.use(express.static(join(__dirname, '..', 'public')));
+try{ zkid(app); }catch(e){ console.log('zkid init failed', e.message); }
 
 function runShell(cmd, timeoutMs = 15000) {
   try {
@@ -324,11 +326,30 @@ async function getStorageStatus() {
 }
 
 async function getAntDaemonPort() {
-  const r = await runShellAsync('docker exec antd cat /root/.local/share/ant/daemon.port 2>/dev/null', 3000);
-  return r.ok && r.data ? parseInt(r.data, 10) : 12000;
+  // Query the daemon via the ant CLI inside the container: the dashboard
+  // runs on a bridge network, so it cannot reach the daemon's host-loopback
+  // HTTP port directly, and the port file alone can be stale.
+  const r = await runShellAsync('docker exec antd ant node daemon info --json 2>/dev/null', 5000);
+  if (r.ok && r.data) {
+    try {
+      const info = JSON.parse(r.data.trim().split('\n').filter(l => l.trim().startsWith('{')).length ? r.data.substring(r.data.indexOf('{')) : '{}');
+      if (info.running && info.port) return info.port;
+    } catch {}
+  }
+  // Fall back to the port file (HOME=/var/lib/antd in the container).
+  const f = await runShellAsync('docker exec antd cat /var/lib/antd/.local/share/ant/daemon.port 2>/dev/null', 3000);
+  return f.ok && f.data ? parseInt(f.data, 10) : null;
 }
 
 async function getAntDaemonStatus() {
+  // Primary: CLI info (works from a bridge-network dashboard).
+  const r = await runShellAsync('docker exec antd ant node daemon info --json 2>/dev/null', 5000);
+  if (r.ok && r.data && r.data.includes('"running"')) {
+    try {
+      const info = JSON.parse(r.data.substring(r.data.indexOf('{')));
+      return { running: !!info.running, pid: info.pid, port: info.port, uptime_secs: 0, nodes_total: 0, nodes_running: 0, nodes_stopped: 0, nodes_errored: 0 };
+    } catch {}
+  }
   const port = await getAntDaemonPort();
   if (!port) return { running: false, error: 'no daemon port file' };
   const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/status`);
@@ -339,30 +360,26 @@ async function getAntDaemonStatus() {
 }
 
 async function getAntNodeStatus() {
-  const port = getAntDaemonPort();
-  if (!port) return { nodes: [], total_running: 0, total_stopped: 0 };
-  const node = await fetchUrl(`http://127.0.0.1:${port}/api/v1/nodes/1`);
-  if (node && !node.error) {
-    return {
-      nodes: [{
-        node_id: node.id, name: node.service_name, version: node.version,
-        status: node.status, pid: node.pid, uptime_secs: node.uptime_secs
-      }],
-      total_running: node.status === 'running' ? 1 : 0,
-      total_stopped: node.status === 'stopped' ? 1 : 0
-    };
+  const nodes = [];
+  let totalRunning = 0, totalStopped = 0;
+  // Daemon-managed nodes via CLI --json (bridge-network safe).
+  const fleet = await runShellAsync('docker exec antd ant node status --json 2>/dev/null', 8000);
+  if (fleet.ok && fleet.data) {
+    try {
+      const f = JSON.parse(fleet.data.substring(fleet.data.indexOf('{')));
+      for (const n of (f.nodes || [])) {
+        nodes.push({ node_id: n.node_id, name: n.name, version: n.version, status: n.status, pid: null, uptime_secs: 0 });
+        if (n.status === 'running') totalRunning++; else if (n.status === 'stopped') totalStopped++;
+      }
+    } catch {}
   }
+  // Direct-binary node (the stable antd entrypoint runs ant-node directly).
   const pid = pgrep('ant-node');
   if (pid) {
-    return {
-      nodes: [{
-        node_id: 1, name: 'node1', version: 'direct',
-        status: 'running', pid, uptime_secs: 0
-      }],
-      total_running: 1, total_stopped: 0
-    };
+    nodes.push({ node_id: 0, name: 'node1', version: 'direct', status: 'running', pid, uptime_secs: 0 });
+    totalRunning++;
   }
-  return { nodes: [], total_running: 0, total_stopped: 0 };
+  return { nodes, total_running: totalRunning, total_stopped: totalStopped };
 }
 
 // ─── WIKI ENDPOINTS (via MCP) ────────────────────────────────
@@ -941,12 +958,19 @@ app.get('/api/ant', async (req, res) => {
   ]);
   res.json({
     storage,
-    daemon: daemon.error ? { running: false, error: daemon.error } : {
+    daemon: daemon.running ? {
+      running: true, pid: daemon.pid, port: daemon.port,
+      uptime_secs: daemon.uptime_secs,
+      nodes_total: daemon.nodes_total, nodes_running: daemon.nodes_running,
+      nodes_stopped: daemon.nodes_stopped, nodes_errored: daemon.nodes_errored,
+      ...(daemon.error ? { error: daemon.error } : {}),
+      ...(daemon.mode ? { mode: daemon.mode } : {})
+    } : (daemon.error ? { running: false, error: daemon.error } : {
       running: daemon.running, pid: daemon.pid, port: daemon.port,
       uptime_secs: daemon.uptime_secs,
       nodes_total: daemon.nodes_total, nodes_running: daemon.nodes_running,
       nodes_stopped: daemon.nodes_stopped, nodes_errored: daemon.nodes_errored
-    },
+    }),
     nodes: nodes.nodes || [],
     totalRunning: nodes.total_running || 0,
     totalStopped: nodes.total_stopped || 0,
@@ -958,7 +982,13 @@ app.get('/api/ant', async (req, res) => {
 });
 
 app.post('/api/ant/daemon/start', async (req, res) => {
-  const r = runShell('docker exec antd ant node daemon start 2>&1');
+  // stop-then-clean-then-start: a stale PID/port file (e.g. left over from
+  // a previous container incarnation whose PIDs no longer exist) makes
+  // plain `start` report "already running" while nothing listens. Remove
+  // the stale files before starting so the button always yields a live
+  // daemon.
+  const cmd = 'docker exec antd sh -c "ant node daemon stop 2>/dev/null; rm -f /var/lib/antd/.local/share/ant/daemon.pid /var/lib/antd/.local/share/ant/daemon.port; ant node daemon start 2>&1"';
+  const r = runShell(cmd);
   res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
 });
 
@@ -1107,6 +1137,9 @@ async function wsHeartbeat() {
   try {
     const bodyStr = JSON.stringify({ jsonrpc: '2.0', id: 'hb', method: 'eth_blockNumber', params: [] });
     const txt = await wsProxy(bodyStr);
+    if(txt.includes('custom 404') || txt.includes('custom 500')){
+      throw new Error('walletshield: ' + txt.trim().slice(0,60));
+    }
     const p = JSON.parse(txt);
     if (p.result) {
       wsHeartbeatState.ok = true;

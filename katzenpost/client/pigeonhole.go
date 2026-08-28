@@ -10,10 +10,14 @@ import (
 	"github.com/katzenpost/hpqc/bacap"
 	"github.com/katzenpost/hpqc/hash"
 	"github.com/katzenpost/hpqc/kem/mkem"
+	kempem "github.com/katzenpost/hpqc/kem/pem"
 	"github.com/katzenpost/hpqc/nike"
 	"github.com/katzenpost/hpqc/rand"
+	signpem "github.com/katzenpost/hpqc/sign/pem"
 
+	vServerConfig "github.com/katzenpost/katzenpost/authority/voting/server/config"
 	"github.com/katzenpost/katzenpost/client/constants"
+	"github.com/katzenpost/katzenpost/client/instrument"
 	"github.com/katzenpost/katzenpost/client/thin"
 	cpki "github.com/katzenpost/katzenpost/core/pki"
 	sphinxConstants "github.com/katzenpost/katzenpost/core/sphinx/constants"
@@ -47,7 +51,7 @@ func (d *Daemon) newKeypair(request *Request) {
 	readCap := writeCap.ReadCap()
 
 	// Get the first message index from the WriteCap
-	firstIndex := writeCap.GetMessageBoxIndex()
+	firstIndex := writeCap.GetFirstMessageBoxIndex()
 
 	conn.sendResponse(&Response{
 		AppID: request.AppID,
@@ -141,7 +145,7 @@ func (d *Daemon) encryptRead(request *Request) {
 	}
 
 	// Create the envelope with padding so reads are indistinguishable from writes
-	courierEnvelope, envelopePrivateKey, err := createEnvelopeFromMessageWithPadding(msg, doc, true, 0, d.cfg.PigeonholeGeometry)
+	courierEnvelope, envelopePrivateKey, err := createEnvelopeFromMessageWithPadding(msg, doc, true, 0, d.cfg.PigeonholeGeometry())
 	if err != nil {
 		d.log.Errorf("encryptRead: failed to create envelope: %v", err)
 		d.sendEncryptReadError(request, thin.ThinClientErrorInternalError)
@@ -242,7 +246,7 @@ func (d *Daemon) encryptWrite(request *Request) {
 	}
 
 	// Validate PigeonholeGeometry
-	if d.cfg.PigeonholeGeometry == nil {
+	if d.cfg.PigeonholeGeometry() == nil {
 		d.log.Error("encryptWrite: PigeonholeGeometry is nil")
 		d.sendEncryptWriteError(request, thin.ThinClientErrorInternalError)
 		return
@@ -268,15 +272,15 @@ func (d *Daemon) encryptWrite(request *Request) {
 		// Validate that the payload can fit within the geometry's MaxPlaintextPayloadLength
 		// CreatePaddedPayload requires 4 bytes for length prefix plus the payload
 		minRequiredSize := len(plaintext) + 4
-		if minRequiredSize > d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength+4 {
+		if minRequiredSize > d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength+4 {
 			d.log.Errorf("encryptWrite: payload too large: %d bytes (+ 4 byte length prefix) exceeds MaxPlaintextPayloadLength + 4 of %d bytes",
-				len(plaintext), d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength+4)
+				len(plaintext), d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength+4)
 			d.sendEncryptWriteError(request, thin.ThinClientErrorInvalidRequest)
 			return
 		}
 
 		// Pad the payload to the geometry's MaxPlaintextPayloadLength + 4
-		paddedPayload, err := pigeonhole.CreatePaddedPayload(plaintext, d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength+4)
+		paddedPayload, err := pigeonhole.CreatePaddedPayload(plaintext, d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength+4)
 		if err != nil {
 			d.log.Errorf("encryptWrite: failed to pad payload: %v", err)
 			d.sendEncryptWriteError(request, thin.ThinClientErrorInternalError)
@@ -318,7 +322,7 @@ func (d *Daemon) encryptWrite(request *Request) {
 	}
 
 	// Create the envelope with padding so tombstones are indistinguishable from normal writes
-	courierEnvelope, envelopePrivateKey, err := createEnvelopeFromMessageWithPadding(msg, doc, false, 0, d.cfg.PigeonholeGeometry)
+	courierEnvelope, envelopePrivateKey, err := createEnvelopeFromMessageWithPadding(msg, doc, false, 0, d.cfg.PigeonholeGeometry())
 	if err != nil {
 		d.log.Errorf("encryptWrite: failed to create envelope: %v", err)
 		d.sendEncryptWriteError(request, thin.ThinClientErrorInternalError)
@@ -443,7 +447,7 @@ func (d *Daemon) buildCourierEnvelope(doc *cpki.Document, replicaEpoch uint64, b
 	if err != nil {
 		return nil, fmt.Errorf("failed to get intermediate replicas: %w", err)
 	}
-	paddedMsg, err := pigeonhole.PadInnerMessageForEncryption(msg, d.cfg.PigeonholeGeometry)
+	paddedMsg, err := pigeonhole.PadInnerMessageForEncryption(msg, d.cfg.PigeonholeGeometry())
 	if err != nil {
 		return nil, fmt.Errorf("failed to pad inner message: %w", err)
 	}
@@ -471,7 +475,7 @@ func (d *Daemon) buildCourierEnvelope(doc *cpki.Document, replicaEpoch uint64, b
 func (d *Daemon) encryptWriteChunk(writer *bacap.StatefulWriter, chunk []byte, advance bool) ([bacap.BoxIDSize]byte, []byte, [bacap.SignatureSize]byte, error) {
 	var zeroBox [bacap.BoxIDSize]byte
 	var zeroSig [bacap.SignatureSize]byte
-	paddedPayload, err := pigeonhole.CreatePaddedPayload(chunk, d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength+4)
+	paddedPayload, err := pigeonhole.CreatePaddedPayload(chunk, d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength+4)
 	if err != nil {
 		return zeroBox, nil, zeroSig, fmt.Errorf("failed to pad payload: %w", err)
 	}
@@ -501,7 +505,7 @@ func (d *Daemon) createCourierEnvelopesFromPayload(request *Request) {
 	}
 
 	req := request.CreateCourierEnvelopesFromPayload
-	if err := validateEnvelopePayloadRequest(req.Payload, req.DestWriteCap, req.DestStartIndex, d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength); err != nil {
+	if err := validateEnvelopePayloadRequest(req.Payload, req.DestWriteCap, req.DestStartIndex, d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength); err != nil {
 		d.log.Errorf("createCourierEnvelopesFromPayload: %v", err)
 		d.sendCreateCourierEnvelopesFromPayloadError(request, thin.ThinClientErrorInvalidRequest)
 		return
@@ -526,7 +530,7 @@ func (d *Daemon) createCourierEnvelopesFromPayload(request *Request) {
 	}
 	statefulWriter.NextIndex = req.DestStartIndex
 
-	maxPayload := d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength - 4
+	maxPayload := d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength - 4
 	chunks := chunkPayload(req.Payload, maxPayload)
 	envelopes := make([]*pigeonhole.CourierEnvelope, 0, len(chunks))
 	for _, chunk := range chunks {
@@ -550,7 +554,7 @@ func (d *Daemon) createCourierEnvelopesFromPayload(request *Request) {
 	// flush even the partial trailing element on !isLast. Callers that
 	// actually want multi-call buffer continuation use the Payloads
 	// variant instead.
-	encoder := pigeonhole.NewCopyStreamEncoder(d.cfg.PigeonholeGeometry)
+	encoder := pigeonhole.NewCopyStreamEncoder(d.cfg.PigeonholeGeometry())
 	if !req.IsStart {
 		encoder.SuppressStart()
 	}
@@ -616,7 +620,7 @@ func (d *Daemon) createCourierEnvelopesFromPayloads(request *Request) {
 
 	// Calculate the maximum user payload size per envelope.
 	// We need to leave room for the 4-byte length prefix that CreatePaddedPayload adds.
-	maxPayload := d.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength - 4
+	maxPayload := d.cfg.PigeonholeGeometry().MaxPlaintextPayloadLength - 4
 	if maxPayload <= 0 {
 		d.log.Error("createCourierEnvelopesFromPayloads: invalid geometry, maxPayload <= 0")
 		d.sendCreateCourierEnvelopesFromPayloadsError(request, thin.ThinClientErrorInternalError)
@@ -637,7 +641,7 @@ func (d *Daemon) createCourierEnvelopesFromPayloads(request *Request) {
 	replicaEpoch := replicaCommon.ConvertNormalToReplicaEpoch(doc.Epoch)
 
 	// Create a fresh encoder and restore buffer from previous call if provided
-	encoder := pigeonhole.NewCopyStreamEncoder(d.cfg.PigeonholeGeometry)
+	encoder := pigeonhole.NewCopyStreamEncoder(d.cfg.PigeonholeGeometry())
 	if len(request.CreateCourierEnvelopesFromPayloads.Buffer) > 0 {
 		encoder.SetBuffer(&pigeonhole.CopyStreamEncoderState{
 			Buffer: request.CreateCourierEnvelopesFromPayloads.Buffer,
@@ -803,7 +807,7 @@ func (d *Daemon) createCourierEnvelopesFromTombstoneRange(request *Request) {
 		return
 	}
 
-	if d.cfg.PigeonholeGeometry == nil {
+	if d.cfg.PigeonholeGeometry() == nil {
 		d.log.Error("createCourierEnvelopesFromTombstoneRange: PigeonholeGeometry is nil")
 		d.sendCreateCourierEnvelopesFromTombstoneRangeError(request, thin.ThinClientErrorInternalError)
 		return
@@ -847,7 +851,7 @@ func (d *Daemon) createCourierEnvelopesFromTombstoneRange(request *Request) {
 	// Encode via CopyStreamEncoder with stateless buffer continuation
 	isStart := request.CreateCourierEnvelopesFromTombstoneRange.IsStart
 	isLast := request.CreateCourierEnvelopesFromTombstoneRange.IsLast
-	encoder := pigeonhole.NewCopyStreamEncoder(d.cfg.PigeonholeGeometry)
+	encoder := pigeonhole.NewCopyStreamEncoder(d.cfg.PigeonholeGeometry())
 
 	// Restore buffer from previous call if provided
 	if len(request.CreateCourierEnvelopesFromTombstoneRange.Buffer) > 0 {
@@ -992,6 +996,113 @@ func (d *Daemon) sendGetMessageBoxIndexCounterError(request *Request, errorCode 
 	})
 }
 
+// getPKIDocument returns the cert.Certificate-wrapped signed PKI
+// document for the requested epoch, with directory authority
+// signatures intact. An epoch of zero is taken to mean the current
+// epoch.
+func (d *Daemon) getPKIDocument(request *Request) {
+	conn := d.listener.getConnection(request.AppID)
+	if conn == nil {
+		d.log.Errorf(errNoConnectionForAppID, request.AppID[:])
+		return
+	}
+
+	var raw []byte
+	epoch := request.GetPKIDocument.Epoch
+	if epoch == 0 {
+		raw, epoch = d.client.CurrentRawSignedDocument()
+	} else {
+		raw = d.client.RawSignedDocumentByEpoch(epoch)
+	}
+
+	if raw == nil {
+		d.sendGetPKIDocumentError(request, epoch, thin.ThinClientErrorServiceUnavailable)
+		return
+	}
+
+	conn.sendResponse(&Response{
+		AppID: request.AppID,
+		GetPKIDocumentReply: &thin.GetPKIDocumentReply{
+			QueryID:   request.GetPKIDocument.QueryID,
+			Payload:   raw,
+			Epoch:     epoch,
+			ErrorCode: thin.ThinClientSuccess,
+		},
+	})
+}
+
+func (d *Daemon) sendGetPKIDocumentError(request *Request, epoch uint64, errorCode uint8) {
+	d.sendError(request.AppID, &Response{
+		AppID: request.AppID,
+		GetPKIDocumentReply: &thin.GetPKIDocumentReply{
+			QueryID:   request.GetPKIDocument.QueryID,
+			Epoch:     epoch,
+			ErrorCode: errorCode,
+		},
+	})
+}
+
+// getDirectoryAuthorities returns the directory authority descriptors the
+// daemon is configured with, drawn from its voting authority peer list. A
+// thin client cannot see this configuration itself, yet may wish to map a
+// PKI document's signature fingerprints to authority identifiers.
+func (d *Daemon) getDirectoryAuthorities(request *Request) {
+	conn := d.listener.getConnection(request.AppID)
+	if conn == nil {
+		d.log.Errorf(errNoConnectionForAppID, request.AppID[:])
+		return
+	}
+
+	if d.cfg.VotingAuthority == nil || len(d.cfg.VotingAuthority.Peers) == 0 {
+		d.sendGetDirectoryAuthoritiesError(request, thin.ThinClientErrorServiceUnavailable)
+		return
+	}
+
+	authorities := make([]*thin.DirectoryAuthority, 0, len(d.cfg.VotingAuthority.Peers))
+	for _, peer := range d.cfg.VotingAuthority.Peers {
+		authorities = append(authorities, dirauthDescriptor(peer))
+	}
+
+	conn.sendResponse(&Response{
+		AppID: request.AppID,
+		GetDirectoryAuthoritiesReply: &thin.GetDirectoryAuthoritiesReply{
+			QueryID:     request.GetDirectoryAuthorities.QueryID,
+			Authorities: authorities,
+			ErrorCode:   thin.ThinClientSuccess,
+		},
+	})
+}
+
+// dirauthDescriptor projects a configured voting authority peer onto the
+// thin client's DirectoryAuthority view, encoding the keys as PEM so the
+// caller need not link a Go key type to interpret them.
+func dirauthDescriptor(peer *vServerConfig.Authority) *thin.DirectoryAuthority {
+	da := &thin.DirectoryAuthority{
+		Identifier:         peer.Identifier,
+		PKISignatureScheme: peer.PKISignatureScheme,
+		WireKEMScheme:      peer.WireKEMScheme,
+		Addresses:          peer.Addresses,
+	}
+	if peer.IdentityPublicKey != nil {
+		da.IdentityPublicKeyPem = signpem.ToPublicPEMString(peer.IdentityPublicKey)
+		da.IdentityKeyHash = hash.Sum256From(peer.IdentityPublicKey)
+	}
+	if peer.LinkPublicKey.PublicKey != nil {
+		da.LinkPublicKeyPem = kempem.ToPublicPEMString(peer.LinkPublicKey.PublicKey)
+	}
+	return da
+}
+
+func (d *Daemon) sendGetDirectoryAuthoritiesError(request *Request, errorCode uint8) {
+	d.sendError(request.AppID, &Response{
+		AppID: request.AppID,
+		GetDirectoryAuthoritiesReply: &thin.GetDirectoryAuthoritiesReply{
+			QueryID:   request.GetDirectoryAuthorities.QueryID,
+			ErrorCode: errorCode,
+		},
+	})
+}
+
 // createEnvelopeFromMessage creates a CourierEnvelope from a ReplicaInnerMessage
 func createEnvelopeFromMessage(msg *pigeonhole.ReplicaInnerMessage, doc *cpki.Document, isRead bool, replyIndex uint8) (*pigeonhole.CourierEnvelope, nike.PrivateKey, error) {
 	return createEnvelopeFromMessageWithPadding(msg, doc, isRead, replyIndex, nil)
@@ -1104,10 +1215,12 @@ func (d *Daemon) arqSend(message *ARQMessage, envHashKey [32]byte) error {
 	message.ReplyETA = rtt
 	message.Retransmissions = 0
 
-	d.replyLock.Lock()
+	d.lockReply()
 	d.arqSurbIDMap[*surbID] = message
 	d.arqEnvelopeHashMap[envHashKey] = surbID
+	instrument.ARQInflightSet(len(d.arqSurbIDMap))
 	d.replyLock.Unlock()
+	instrument.SurbIDCreated()
 
 	priority := uint64(message.SentAt.Add(rtt).Add(RoundTripTimeSlop).UnixNano())
 	d.arqTimerQueue.Push(priority, surbID)
@@ -1212,7 +1325,7 @@ func (d *Daemon) cancelResendingEncryptedMessage(request *Request) {
 		return
 	}
 
-	d.replyLock.Lock()
+	d.lockReply()
 	surbID, ok := d.arqEnvelopeHashMap[*req.EnvelopeHash]
 	var arqMessage *ARQMessage
 	if ok && surbID != nil {
@@ -1271,6 +1384,28 @@ func (d *Daemon) sendCancelResendingEncryptedMessageError(request *Request, erro
 // - WaitingForACK: Initial state, waiting for ACK from courier
 // - ACKReceived: ACK received, for reads we need to send another SURB for payload
 // - PayloadReceived: Terminal state for reads after receiving payload
+// finishARQMessage delivers the terminal outcome of an ARQ operation to its
+// owner. A SACK-controlled box notifies its controller through OnComplete
+// (plaintext nil for writes, the decrypted box payload for reads); a
+// standalone StartResendingEncryptedMessage gets its per-message thin reply.
+// The map cleanup has already been done by the caller.
+func (d *Daemon) finishARQMessage(arqMessage *ARQMessage, conn *incomingConn, errorCode uint8, plaintext []byte) {
+	if arqMessage.OnComplete != nil {
+		arqMessage.OnComplete(errorCode, plaintext)
+		return
+	}
+	conn.sendResponse(&Response{
+		AppID: arqMessage.AppID,
+		StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
+			QueryID:             arqMessage.QueryID,
+			Plaintext:           plaintext,
+			ErrorCode:           errorCode,
+			CourierIdentityHash: arqMessage.DestinationIdHash,
+			CourierQueueID:      arqMessage.RecipientQueueID,
+		},
+	})
+}
+
 func (d *Daemon) handlePigeonholeARQReply(arqMessage *ARQMessage, reply *sphinxReply) {
 	conn := d.listener.getConnection(arqMessage.AppID)
 	if conn == nil {
@@ -1336,40 +1471,25 @@ func (d *Daemon) handlePigeonholeARQReply(arqMessage *ARQMessage, reply *sphinxR
 	switch transition.Action {
 	case ARQActionError:
 		d.log.Errorf("handlePigeonholeARQReply: courier reply error code %d", transition.ErrorCode)
-		d.replyLock.Lock()
+		d.lockReply()
 		delete(d.arqSurbIDMap, *arqMessage.SURBID)
 		delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 		d.replyLock.Unlock()
 
-		conn.sendResponse(&Response{
-			AppID: arqMessage.AppID,
-			StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-				QueryID:             arqMessage.QueryID,
-				ErrorCode:           transition.ErrorCode,
-				CourierIdentityHash: arqMessage.DestinationIdHash,
-				CourierQueueID:      arqMessage.RecipientQueueID,
-			},
-		})
+		d.finishARQMessage(arqMessage, conn, transition.ErrorCode, nil)
 		return
 
 	case ARQActionComplete:
 		d.log.Debugf("handlePigeonholeARQReply: Write ACK received, returning success (single round-trip)")
-		d.replyLock.Lock()
+		d.lockReply()
 		if arqMessage.SURBID != nil {
 			delete(d.arqSurbIDMap, *arqMessage.SURBID)
 		}
 		delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 		d.replyLock.Unlock()
+		instrument.SurbIDDelivered()
 
-		conn.sendResponse(&Response{
-			AppID: arqMessage.AppID,
-			StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-				QueryID:             arqMessage.QueryID,
-				ErrorCode:           thin.ThinClientSuccess,
-				CourierIdentityHash: arqMessage.DestinationIdHash,
-				CourierQueueID:      arqMessage.RecipientQueueID,
-			},
-		})
+		d.finishARQMessage(arqMessage, conn, thin.ThinClientSuccess, nil)
 		return
 
 	case ARQActionHandlePayload:
@@ -1402,7 +1522,7 @@ func (d *Daemon) handlePigeonholeARQReply(arqMessage *ARQMessage, reply *sphinxR
 
 		oldSurbID := arqMessage.SURBID
 
-		d.replyLock.Lock()
+		d.lockReply()
 		// Abort if a concurrent cancel has already cleared this
 		// arqMessage. Rotating here would silently un-cancel the
 		// operation.
@@ -1485,10 +1605,11 @@ func (d *Daemon) handleCopyCommandARQReply(arqMessage *ARQMessage, courierQueryR
 		return
 
 	case pigeonhole.CopyStatusSucceeded:
-		d.replyLock.Lock()
+		d.lockReply()
 		delete(d.arqSurbIDMap, *arqMessage.SURBID)
 		delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 		d.replyLock.Unlock()
+		instrument.SurbIDDelivered()
 		conn.sendResponse(&Response{
 			AppID: arqMessage.AppID,
 			StartResendingCopyCommandReply: &thin.StartResendingCopyCommandReply{
@@ -1498,7 +1619,7 @@ func (d *Daemon) handleCopyCommandARQReply(arqMessage *ARQMessage, courierQueryR
 		})
 
 	case pigeonhole.CopyStatusFailed:
-		d.replyLock.Lock()
+		d.lockReply()
 		delete(d.arqSurbIDMap, *arqMessage.SURBID)
 		delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 		d.replyLock.Unlock()
@@ -1514,7 +1635,7 @@ func (d *Daemon) handleCopyCommandARQReply(arqMessage *ARQMessage, courierQueryR
 
 	default:
 		d.log.Warningf("handleCopyCommandARQReply: unexpected Status=%d, treating as failure", copyCommandReply.Status)
-		d.replyLock.Lock()
+		d.lockReply()
 		delete(d.arqSurbIDMap, *arqMessage.SURBID)
 		delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 		d.replyLock.Unlock()
@@ -1544,7 +1665,7 @@ func (d *Daemon) scheduleCopyCommandPoll(arqMessage *ARQMessage) {
 		return
 	}
 
-	d.replyLock.Lock()
+	d.lockReply()
 	// Abort if a concurrent cancel has already removed the arqMessage
 	// from the maps. Re-registering here would silently un-cancel the
 	// operation.
@@ -1566,6 +1687,8 @@ func (d *Daemon) scheduleCopyCommandPoll(arqMessage *ARQMessage) {
 		d.arqEnvelopeHashMap[*arqMessage.EnvelopeHash] = placeholder
 	}
 	d.replyLock.Unlock()
+	instrument.SurbIDRotated()
+	instrument.SurbIDCreated()
 
 	if d.arqTimerQueue == nil {
 		d.log.Debugf("scheduleCopyCommandPoll: arqTimerQueue is nil, skipping poll schedule")
@@ -1697,7 +1820,7 @@ func (d *Daemon) cancelResendingCopyCommand(request *Request) {
 	}
 
 	// Look up SURB ID from EnvelopeHash map (using WriteCapHash as the key)
-	d.replyLock.Lock()
+	d.lockReply()
 	surbID, ok := d.arqEnvelopeHashMap[*req.WriteCapHash]
 	var arqMessage *ARQMessage
 	if ok && surbID != nil {
@@ -1750,9 +1873,9 @@ func (d *Daemon) sendCancelResendingCopyCommandError(request *Request, errorCode
 type payloadErrorAction int
 
 const (
-	payloadActionReturnError      payloadErrorAction = iota
-	payloadActionRetry                               // Retry (BoxIDNotFound on read)
-	payloadActionIdempotentSuccess                   // Treat as success (BoxAlreadyExists on write)
+	payloadActionReturnError       payloadErrorAction = iota
+	payloadActionRetry                                // Retry (BoxIDNotFound on read)
+	payloadActionIdempotentSuccess                    // Treat as success (BoxAlreadyExists on write)
 )
 
 // determinePayloadErrorAction decides what to do with a decryption error
@@ -1796,13 +1919,16 @@ func mapDecryptionErrorToCode(err error) uint8 {
 func (d *Daemon) handlePayloadReply(arqMessage *ARQMessage, courierEnvelopeReply *pigeonhole.CourierEnvelopeReply, conn *incomingConn) {
 	plaintext, err := d.decryptPigeonholeReply(arqMessage, courierEnvelopeReply)
 	if err != nil {
-		d.log.Errorf("handlePayloadReply: failed to decrypt reply: %s", err)
-
+		// The reply did not yield plaintext. This covers several distinct
+		// conditions, not all of them failures and not all of them decryption
+		// errors: a replica status such as box-not-found (no ciphertext
+		// exists), box-already-exists, or a genuine ciphertext that would not
+		// decrypt. Each branch below logs the condition it actually is.
 		action := determinePayloadErrorAction(err, arqMessage.IsRead, arqMessage.NoRetryOnBoxIDNotFound, arqMessage.NoIdempotentBoxAlreadyExists)
 
 		switch action {
 		case payloadActionRetry:
-			d.log.Debugf("handlePayloadReply: BoxIDNotFound for read operation, scheduling retry (attempt %d)",
+			d.log.Debugf("handlePayloadReply: box does not exist yet for read, scheduling retry (attempt %d)",
 				arqMessage.Retransmissions+1)
 
 			newSurbID := &[sphinxConstants.SURBIDLength]byte{}
@@ -1825,7 +1951,7 @@ func (d *Daemon) handlePayloadReply(arqMessage *ARQMessage, courierEnvelopeReply
 
 			oldSurbID := arqMessage.SURBID
 
-			d.replyLock.Lock()
+			d.lockReply()
 			// Abort if a concurrent cancel has already cleared this
 			// arqMessage.
 			if oldSurbID == nil {
@@ -1860,63 +1986,46 @@ func (d *Daemon) handlePayloadReply(arqMessage *ARQMessage, courierEnvelopeReply
 
 		case payloadActionIdempotentSuccess:
 			d.log.Debugf("handlePayloadReply: BoxAlreadyExists for write operation - treating as idempotent success")
-			d.replyLock.Lock()
+			d.lockReply()
 			delete(d.arqSurbIDMap, *arqMessage.SURBID)
 			delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 			d.replyLock.Unlock()
+			instrument.SurbIDDelivered()
 
-			conn.sendResponse(&Response{
-				AppID: arqMessage.AppID,
-				StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-					QueryID:             arqMessage.QueryID,
-					ErrorCode:           thin.ThinClientSuccess,
-					CourierIdentityHash: arqMessage.DestinationIdHash,
-					CourierQueueID:      arqMessage.RecipientQueueID,
-				},
-			})
+			d.finishARQMessage(arqMessage, conn, thin.ThinClientSuccess, nil)
 			return
 		}
 
 		// payloadActionReturnError (or retry/idempotent fell through on infrastructure failure)
-		d.replyLock.Lock()
+		d.lockReply()
 		delete(d.arqSurbIDMap, *arqMessage.SURBID)
 		delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 		d.replyLock.Unlock()
 
 		errorCode := mapDecryptionErrorToCode(err)
-		d.log.Debugf("handlePayloadReply: returning error code %d", errorCode)
+		var re *replicaError
+		if errors.As(err, &re) {
+			d.log.Errorf("handlePayloadReply: replica returned error: %s", err)
+		} else {
+			d.log.Errorf("handlePayloadReply: failed to decrypt reply: %s", err)
+		}
 
-		conn.sendResponse(&Response{
-			AppID: arqMessage.AppID,
-			StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-				QueryID:             arqMessage.QueryID,
-				ErrorCode:           errorCode,
-				CourierIdentityHash: arqMessage.DestinationIdHash,
-				CourierQueueID:      arqMessage.RecipientQueueID,
-			},
-		})
+		d.finishARQMessage(arqMessage, conn, errorCode, nil)
 		return
 	}
 
 	// Remove from ARQ tracking
-	d.replyLock.Lock()
+	d.lockReply()
 	delete(d.arqSurbIDMap, *arqMessage.SURBID)
 	delete(d.arqEnvelopeHashMap, *arqMessage.EnvelopeHash)
 	d.replyLock.Unlock()
+	instrument.SurbIDDelivered()
 
 	// Handle writes: for write operations, we don't expect any payload data.
 	// A successful write returns nil plaintext and nil error.
 	if !arqMessage.IsRead {
 		d.log.Debugf("handlePayloadReply: Write operation completed successfully")
-		conn.sendResponse(&Response{
-			AppID: arqMessage.AppID,
-			StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-				QueryID:             arqMessage.QueryID,
-				ErrorCode:           thin.ThinClientSuccess,
-				CourierIdentityHash: arqMessage.DestinationIdHash,
-				CourierQueueID:      arqMessage.RecipientQueueID,
-			},
-		})
+		d.finishARQMessage(arqMessage, conn, thin.ThinClientSuccess, nil)
 		return
 	}
 
@@ -1925,16 +2034,7 @@ func (d *Daemon) handlePayloadReply(arqMessage *ARQMessage, courierEnvelopeReply
 	// any case where the tombstone error code was not set.
 	if len(plaintext) == 0 {
 		d.log.Debugf("handlePayloadReply: Tombstone detected (empty plaintext)")
-		conn.sendResponse(&Response{
-			AppID: arqMessage.AppID,
-			StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-				QueryID:             arqMessage.QueryID,
-				Plaintext:           []byte{},
-				ErrorCode:           pigeonhole.ReplicaErrorTombstone,
-				CourierIdentityHash: arqMessage.DestinationIdHash,
-				CourierQueueID:      arqMessage.RecipientQueueID,
-			},
-		})
+		d.finishARQMessage(arqMessage, conn, pigeonhole.ReplicaErrorTombstone, []byte{})
 		return
 	}
 
@@ -1942,29 +2042,12 @@ func (d *Daemon) handlePayloadReply(arqMessage *ARQMessage, courierEnvelopeReply
 	unpaddedPlaintext, err := pigeonhole.ExtractMessageFromPaddedPayload(plaintext)
 	if err != nil {
 		d.log.Errorf("handlePayloadReply: Failed to unpad plaintext: %v", err)
-		conn.sendResponse(&Response{
-			AppID: arqMessage.AppID,
-			StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-				QueryID:             arqMessage.QueryID,
-				ErrorCode:           thin.ThinClientErrorInternalError,
-				CourierIdentityHash: arqMessage.DestinationIdHash,
-				CourierQueueID:      arqMessage.RecipientQueueID,
-			},
-		})
+		d.finishARQMessage(arqMessage, conn, thin.ThinClientErrorInternalError, nil)
 		return
 	}
 
 	// Send success with unpadded plaintext to thin client
-	conn.sendResponse(&Response{
-		AppID: arqMessage.AppID,
-		StartResendingEncryptedMessageReply: &thin.StartResendingEncryptedMessageReply{
-			QueryID:             arqMessage.QueryID,
-			Plaintext:           unpaddedPlaintext,
-			ErrorCode:           thin.ThinClientSuccess,
-			CourierIdentityHash: arqMessage.DestinationIdHash,
-			CourierQueueID:      arqMessage.RecipientQueueID,
-		},
-	})
+	d.finishARQMessage(arqMessage, conn, thin.ThinClientSuccess, unpaddedPlaintext)
 }
 
 type innerMessageType int
@@ -2076,9 +2159,13 @@ func (d *Daemon) decryptPigeonholeReply(arqMessage *ARQMessage, env *pigeonhole.
 				return nil, fmt.Errorf("%w: failed to create StatefulReader: %v", errBACAPDecryptionFailed, err)
 			}
 
-			// Calculate the expected BoxID from the ReadCap and MessageBoxIndex
+			// Calculate the expected BoxID from the ReadCap and MessageBoxIndex.
+			// The Got field is logged for diagnostic comparison against
+			// Expected; this is information, not an error, so log it at
+			// Debug. The decryption a few lines below is what will fail
+			// loudly when the BoxIDs actually disagree.
 			expectedBoxID := messageBoxIndex.BoxIDForContext(arqMessage.ReadCap, constants.PIGEONHOLE_CTX)
-			d.log.Errorf("decryptPigeonholeReply: BoxID comparison - Expected: %x, Got from replica: %x",
+			d.log.Debugf("decryptPigeonholeReply: BoxID comparison - Expected: %x, Got from replica: %x",
 				expectedBoxID.Bytes(), innerMsg.ReadReply.BoxID)
 
 			// Decrypt the BACAP payload (also verifies signature)

@@ -6,17 +6,15 @@ require (
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/BurntSushi/toml v1.6.0
 	github.com/carlmjohnson/versioninfo v0.22.5
-	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/fang v1.0.0
-	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/fxamacker/cbor/v2 v2.9.1
 	github.com/grafana/pyroscope-go v1.2.8
 	github.com/katzenpost/chacha20poly1305 v0.0.1
-	github.com/katzenpost/hpqc v0.0.85-0.20260715190213-e598e7ee2843
-	github.com/katzenpost/nyquist v0.0.12
+	github.com/katzenpost/hpqc v0.0.84-0.20260603082753-be60338910ec
+	github.com/katzenpost/nyquist v0.0.13
 	github.com/katzenpost/qrterminal v0.0.0-20250706194004-f95c77b7c73e
-	github.com/linxGnu/grocksdb v1.10.7
+	github.com/linxGnu/grocksdb v1.10.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/quic-go/quic-go v0.59.0
 	github.com/schwarmco/go-cartesian-product v0.0.0-20230921023625-e02d1c150053
@@ -39,12 +37,10 @@ require (
 	filippo.io/mldsa v0.0.0-20260215214346-43d0283efc3e // indirect
 	filippo.io/mlkem768 v0.0.0-20260214141301-2e7bebc7d88d // indirect
 	github.com/agl/gcmsiv v0.0.0-20190418185415-e8dcd2f151dc // indirect
-	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260330092749-0f94982c930b // indirect
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
-	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/exp/charmtone v0.0.0-20260406091427-a791e22d5143 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
@@ -53,7 +49,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
-	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/katzenpost/chacha20 v0.0.1 // indirect
@@ -64,18 +59,15 @@ require (
 	github.com/katzenpost/sqisign/bindings/go v0.0.0-20260520215053-47e926d8264d // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/leanovate/gopter v0.2.11 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
-	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/mango v0.2.0 // indirect
 	github.com/muesli/mango-cobra v1.3.0 // indirect
 	github.com/muesli/mango-pflag v0.2.0 // indirect
 	github.com/muesli/roff v0.1.0 // indirect
-	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/oasisprotocol/deoxysii v0.0.0-20220228165953-2091330c22b7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

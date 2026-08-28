@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	cbor "github.com/fxamacker/cbor/v2"
 	"github.com/charmbracelet/log"
 	"github.com/katzenpost/hpqc/hash"
 
@@ -229,8 +230,19 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 	rawReply, err := sendRequest(thin, buf.Bytes())
 	if err != nil {
 		s.log.Warnf("Thin client error, reconnecting: %s", err)
-		thin = s.reconnect()
-		rawReply, err = sendRequest(thin, buf.Bytes())
+		// Retry the reconnect up to 3 times with backoff: a single
+		// reconnect may fail while the daemon is still re-establishing
+		// its gateway link (offline mode), and reusing the stale client
+		// guarantees a second failure. Each attempt gets a fresh Dial.
+		for attempt := 1; attempt <= 3; attempt++ {
+			thin = s.reconnect()
+			rawReply, err = sendRequest(thin, buf.Bytes())
+			if err == nil {
+				break
+			}
+			s.log.Warnf("Retry %d/3 after reconnect failed: %s", attempt, err)
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
 	}
 	if err != nil {
 		s.log.Errorf("Failed to send message: %s", err)
@@ -242,7 +254,17 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(rawReply)), nil)
+	// The http_proxy Kaetzchen service wraps its reply in a CBOR-encoded
+	// common.Response{Payload: rawHTTP}. Decode it first; fall back to
+	// treating the reply as a raw HTTP response for compatibility with
+	// services that do not wrap.
+	responsePayload := rawReply
+	var proxyResp proxyCommonResponse
+	if _, err := cbor.UnmarshalFirst(rawReply, &proxyResp); err == nil && len(proxyResp.Payload) > 0 {
+		responsePayload = proxyResp.Payload
+	}
+
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(responsePayload)), nil)
 	if err != nil {
 		s.log.Errorf("Failed to parse response: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -250,18 +272,18 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	responsePayload, err := io.ReadAll(resp.Body)
+	bodyPayload, err := io.ReadAll(resp.Body)
 	if err != nil {
 		s.log.Errorf("Failed to read response body: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	responsePayload = bytes.TrimRight(responsePayload, "\x00")
+	bodyPayload = bytes.TrimRight(bodyPayload, "\x00")
 
-	s.log.Infof("Response: %s", responsePayload)
+	s.log.Infof("Response: %s", bodyPayload)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responsePayload)))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(bodyPayload)))
 	for k, v := range resp.Header {
 		kLower := strings.ToLower(k)
 		if kLower == "content-type" || kLower == "content-length" || kLower == "date" || kLower == "host" || kLower == "transfer-encoding" || kLower == "connection" {
@@ -272,7 +294,13 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	fmt.Fprintf(w, string(responsePayload))
+	fmt.Fprintf(w, string(bodyPayload))
+}
+
+// proxyCommonResponse mirrors quic/proxy/common.Response — the CBOR
+// envelope the http_proxy Kaetzchen service wraps its raw HTTP reply in.
+type proxyCommonResponse struct {
+	Payload []byte
 }
 
 func sendRequest(thin *thin.ThinClient, httpRequestBytes []byte) ([]byte, error) {
