@@ -368,6 +368,23 @@ Expected: 10+ containers running, mixnet consensus achieved, proxy ACTIVE, stora
 
 ## Stack Architecture
 
+### MetaMask / EVM RPC over the mixnet
+
+External RPC endpoint: **`http://<node-ip>:8080/ethereum`** (dashboard proxies to
+walletshield on `127.0.0.1:9200`, which tunnels via kpclientd → `proxy` service
+→ `ethereum-rpc.publicnode.com`). Configure it in MetaMask as a custom RPC;
+`eth_chainId` = `0x1` (mainnet JSON-RPC proxied), balances/block numbers served
+through the mixnet.
+
+### Autonomi daemon & node control
+
+- Dashboard buttons: **DAEMON** start/stop (cleans stale `daemon.pid`/`.port`,
+  then `ant node daemon start`) and **NODE** start/stop (`docker start/stop antd`).
+- Status is read via `docker exec antd ant node daemon info --json` and
+  `ant node status --json` — the dashboard is bridge-networked and cannot reach
+  the daemon's host-loopback HTTP API.
+- Rewards address: `0xf21CEFD6773491323B05162f62bE5106B27893aa` (arbitrum-sepolia).
+
 ### Containers
 
 | Container | Role | Network | RAM Limit | Image |
@@ -428,7 +445,11 @@ Expected: 10+ containers running, mixnet consensus achieved, proxy ACTIVE, stora
 | Issue | Status | Impact |
 |-------|--------|--------|
 | **Zymkey HSM signing** | Not implemented | ant-node cannot sign EVM transactions via HSM. Rewards arrive at HSM-derived address but must be spent separately via zymkey wallet. |
-| **kpclientd epoch sync** | Workaround | kpclientd PKI doc retrieval has a blacklist bug in `client/pki.go:220` — epochs permanently blacklisted on `ErrNoDocument`. 20-min epochs, consensus published ~12.5 min in. Use `ping` binary for reliable mixnet access, or restart kpclientd at epoch boundaries. |
+| **kpclientd epoch sync** | Fixed 2026-08-28 | `client/pki.go`: transient errors (`ErrNoDocument`, `ErrNotConnected`) no longer blacklist an epoch; worker fetches `now-1` when `now` is uncached. See `docs/OPS_SESSION_2026-08-28.md`. |
+| **Dirauth FSM desync** | Known issue | If dirauths disagree on the voting epoch ("No document for current epoch generated and never will be"), restart all three **together**: `docker restart mix-dirauth-1 mix-dirauth-2 mix-dirauth-3`. Skipped epochs are permanently unavailable; clients auto-recover on the next published epoch. |
+| **WalletShield thin config** | Migrated | `config/walletshield/config.toml` and `thinclient.toml` use the new `[Dial.Tcp]` format only — old `[SphinxGeometry]`/`[PigeonholeGeometry]` sections are rejected (`unknown key(s)`). Geometry comes from the daemon handshake. |
+| **antd daemon-managed nodes** | Known issue | `ant node add`-managed 0.17.2 nodes fail (`dual-stack transport`) — the daemon doesn't propagate env/flags to spawned processes. The storage node runs as the **direct binary** from the container entrypoint. Node start/stop = `docker start/stop antd` (monitor loop respawns killed processes). |
+| **zkchat poll containers** | Mitigated | Dashboard zkchat polls `docker run --rm`; timeouts mid-creation orphan `Created` containers. Poll containers are labeled `zkchat-poll` and pruned every 10 min by the dashboard. |
 | **Host networking** | By design | Mixnet containers share host network for latency. Bridge networking with BindAddresses needed for production multi-instance isolation. |
 | **Go 1.26.2 requirement** | Docker workaround | katzenpost hpqc module requires Go >= 1.26.2. Local builds may fail on older Go. Docker builds use `golang:latest` which works. |
 
