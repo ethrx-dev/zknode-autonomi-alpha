@@ -484,7 +484,7 @@ const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
 
 function zkchatCmd(args, timeout = 60000) {
   try {
-    const dockerArgs = ['run', '--rm', '--network', 'host',
+    const dockerArgs = ['run', '--rm', '--label', 'zkchat-poll', '--network', 'host',
       '-v', '/home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost',
       '-v', '/home/zero-tech/zknode01/bin:/usr/local/bin',
       'zeros/mixnet-node:arm64', '/usr/local/bin/zkchat'];
@@ -1135,6 +1135,15 @@ connectMcp();
 setInterval(() => {
   if (!mcpReady && !mcpSessionId) connectMcp();
 }, 30000);
+
+// Sweep zkchat poll containers: a docker run that times out mid-creation
+// leaves a "Created" container behind (--rm only removes containers that
+// actually ran). Without this sweep they accumulate and slow every docker
+// call until dashboard endpoints time out.
+setInterval(() => {
+  const r = runShell('docker container prune -f --filter label=zkchat-poll 2>&1', 30000);
+  if (r.ok && r.data && !r.data.includes('Total reclaimed space: 0B')) console.log('[zkchat-poll sweep]', r.data.trim().split('\n').pop());
+}, 600000);
 
 async function wsHeartbeat() {
   try {
