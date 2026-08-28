@@ -22,7 +22,6 @@
 //
 // The thin client provides a simple API for:
 //   - Sending and receiving messages
-//   - Creating and managing communication channels
 //   - Handling events and status updates
 //
 // # APIs
@@ -35,96 +34,27 @@
 //   - SendMessage: Send a message with optional reply capability
 //   - SendMessageWithoutReply: Send a fire-and-forget message
 //   - BlockingSendMessage: Send a message and wait for reply
-//   - SendReliableMessage: Send with automatic retransmission (ARQ)
-//   - BlockingSendReliableMessage: Reliable send with blocking reply
 //
-// ## Pigeonhole Channel API (recommended)
+// Note: ARQ (Automatic Repeat reQuest) is now used exclusively for the new Pigeonhole API.
 //
-// The new Pigeonhole protocol provides reliable, ordered communication channels:
-//   - CreateWriteChannel: Create a new channel for sending messages
-//   - CreateReadChannel: Create a channel for receiving messages
-//   - WriteChannel: Prepare a message for transmission
-//   - ReadChannel: Prepare a query to read the next message
-//   - SendChannelQuery: Send prepared queries to the mixnet
-//   - ResumeWriteChannel/ResumeReadChannel: Resume channels after restart
+// ## Pigeonhole Channel API
 //
-// # Basic Usage Example
+// For more information about this API please see our API documentation, here:
+// https://katzenpost.network/docs/client_integration/#pigeonhole-channel-api
 //
-//	// Load configuration
-//	cfg, err := thin.LoadFile("thinclient.toml")
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	// Create and connect thin client
-//	logging := &config.Logging{Level: "INFO"}
-//	client := thin.NewThinClient(cfg, logging)
-//	err = client.Dial()
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	defer client.Close()
-//
-//	// Create a communication channel (Alice side)
-//	ctx := context.Background()
-//	channelID, readCap, writeCap, err := client.CreateWriteChannel(ctx)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	// Write a message
-//	message := []byte("Hello, Bob!")
-//	writeReply, err := client.WriteChannel(ctx, channelID, message)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-//	// Send the prepared message through the mixnet
-//	destNode, destQueue, err := client.GetCourierDestination()
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	messageID := client.NewMessageID()
-//	_, err = client.SendChannelQueryAwaitReply(ctx, channelID,
-//		writeReply.SendMessagePayload, destNode, destQueue, messageID)
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//
-// # Channel Communication Pattern
-//
-// Pigeonhole channels use a two-step process:
-//
-// 1. Prepare: Call WriteChannel or ReadChannel to prepare the cryptographic payload
-// 2. Send: Call SendChannelQuery to actually transmit through the mixnet
-//
-// This separation allows for:
-//   - State management and persistence
-//   - Retry logic and error recovery
-//   - Offline operation (preparation can happen without mixnet connectivity)
-//
-// # Error Handling
-//
-// The API uses structured error codes defined in thin_messages.go. Check the ErrorCode
-// field in reply events and use ThinClientErrorToString() for human-readable messages.
-//
-// # Event Handling
-//
-// The thin client provides an event-driven interface:
-//
-//	eventSink := client.EventSink()
-//	defer client.StopEventSink(eventSink)
-//
-//	for event := range eventSink {
-//		switch e := event.(type) {
-//		case *MessageReplyEvent:
-//			// Handle message reply
-//		case *ConnectionStatusEvent:
-//			// Handle connection changes
-//		case *NewDocumentEvent:
-//			// Handle PKI updates
-//		}
-//	}
+// The Pigeonhole protocol provides the following messages and their corresponding
+// replies/events:
+//   - NewKeypair
+//   - EncryptRead
+//   - EncryptWrite
+//   - StartResendingEncryptedMessage
+//   - CancelResendingEncryptedMessage
+//   - StartResendingCopyCommand
+//   - CancelResendingCopyCommand
+//   - NextMessageBoxIndex
+//   - CreateCourierEnvelopesFromPayload
+//   - CreateCourierEnvelopesFromPayloads
+//   - SetStreamBuffer
 //
 // # Configuration
 //
@@ -134,12 +64,6 @@
 //   - Pigeonhole geometry parameters
 //
 // See the testdata/thinclient.toml file for an example configuration.
-//
-// # Thread Safety
-//
-// The ThinClient is safe for concurrent use. Multiple goroutines can call methods
-// simultaneously. However, individual channels and their state should be managed
-// carefully in concurrent environments.
 package thin
 
 import (
@@ -160,14 +84,11 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"gopkg.in/op/go-logging.v1"
 
-	"github.com/katzenpost/hpqc/bacap"
-	"github.com/katzenpost/hpqc/hash"
 	"github.com/katzenpost/hpqc/rand"
 
 	"github.com/katzenpost/katzenpost/client/common"
 	"github.com/katzenpost/katzenpost/client/config"
 	"github.com/katzenpost/katzenpost/client/thin/transport"
-	"github.com/katzenpost/katzenpost/core/epochtime"
 	"github.com/katzenpost/katzenpost/core/log"
 	cpki "github.com/katzenpost/katzenpost/core/pki"
 	sConstants "github.com/katzenpost/katzenpost/core/sphinx/constants"
@@ -176,12 +97,28 @@ import (
 	pigeonholeGeo "github.com/katzenpost/katzenpost/pigeonhole/geo"
 )
 
+// ErrInvalidThinConfig is returned by LoadFile when the thin-client
+// TOML has structural problems: missing required sections, unknown
+// keys, or a malformed Dial discriminator. Callers can match with
+// errors.Is to distinguish config drift from transient IO errors.
+var ErrInvalidThinConfig = errors.New("thin: invalid config")
+
 const (
 	// MessageIDLength is the length of a message ID in bytes.
 	MessageIDLength = 16
 
 	// QueryIDLength is the length of a query ID in bytes.
 	QueryIDLength = 16
+
+	// MaxMessageSize bounds a single length-prefixed frame on the
+	// thin-client/daemon socket. The 4-byte big-endian prefix is
+	// attacker-controlled in both directions; without a ceiling a
+	// hostile or buggy peer could declare a multi-gigabyte frame and
+	// drive the reader to allocate it before any payload arrives. 40
+	// MiB is far above any legitimate CBOR thin-client message yet far
+	// below a memory-exhaustion threat. Frames larger than this are
+	// rejected before allocation.
+	MaxMessageSize = 40 * 1024 * 1024
 )
 
 var (
@@ -189,7 +126,93 @@ var (
 	errContextCannotBeNil = errors.New("context cannot be nil")
 	errConnectionLost     = errors.New("connection lost")
 	errHalting            = errors.New("halting")
+
+	// Pigeonhole ARQ error sentinels
+	// These errors can be returned by StartResendingEncryptedMessage and can be
+	// checked using errors.Is() for specific error handling.
+
+	// ErrBoxIDNotFound indicates that the requested box ID was not found on the replica.
+	// This typically occurs when attempting to read from a non-existent mailbox.
+	ErrBoxIDNotFound = errors.New("box ID not found")
+
+	// ErrInvalidBoxID indicates that the box ID format is invalid.
+	ErrInvalidBoxID = errors.New("invalid box ID")
+
+	// ErrInvalidSignature indicates that the signature verification failed.
+	ErrInvalidSignature = errors.New("invalid signature")
+
+	// ErrDatabaseFailure indicates that the replica encountered a database error.
+	ErrDatabaseFailure = errors.New("database failure")
+
+	// ErrInvalidPayload indicates that the payload data is invalid.
+	ErrInvalidPayload = errors.New("invalid payload")
+
+	// ErrStorageFull indicates that the replica's storage capacity has been exceeded.
+	ErrStorageFull = errors.New("storage full")
+
+	// ErrReplicaInternalError indicates an internal error on the replica.
+	ErrReplicaInternalError = errors.New("replica internal error")
+
+	// ErrInvalidEpoch indicates that the epoch is invalid or expired.
+	ErrInvalidEpoch = errors.New("invalid epoch")
+
+	// ErrReplicationFailed indicates that replication to other replicas failed.
+	ErrReplicationFailed = errors.New("replication failed")
+
+	// ErrBoxAlreadyExists indicates that the box already contains data.
+	// Pigeonhole writes are immutable - once a box has been written, it cannot be overwritten.
+	ErrBoxAlreadyExists = errors.New("box already exists")
+
+	// ErrInvalidEnvelope indicates that the courier envelope format is invalid.
+	ErrInvalidEnvelope = errors.New("invalid envelope")
+
+	// ErrCacheCorruption indicates that cache data corruption was detected.
+	ErrCacheCorruption = errors.New("cache corruption")
+
+	// ErrPropagationError indicates an error propagating the request to replicas.
+	ErrPropagationError = errors.New("propagation error")
+
+	// ErrInternalError indicates an internal client error.
+	ErrInternalError = errors.New("internal error")
+
+	// ErrMKEMDecryptionFailed indicates that MKEM decryption failed.
+	// This occurs when the MKEM envelope cannot be decrypted with any of the replica keys.
+	ErrMKEMDecryptionFailed = errors.New("MKEM decryption failed")
+
+	// ErrBACAPDecryptionFailed indicates that BACAP decryption failed.
+	// This occurs when the BACAP payload cannot be decrypted or signature verification fails.
+	ErrBACAPDecryptionFailed = errors.New("BACAP decryption failed")
+
+	// ErrStartResendingCancelled indicates that a StartResendingEncryptedMessage
+	// operation was cancelled via CancelResendingEncryptedMessage before completion.
+	ErrStartResendingCancelled = errors.New("start resending cancelled")
+
+	// ErrTombstone indicates that the read operation found a tombstone.
+	// The box was intentionally deleted by the writer. This is not a failure.
+	ErrTombstone = errors.New("tombstone")
+
+	// ErrInvalidTombstoneSignature indicates that a replica claimed a box is
+	// tombstoned but the BACAP signature verification failed.
+	ErrInvalidTombstoneSignature = errors.New("invalid tombstone signature")
+
+	// ErrCopyCommandFailed indicates that the courier reported CopyStatusFailed
+	// for a StartResendingCopyCommand operation. The ancillary ReplicaErrorCode
+	// and FailedEnvelopeIndex fields on StartResendingCopyCommandReply carry
+	// diagnostic detail when present.
+	ErrCopyCommandFailed = errors.New("copy command failed")
+
+	// ErrPayloadTooLarge indicates that a WriteStream plaintext or a ReadStream
+	// result would exceed the daemon's configured maximum stream payload size.
+	ErrPayloadTooLarge = errors.New("payload too large")
 )
+
+// IsExpectedOutcome returns true for error codes that represent completed
+// operations rather than failures. These errors should not trigger retries.
+func IsExpectedOutcome(err error) bool {
+	return errors.Is(err, ErrTombstone) ||
+		errors.Is(err, ErrBoxIDNotFound) ||
+		errors.Is(err, ErrBoxAlreadyExists)
+}
 
 // ThinResponse encapsulates a message response from the mixnet that is passed
 // to the client application. This is part of the legacy API.
@@ -250,13 +273,25 @@ type ThinResponse struct {
 type ThinClient struct {
 	worker.Worker
 
-	cfg   *Config
-	isTCP bool
+	cfg *Config
 
 	log        *logging.Logger
 	logBackend *log.Backend
 
-	conn net.Conn
+	// connMu protects conn, isConnected, and daemonInstanceToken which are
+	// accessed by worker()/redial() and Close()/IsConnected() concurrently.
+	connMu              sync.RWMutex
+	conn                net.Conn
+	isConnected         bool
+	daemonInstanceToken [16]byte
+	instanceToken       [16]byte
+
+	// sphinxGeo and pigeonGeo are the geometries the daemon supplies in
+	// its ConnectionStatusEvent during the handshake. They are not
+	// configured client-side; they are runtime state, protected by
+	// connMu like the rest of the connection state.
+	sphinxGeo *geo.Geometry
+	pigeonGeo *pigeonholeGeo.Geometry
 
 	pkidoc      *cpki.Document
 	pkidocMutex sync.RWMutex
@@ -269,69 +304,44 @@ type ThinClient struct {
 	drainAdd    chan chan Event
 	drainRemove chan chan Event
 
-	isConnected bool
+	// inFlightResends tracks StartResending* requests for replay on reconnect to a new daemon.
+	// Key: [32]byte (EnvelopeHash for encrypted messages, WriteCapHash for copy commands)
+	// Value: *Request (the full request to replay)
+	inFlightResends sync.Map
 
-	// used by BlockingSendReliableMessage only
+	// Legacy: These maps were previously used by BlockingSendReliableMessage (now removed).
+	// They may be removed in a future cleanup if no longer needed.
 	sentWaitChanMap  sync.Map // MessageID -> chan error
 	replyWaitChanMap sync.Map // MessageID -> chan *MessageReplyEvent
 }
 
 // Config contains the configuration parameters for a ThinClient.
 //
-// The configuration specifies how to connect to the client daemon and includes
-// the cryptographic parameters that must match the daemon's configuration.
+// The configuration specifies only how to connect to the client daemon.
+// The Sphinx and Pigeonhole geometries are no longer configured here: the
+// daemon supplies them over the socket during the connection handshake, so
+// they cannot drift out of step with the daemon. Read them after Dial() via
+// GetSphinxGeometry() and GetPigeonholeGeometry().
 //
 // Configuration can be loaded from a TOML file using LoadFile() or created
-// programmatically. The SphinxGeometry and PigeonholeGeometry parameters
-// must exactly match those used by the client daemon.
+// programmatically.
 //
 // Example TOML configuration:
 //
-//	Network = "tcp"
+//	[Dial.Tcp]
 //	Address = "localhost:64331"
-//
-//	[SphinxGeometry]
-//	  PacketLength = 3082
-//	  NrHops = 5
-//	  UserForwardPayloadLength = 2000
-//	  # ... other Sphinx parameters
-//
-//	[PigeonholeGeometry]
-//	  MaxPlaintextPayloadLength = 1553
-//	  # ... other Pigeonhole parameters
 type Config struct {
-	// SphinxGeometry defines the Sphinx packet format parameters used by the
-	// client daemon. This must exactly match the daemon's configuration to
-	// ensure proper packet size validation and processing.
-	SphinxGeometry *geo.Geometry
-
-	// PigeonholeGeometry defines the Pigeonhole protocol parameters used for
-	// channel operations. This must match the daemon's configuration for
-	// proper payload size validation and channel operation compatibility.
-	PigeonholeGeometry *pigeonholeGeo.Geometry
-
-	// Network specifies the network type for connecting to the client daemon.
-	// Supported values: "tcp", "tcp4", "tcp6", "unix"
-	Network string
-
-	// Address specifies the address to connect to the client daemon.
-	// For TCP: "host:port" (e.g., "localhost:64331")
-	// For Unix: path to socket file (e.g., "/tmp/katzenpost.sock")
-	Address string
-
-	// Dial is the thin client dial configuration for connecting to the daemon.
-	Dial *transport.DialConfig `toml:"Dial"`
-
-	// Listen is the thin client listen configuration for the daemon.
-	Listen *transport.ListenConfig `toml:"Listen"`
+	// Dial is the subtable-discriminated dial-transport configuration.
+	// Exactly one of its inner subtables (Unix, Tcp, and in future Ssh /
+	// Pipe / Pigeonhole) must be populated.
+	Dial *transport.DialConfig
 }
 
 // FromConfig creates a thin client Config from a client daemon config.Config.
 //
-// This function extracts the relevant parameters from a full client daemon
-// configuration and creates a thin client configuration that can connect to
-// that daemon. The SphinxGeometry and PigeonholeGeometry are copied directly
-// to ensure compatibility.
+// This function extracts the daemon's listen address and creates a thin
+// client configuration that can connect to that daemon. Geometry is no
+// longer copied here: the daemon delivers it over the handshake.
 //
 // Parameters:
 //   - cfg: The client daemon configuration
@@ -340,29 +350,35 @@ type Config struct {
 //   - *Config: A thin client configuration compatible with the daemon
 //
 // Panics:
-//   - If cfg.SphinxGeometry is nil
-//   - If cfg.PigeonholeGeometry is nil
+//   - If cfg.Listen is nil
 func FromConfig(cfg *config.Config) *Config {
-	if cfg.SphinxGeometry == nil {
-		panic("SphinxGeometry cannot be nil")
+	if cfg.Listen == nil {
+		panic("Listen cannot be nil")
 	}
-	if cfg.PigeonholeGeometry == nil {
-		panic("PigeonholeGeometry cannot be nil")
+
+	dial := &transport.DialConfig{}
+	switch {
+	case cfg.Listen.Unix != nil:
+		dial.Unix = &transport.UnixDialConfig{Address: cfg.Listen.Unix.Address}
+	case cfg.Listen.Tcp != nil:
+		dial.Tcp = &transport.TcpDialConfig{
+			Address: cfg.Listen.Tcp.Address,
+			Network: cfg.Listen.Tcp.Network,
+		}
+	default:
+		panic("Listen has no transport configured")
 	}
 
 	return &Config{
-		SphinxGeometry:     cfg.SphinxGeometry,
-		PigeonholeGeometry: cfg.PigeonholeGeometry,
-		Network:            cfg.Listen.Tcp.Network,
-		Address:            cfg.Listen.Tcp.Address,
+		Dial: dial,
 	}
 }
 
 // LoadFile loads a thin client configuration from a TOML file.
 //
-// The TOML file should contain the network connection parameters and
-// cryptographic geometry specifications. See the package documentation
-// for an example configuration format.
+// The TOML file should contain only the network connection parameters
+// (the [Dial] section). Geometry is supplied by the daemon over the
+// handshake. See the package documentation for an example.
 //
 // Parameters:
 //   - filename: Path to the TOML configuration file
@@ -383,15 +399,46 @@ func LoadFile(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	cfg := &Config{
-		SphinxGeometry:     new(geo.Geometry),
-		PigeonholeGeometry: new(pigeonholeGeo.Geometry),
+	cfg := new(Config)
+	md, err := toml.NewDecoder(bytes.NewReader(b)).Decode(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", ErrInvalidThinConfig, filename, err)
 	}
-	if err := toml.Unmarshal(b, cfg); err != nil {
-		return nil, err
+
+	// Reject any key the Config struct did not consume. BurntSushi/toml
+	// is lenient by default: a stale [Dial.Tcp] at the top level with
+	// the old flat Network/Address layout would otherwise parse into a
+	// half-populated Config and surface later as a mysterious
+	// runtime failure.
+	if undecoded := md.Undecoded(); len(undecoded) > 0 {
+		keys := make([]string, len(undecoded))
+		for i, k := range undecoded {
+			keys[i] = k.String()
+		}
+		return nil, fmt.Errorf("%w: %s: unknown key(s): %s",
+			ErrInvalidThinConfig, filename, strings.Join(keys, ", "))
+	}
+
+	if err := validateLoadedConfig(cfg); err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", ErrInvalidThinConfig, filename, err)
 	}
 
 	return cfg, nil
+}
+
+// validateLoadedConfig enforces that every required top-level section
+// is present and that the Dial discriminator has exactly one variant
+// populated. Unknown-key rejection is handled by the caller via
+// MetaData.Undecoded — this helper only covers structural invariants
+// the TOML decoder cannot express on its own.
+func validateLoadedConfig(cfg *Config) error {
+	if cfg.Dial == nil {
+		return errors.New("missing required section [Dial] with one of [Dial.Unix] or [Dial.Tcp]")
+	}
+	if err := cfg.Dial.Validate(); err != nil {
+		return fmt.Errorf("[Dial]: %w", err)
+	}
+	return nil
 }
 
 // NewThinClient creates a new ThinClient instance.
@@ -400,19 +447,17 @@ func LoadFile(filename string) (*Config, error) {
 // and logging settings. The client is created in a disconnected state; call
 // Dial() to establish connection to the client daemon.
 //
-// The client will validate that required geometry parameters are present and
-// set up internal channels and workers for event handling.
+// The client sets up internal channels and workers for event handling. The
+// geometry is learned from the daemon during Dial(), not from cfg.
 //
 // Parameters:
-//   - cfg: Configuration specifying daemon connection and crypto parameters
+//   - cfg: Configuration specifying the daemon connection
 //   - logging: Logging configuration for the client
 //
 // Returns:
 //   - *ThinClient: A new thin client instance ready for connection
 //
 // Panics:
-//   - If cfg.SphinxGeometry is nil
-//   - If cfg.PigeonholeGeometry is nil
 //   - If logging configuration is invalid
 //
 // Example:
@@ -424,19 +469,11 @@ func LoadFile(filename string) (*Config, error) {
 //	}
 //	client := thin.NewThinClient(cfg, logging)
 func NewThinClient(cfg *Config, logging *config.Logging) *ThinClient {
-	if cfg.SphinxGeometry == nil {
-		panic("SphinxGeometry cannot be nil")
-	}
-	if cfg.PigeonholeGeometry == nil {
-		panic("PigeonholeGeometry cannot be nil")
-	}
-
 	logBackend, err := log.New(logging.File, logging.Level, logging.Disable)
 	if err != nil {
 		panic(err)
 	}
-	return &ThinClient{
-		isTCP:       strings.HasPrefix(strings.ToLower(cfg.Network), cfg.Address),
+	tc := &ThinClient{
 		cfg:         cfg,
 		log:         logBackend.GetLogger("thinclient"),
 		logBackend:  logBackend,
@@ -445,6 +482,10 @@ func NewThinClient(cfg *Config, logging *config.Logging) *ThinClient {
 		drainRemove: make(chan chan Event),
 		pkiDocCache: make(map[uint64]*cpki.Document),
 	}
+	if _, err := rand.Reader.Read(tc.instanceToken[:]); err != nil {
+		panic(err)
+	}
+	return tc
 }
 
 // Shutdown cleanly shuts down the ThinClient instance.
@@ -462,6 +503,22 @@ func (t *ThinClient) Shutdown() {
 //   - *Config: The configuration used to create this client
 func (t *ThinClient) GetConfig() *Config {
 	return t.cfg
+}
+
+// GetSphinxGeometry returns the Sphinx geometry the daemon supplied during
+// the connection handshake. It is nil until Dial() has completed.
+func (t *ThinClient) GetSphinxGeometry() *geo.Geometry {
+	t.connMu.RLock()
+	defer t.connMu.RUnlock()
+	return t.sphinxGeo
+}
+
+// GetPigeonholeGeometry returns the Pigeonhole geometry the daemon supplied
+// during the connection handshake. It is nil until Dial() has completed.
+func (t *ThinClient) GetPigeonholeGeometry() *pigeonholeGeo.Geometry {
+	t.connMu.RLock()
+	defer t.connMu.RUnlock()
+	return t.pigeonGeo
 }
 
 // GetLogger returns a logger instance with the specified prefix.
@@ -488,56 +545,85 @@ func (t *ThinClient) GetLogger(prefix string) *logging.Logger {
 // Returns:
 //   - bool: true if daemon is connected to mixnet, false otherwise
 func (t *ThinClient) IsConnected() bool {
+	t.connMu.RLock()
+	defer t.connMu.RUnlock()
 	return t.isConnected
+}
+
+// setConnected stores the daemon-to-mixnet connection flag under
+// connMu. Use this from any goroutine that needs to update
+// isConnected — in particular the Pigeonhole API event loops that
+// observe ConnectionStatusEvents alongside the main dispatcher.
+func (t *ThinClient) setConnected(v bool) {
+	t.connMu.Lock()
+	t.isConnected = v
+	t.connMu.Unlock()
+}
+
+// Disconnect closes the connection without sending ThinClose.
+// The daemon preserves all state for this client's app ID, allowing
+// the client to reconnect and resume with the same session token.
+func (t *ThinClient) Disconnect() error {
+	t.connMu.RLock()
+	conn := t.conn
+	t.connMu.RUnlock()
+
+	if conn == nil {
+		t.Halt()
+		return nil
+	}
+	// Close the connection first to unblock any blocked reads,
+	// then halt workers.
+	err := conn.Close()
+	t.Halt()
+	return err
 }
 
 // Close gracefully shuts down the thin client and closes the daemon connection.
 //
-// This method performs a clean shutdown by:
-//  1. Sending a close notification to the daemon
-//  2. Closing the network connection
-//  3. Stopping all background workers
-//  4. Closing internal event channels
+// This method performs a clean shutdown with the following actions.
+//  1. It sends  a close notification to the daemon.
+//  2. It closes the network connection.
+//  3. It stops all background workers.
 //
 // After calling Close(), the ThinClient instance should not be used further.
 // Any ongoing operations will be interrupted and may return errors.
 //
 // Returns:
 //   - error: Any error encountered during shutdown
-//
-// Example:
-//
-//	defer client.Close() // Ensure cleanup
-//
-//	// Use client...
-//
-//	err := client.Close()
-//	if err != nil {
-//		log.Printf("Error during shutdown: %v", err)
-//	}
 func (t *ThinClient) Close() error {
+	t.connMu.RLock()
+	conn := t.conn
+	t.connMu.RUnlock()
 
+	if conn == nil {
+		t.Halt()
+		return nil
+	}
+
+	// Try to send ThinClose to the daemon. If the connection is already
+	// closed (e.g., we're in the redial loop), this will fail — that's fine.
 	req := &Request{
 		ThinClose: &ThinClose{},
 	}
-	err := t.writeMessage(req)
-	if err != nil {
-		return err
-	}
+	_ = t.writeMessage(req)
 
-	err = t.conn.Close()
+	// Halt workers before closing connection to avoid spurious error logs.
+	// Note: We intentionally do NOT close eventSink here. Closing a channel
+	// that workers might still be sending to can cause a panic. Workers will
+	// exit when HaltCh() is closed, and consumers should also monitor HaltCh()
+	// to know when to stop reading from eventSink.
 	t.Halt()
-	close(t.eventSink)
-	return err
+	return conn.Close()
 }
 
 // Dial establishes a connection to the client daemon and initializes the client.
 //
-// This method performs the complete connection handshake with the client daemon:
-//  1. Establishes network connection (TCP or Unix socket)
-//  2. Receives initial connection status from daemon
-//  3. Receives initial PKI document
-//  4. Starts background workers for event handling
+// This method performs the complete connection handshake with the client daemon with the following actions.
+//  1. It establishes a network connection (TCP or Unix socket).
+//  2. It receives an initial connection status from daemon.
+//  3. It receives an initial PKI document.
+//  4. It starts background workers for event handling.
 //
 // The client supports both online and offline modes. In offline mode (when the
 // daemon is not connected to the mixnet), channel preparation operations will
@@ -545,8 +631,8 @@ func (t *ThinClient) Close() error {
 //
 // After successful connection, the client will automatically handle:
 //   - PKI document updates
-//   - Connection status changes
-//   - Event distribution to application code
+//   - connection status changes
+//   - event distribution to application code
 //
 // Returns:
 //   - error: Any error encountered during connection or handshake
@@ -564,23 +650,19 @@ func (t *ThinClient) Close() error {
 //		log.Println("Daemon is offline - limited functionality available")
 //	}
 func (t *ThinClient) Dial() error {
-
-	network := t.cfg.Network
-	address := t.cfg.Address
-
-	switch network {
-	case "tcp6":
-		fallthrough
-	case "tcp4":
-		fallthrough
-	case "tcp":
-		fallthrough
-	case "unix":
-		var err error
-		t.conn, err = net.Dial(network, address)
+	// Tests may pre-assign t.conn (typically via net.Pipe) to exercise
+	// only the handshake; in that case we skip the transport dial.
+	t.connMu.RLock()
+	hasConn := t.conn != nil
+	t.connMu.RUnlock()
+	if !hasConn {
+		conn, err := t.cfg.Dial.Dial()
 		if err != nil {
 			return err
 		}
+		t.connMu.Lock()
+		t.conn = conn
+		t.connMu.Unlock()
 	}
 
 	// WAIT for connection status message from daemon
@@ -593,10 +675,22 @@ func (t *ThinClient) Dial() error {
 		panic("bug: thin client protocol sequence violation")
 	}
 
-	// Set connection state - allow both connected and offline modes
-	t.isConnected = message1.ConnectionStatusEvent.IsConnected
+	if message1.ConnectionStatusEvent.SphinxGeometry == nil ||
+		message1.ConnectionStatusEvent.PigeonholeGeometry == nil {
+		return fmt.Errorf("%w: daemon did not supply geometry in its "+
+			"ConnectionStatusEvent (incompatible daemon)", ErrInvalidThinConfig)
+	}
 
-	if !t.isConnected {
+	// Set connection state - allow both connected and offline modes
+	t.connMu.Lock()
+	t.isConnected = message1.ConnectionStatusEvent.IsConnected
+	t.daemonInstanceToken = message1.ConnectionStatusEvent.InstanceToken
+	t.sphinxGeo = message1.ConnectionStatusEvent.SphinxGeometry
+	t.pigeonGeo = message1.ConnectionStatusEvent.PigeonholeGeometry
+	connected := t.isConnected
+	t.connMu.Unlock()
+
+	if !connected {
 		t.log.Infof("Daemon is not connected to mixnet - entering offline mode (channel operations will work)")
 	} else {
 		t.log.Debugf("Daemon is connected to mixnet - full functionality available")
@@ -610,7 +704,32 @@ func (t *ThinClient) Dial() error {
 	if message2.NewPKIDocumentEvent == nil {
 		panic("bug: thin client protocol sequence violation")
 	}
-	t.parsePKIDoc(message2.NewPKIDocumentEvent.Payload)
+	// Handle empty payload - daemon may not have a PKI document yet
+	if len(message2.NewPKIDocumentEvent.Payload) > 0 {
+		t.parsePKIDoc(message2.NewPKIDocumentEvent.Payload)
+	} else {
+		t.log.Infof("No PKI document available yet - will receive when available")
+	}
+	// Send SessionToken to identify this client across reconnections
+	err = t.writeMessage(&Request{
+		SessionToken: &SessionToken{
+			ClientInstanceToken: t.instanceToken,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send SessionToken: %w", err)
+	}
+
+	// Read SessionTokenReply
+	message3, err := t.readMessage()
+	if err != nil {
+		return fmt.Errorf("failed to read SessionTokenReply: %w", err)
+	}
+	if message3.SessionTokenReply == nil {
+		panic("bug: thin client protocol sequence violation: expected SessionTokenReply")
+	}
+	t.log.Debugf("Session token reply: resumed=%v", message3.SessionTokenReply.Resumed)
+
 	t.Go(t.eventSinkWorker)
 	t.Go(t.worker)
 	return nil
@@ -622,11 +741,17 @@ func (t *ThinClient) writeMessage(request *Request) error {
 	var payload []byte
 	if request.SendMessage != nil {
 		payload = request.SendMessage.Payload
-	} else if request.SendARQMessage != nil {
-		payload = request.SendARQMessage.Payload
 	}
-	if payload != nil && len(payload) > t.cfg.SphinxGeometry.UserForwardPayloadLength {
-		return fmt.Errorf("payload size %d exceeds maximum allowed size %d", len(payload), t.cfg.SphinxGeometry.UserForwardPayloadLength)
+	if payload != nil {
+		t.connMu.RLock()
+		sphinxGeo := t.sphinxGeo
+		t.connMu.RUnlock()
+		if sphinxGeo == nil {
+			return errors.New("cannot validate payload size: geometry not yet received from daemon (call Dial first)")
+		}
+		if len(payload) > sphinxGeo.UserForwardPayloadLength {
+			return fmt.Errorf("payload size %d exceeds maximum allowed size %d", len(payload), sphinxGeo.UserForwardPayloadLength)
+		}
 	}
 
 	blob, err := cbor.Marshal(request)
@@ -660,6 +785,9 @@ func (t *ThinClient) readMessage() (*Response, error) {
 	}
 
 	prefixLen := binary.BigEndian.Uint32(prefix)
+	if prefixLen > MaxMessageSize {
+		return nil, fmt.Errorf("daemon response frame too large: %d bytes (max %d)", prefixLen, MaxMessageSize)
+	}
 	message := make([]byte, prefixLen)
 	_, err = io.ReadFull(t.conn, message)
 	if err != nil {
@@ -674,215 +802,470 @@ func (t *ThinClient) readMessage() (*Response, error) {
 	return response, nil
 }
 
-// worker is the main background worker that processes incoming messages from the daemon.
-func (t *ThinClient) worker() {
+// dispatchMessage routes a received message to the appropriate event sink.
+// Returns true if the message was handled, false if HaltCh fired.
+func (t *ThinClient) dispatchMessage(message *Response) bool {
+	switch {
+	case message.SessionTokenReply != nil:
+		select {
+		case t.eventSink <- message.SessionTokenReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.MessageIDGarbageCollected != nil:
+		select {
+		case t.eventSink <- message.MessageIDGarbageCollected:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.ConnectionStatusEvent != nil:
+		t.connMu.Lock()
+		t.isConnected = message.ConnectionStatusEvent.IsConnected
+		if message.ConnectionStatusEvent.SphinxGeometry != nil {
+			t.sphinxGeo = message.ConnectionStatusEvent.SphinxGeometry
+		}
+		if message.ConnectionStatusEvent.PigeonholeGeometry != nil {
+			t.pigeonGeo = message.ConnectionStatusEvent.PigeonholeGeometry
+		}
+		t.connMu.Unlock()
+		select {
+		case t.eventSink <- message.ConnectionStatusEvent:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.NewPKIDocumentEvent != nil:
+		doc, err := t.parsePKIDoc(message.NewPKIDocumentEvent.Payload)
+		if err != nil {
+			t.log.Errorf("Failed to parse PKI document: %s", err)
+			return true // continue, don't halt on parse failure
+		}
+		event := &NewDocumentEvent{
+			Document: doc,
+		}
+		select {
+		case t.eventSink <- event:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.MessageSentEvent != nil:
+		isArq := false
+		if message.MessageSentEvent.MessageID != nil {
+			sentWaitChanRaw, ok := t.sentWaitChanMap.Load(*message.MessageSentEvent.MessageID)
+			if ok {
+				isArq = true
+				sentWaitChan := sentWaitChanRaw.(chan error)
+				var err error
+				if message.MessageSentEvent.Err != "" {
+					err = errors.New(message.MessageSentEvent.Err)
+				}
+				select {
+				case sentWaitChan <- err:
+				case <-t.HaltCh():
+					return false
+				}
+			}
+		}
+		if !isArq {
+			select {
+			case t.eventSink <- message.MessageSentEvent:
+			case <-t.HaltCh():
+				return false
+			}
+		}
+	case message.MessageReplyEvent != nil:
+		if message.MessageReplyEvent.Payload == nil {
+			if message.MessageReplyEvent.ErrorCode != ThinClientSuccess {
+				t.log.Errorf("message.Payload is nil due to error: %s", ThinClientErrorToString(message.MessageReplyEvent.ErrorCode))
+			} else {
+				t.log.Error("message.Payload is nil")
+			}
+		}
+		isArq := false
+		if message.MessageReplyEvent.MessageID != nil {
+			replyWaitChanRaw, ok := t.replyWaitChanMap.Load(*message.MessageReplyEvent.MessageID)
+			if ok {
+				isArq = true
+				replyWaitChan := replyWaitChanRaw.(chan *MessageReplyEvent)
+				select {
+				case replyWaitChan <- message.MessageReplyEvent:
+				case <-t.HaltCh():
+					return false
+				}
+			}
+		}
+		if !isArq {
+			select {
+			case t.eventSink <- message.MessageReplyEvent:
+			case <-t.HaltCh():
+				return false
+			}
+		}
+
+		/**  New Pigeonhole API **/
+
+	case message.NewKeypairReply != nil:
+		select {
+		case t.eventSink <- message.NewKeypairReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.EncryptReadReply != nil:
+		select {
+		case t.eventSink <- message.EncryptReadReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.EncryptWriteReply != nil:
+		select {
+		case t.eventSink <- message.EncryptWriteReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.StartResendingEncryptedMessageReply != nil:
+		select {
+		case t.eventSink <- message.StartResendingEncryptedMessageReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.WriteStreamReply != nil:
+		select {
+		case t.eventSink <- message.WriteStreamReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.ReadStreamReply != nil:
+		select {
+		case t.eventSink <- message.ReadStreamReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.CancelResendingEncryptedMessageReply != nil:
+		select {
+		case t.eventSink <- message.CancelResendingEncryptedMessageReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.StartResendingCopyCommandReply != nil:
+		select {
+		case t.eventSink <- message.StartResendingCopyCommandReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.CancelResendingCopyCommandReply != nil:
+		select {
+		case t.eventSink <- message.CancelResendingCopyCommandReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.NextMessageBoxIndexReply != nil:
+		select {
+		case t.eventSink <- message.NextMessageBoxIndexReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.GetMessageBoxIndexCounterReply != nil:
+		select {
+		case t.eventSink <- message.GetMessageBoxIndexCounterReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.GetPKIDocumentReply != nil:
+		select {
+		case t.eventSink <- message.GetPKIDocumentReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.GetDirectoryAuthoritiesReply != nil:
+		select {
+		case t.eventSink <- message.GetDirectoryAuthoritiesReply:
+		case <-t.HaltCh():
+			return false
+		}
+
+		/**  Copy Channel API **/
+
+	case message.CreateCourierEnvelopesFromPayloadReply != nil:
+		select {
+		case t.eventSink <- message.CreateCourierEnvelopesFromPayloadReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.CreateCourierEnvelopesFromPayloadsReply != nil:
+		select {
+		case t.eventSink <- message.CreateCourierEnvelopesFromPayloadsReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.CreateCourierEnvelopesFromTombstoneRangeReply != nil:
+		select {
+		case t.eventSink <- message.CreateCourierEnvelopesFromTombstoneRangeReply:
+		case <-t.HaltCh():
+			return false
+		}
+
+		/**  Contact Voucher API **/
+
+	case message.VoucherMintReply != nil:
+		select {
+		case t.eventSink <- message.VoucherMintReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.VoucherInductReply != nil:
+		select {
+		case t.eventSink <- message.VoucherInductReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.VoucherOpenReply != nil:
+		select {
+		case t.eventSink <- message.VoucherOpenReply:
+		case <-t.HaltCh():
+			return false
+		}
+	case message.VoucherDeriveStreamReply != nil:
+		select {
+		case t.eventSink <- message.VoucherDeriveStreamReply:
+		case <-t.HaltCh():
+			return false
+		}
+
+	default:
+		t.log.Errorf("bug: received invalid thin client message: %v", message)
+	}
+	return true
+}
+
+// redial attempts to reconnect to the daemon with exponential backoff.
+// Returns true on successful reconnect, false if HaltCh fires.
+func (t *ThinClient) redial() bool {
+	const (
+		initialBackoff = 1 * time.Second
+		maxBackoff     = 60 * time.Second
+		backoffFactor  = 2
+	)
+
+	backoff := initialBackoff
+
 	for {
 		select {
 		case <-t.HaltCh():
-			return
+			return false
+		default:
+		}
+
+		// Interruptible sleep
+		select {
+		case <-t.HaltCh():
+			return false
+		case <-time.After(backoff):
+		}
+
+		t.log.Debugf("Attempting to reconnect to daemon")
+		conn, err := t.cfg.Dial.Dial()
+		if err != nil {
+			t.log.Debugf("Reconnect failed: %v (backoff %v)", err, backoff)
+			backoff = backoff * backoffFactor
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+			continue
+		}
+		t.connMu.Lock()
+		t.conn = conn
+		t.connMu.Unlock()
+
+		// Handshake: read ConnectionStatusEvent
+		message1, err := t.readMessage()
+		if err != nil {
+			t.log.Errorf("Reconnect handshake failed (ConnectionStatusEvent): %v", err)
+			conn.Close()
+			continue
+		}
+		if message1.ConnectionStatusEvent == nil {
+			t.log.Errorf("Reconnect handshake failed: expected ConnectionStatusEvent")
+			conn.Close()
+			continue
+		}
+		t.connMu.Lock()
+		t.isConnected = message1.ConnectionStatusEvent.IsConnected
+		t.daemonInstanceToken = message1.ConnectionStatusEvent.InstanceToken
+		if message1.ConnectionStatusEvent.SphinxGeometry != nil {
+			t.sphinxGeo = message1.ConnectionStatusEvent.SphinxGeometry
+		}
+		if message1.ConnectionStatusEvent.PigeonholeGeometry != nil {
+			t.pigeonGeo = message1.ConnectionStatusEvent.PigeonholeGeometry
+		}
+		t.connMu.Unlock()
+
+		// Handshake: read NewPKIDocumentEvent
+		message2, err := t.readMessage()
+		if err != nil {
+			t.log.Errorf("Reconnect handshake failed (NewPKIDocumentEvent): %v", err)
+			conn.Close()
+			continue
+		}
+		if message2.NewPKIDocumentEvent == nil {
+			t.log.Errorf("Reconnect handshake failed: expected NewPKIDocumentEvent")
+			conn.Close()
+			continue
+		}
+		if len(message2.NewPKIDocumentEvent.Payload) > 0 {
+			t.parsePKIDoc(message2.NewPKIDocumentEvent.Payload)
+		}
+
+		// Handshake: send SessionToken
+		err = t.writeMessage(&Request{
+			SessionToken: &SessionToken{
+				ClientInstanceToken: t.instanceToken,
+			},
+		})
+		if err != nil {
+			t.log.Errorf("Reconnect handshake failed (SessionToken send): %v", err)
+			conn.Close()
+			continue
+		}
+
+		message3, err := t.readMessage()
+		if err != nil {
+			t.log.Errorf("Reconnect handshake failed (SessionTokenReply): %v", err)
+			conn.Close()
+			continue
+		}
+		if message3.SessionTokenReply == nil {
+			t.log.Errorf("Reconnect handshake failed: expected SessionTokenReply")
+			conn.Close()
+			continue
+		}
+		t.log.Debugf("Reconnect session token reply: resumed=%v", message3.SessionTokenReply.Resumed)
+
+		t.connMu.RLock()
+		connected := t.isConnected
+		t.connMu.RUnlock()
+		t.log.Infof("Reconnected to daemon (connected=%v, resumed=%v)", connected, message3.SessionTokenReply.Resumed)
+		return true
+	}
+}
+
+// replayInFlightResends re-sends all tracked in-flight requests to the daemon.
+func (t *ThinClient) replayInFlightResends() {
+	t.inFlightResends.Range(func(key, value any) bool {
+		req := value.(*Request)
+		if err := t.writeMessage(req); err != nil {
+			t.log.Errorf("Failed to replay in-flight request: %v", err)
+		}
+		return true
+	})
+}
+
+// readUntilDisconnect reads and dispatches messages until the connection drops
+// or HaltCh fires. Returns the disconnect error and whether a ShutdownEvent
+// was received before the disconnect. Returns (nil, false) if HaltCh fired.
+func (t *ThinClient) readUntilDisconnect() (disconnectErr error, graceful bool) {
+	for {
+		select {
+		case <-t.HaltCh():
+			return nil, false
 		default:
 		}
 
 		message, err := t.readMessage()
 		if err != nil {
+			select {
+			case <-t.HaltCh():
+				return nil, false
+			default:
+			}
 			t.log.Errorf("thin client ReceiveMessage failed: %v", err)
-			// Halt on any read error; connection is dead
-			go t.Halt()
-			return
+			if err == io.EOF || err == io.ErrClosedPipe ||
+				strings.Contains(err.Error(), "use of closed network connection") {
+				return err, graceful
+			}
+			continue
 		}
 		if message == nil {
-			go t.Halt()
+			return errConnectionLost, graceful
+		}
+
+		if message.ShutdownEvent != nil {
+			graceful = true
+			continue
+		}
+
+		if !t.dispatchMessage(message) {
+			return nil, false // HaltCh fired
+		}
+	}
+}
+
+// worker is the main background worker that processes incoming messages from the daemon.
+// It survives daemon disconnects by automatically reconnecting with exponential backoff.
+// Only HaltCh() (from Close()) causes this goroutine to exit.
+func (t *ThinClient) worker() {
+	for {
+		disconnectErr, graceful := t.readUntilDisconnect()
+		if disconnectErr == nil {
+			return // HaltCh fired
+		}
+
+		t.connMu.Lock()
+		t.conn.Close()
+		t.isConnected = false
+		previousToken := t.daemonInstanceToken
+		t.connMu.Unlock()
+
+		event := &DaemonDisconnectedEvent{
+			IsGraceful: graceful,
+			Err:        disconnectErr,
+		}
+		select {
+		case t.eventSink <- event:
+		case <-t.HaltCh():
 			return
 		}
 
-		switch {
-		case message.ShutdownEvent != nil:
-			go t.Halt()
-			return
-		case message.MessageIDGarbageCollected != nil:
-			select {
-			case t.eventSink <- message.MessageIDGarbageCollected:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ConnectionStatusEvent != nil:
-			t.isConnected = message.ConnectionStatusEvent.IsConnected
-			select {
-			case t.eventSink <- message.ConnectionStatusEvent:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.NewPKIDocumentEvent != nil:
-			doc, err := t.parsePKIDoc(message.NewPKIDocumentEvent.Payload)
-			if err != nil {
-				t.log.Errorf("Failed to parse PKI document: %s", err)
-				// Gracefully halt the client on PKI parsing failure
-				go t.Halt()
-				return
-			}
-			event := &NewDocumentEvent{
-				Document: doc,
-			}
-			select {
-			case t.eventSink <- event:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.MessageSentEvent != nil:
-			isArq := false
-			if message.MessageSentEvent.MessageID != nil {
-				sentWaitChanRaw, ok := t.sentWaitChanMap.Load(*message.MessageSentEvent.MessageID)
-				if ok {
-					isArq = true
-					sentWaitChan := sentWaitChanRaw.(chan error)
-					var err error
-					if message.MessageSentEvent.Err != "" {
-						err = errors.New(message.MessageSentEvent.Err)
-					}
-					select {
-					case sentWaitChan <- err:
-					case <-t.HaltCh():
-						return
-					}
-				}
-			}
-			if !isArq {
-				select {
-				case t.eventSink <- message.MessageSentEvent:
-					continue
-				case <-t.HaltCh():
-					return
-				}
-			}
-		case message.MessageReplyEvent != nil:
-			if message.MessageReplyEvent.Payload == nil {
-				if message.MessageReplyEvent.ErrorCode != ThinClientSuccess {
-					t.log.Errorf("message.Payload is nil due to error: %s", ThinClientErrorToString(message.MessageReplyEvent.ErrorCode))
-				} else {
-					t.log.Error("message.Payload is nil")
-				}
-			}
-			isArq := false
-			if message.MessageReplyEvent.MessageID != nil {
-				replyWaitChanRaw, ok := t.replyWaitChanMap.Load(*message.MessageReplyEvent.MessageID)
-				if ok {
-					isArq = true
-					replyWaitChan := replyWaitChanRaw.(chan *MessageReplyEvent)
-					select {
-					case replyWaitChan <- message.MessageReplyEvent:
-					case <-t.HaltCh():
-						return
-					}
-				}
-			}
-			if !isArq {
-				select {
-				case t.eventSink <- message.MessageReplyEvent:
-				case <-t.HaltCh():
-					return
-				}
-			}
+		t.log.Infof("Daemon disconnected (graceful=%v, err=%v)", graceful, disconnectErr)
 
-			/**  New Channel API **/
+		if !t.redial() {
+			return // HaltCh fired
+		}
 
-		case message.ChannelQuerySentEvent != nil:
-			select {
-			case t.eventSink <- message.ChannelQuerySentEvent:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ChannelQueryReplyEvent != nil:
-			select {
-			case t.eventSink <- message.ChannelQueryReplyEvent:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.CreateReadChannelReply != nil:
-			select {
-			case t.eventSink <- message.CreateReadChannelReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.CreateWriteChannelReply != nil:
-			select {
-			case t.eventSink <- message.CreateWriteChannelReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-
-		case message.WriteChannelReply != nil:
-			select {
-			case t.eventSink <- message.WriteChannelReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ReadChannelReply != nil:
-			select {
-			case t.eventSink <- message.ReadChannelReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ResumeWriteChannelReply != nil:
-			select {
-			case t.eventSink <- message.ResumeWriteChannelReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ResumeReadChannelReply != nil:
-			select {
-			case t.eventSink <- message.ResumeReadChannelReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ResumeWriteChannelQueryReply != nil:
-			select {
-			case t.eventSink <- message.ResumeWriteChannelQueryReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-		case message.ResumeReadChannelQueryReply != nil:
-			select {
-			case t.eventSink <- message.ResumeReadChannelQueryReply:
-				continue
-			case <-t.HaltCh():
-				return
-			}
-
-		default:
-			t.log.Errorf("bug: received invalid thin client message: %v", message)
+		t.connMu.RLock()
+		newToken := t.daemonInstanceToken
+		t.connMu.RUnlock()
+		if newToken != previousToken {
+			t.log.Infof("New daemon instance detected, replaying in-flight requests")
+			t.replayInFlightResends()
+		} else {
+			t.log.Infof("Same daemon instance, skipping replay")
 		}
 	}
 }
 
 // EventSink returns a buffered channel that receives all events from the thin client.
 //
-// This method creates a new event channel that will receive copies of all events
-// generated by the thin client, including:
-//   - Connection status changes
+// This method creates a new event channel that will receive copies of all
+// events generated by the thin client, including the following.
 //   - PKI document updates
-//   - Message sent confirmations
-//   - Message replies
-//   - Channel operation results
-//   - Error notifications
+//   - message sent confirmations
+//   - message replies
+//   - channel operation results
 //
-// The returned channel is buffered with capacity 1 to prevent blocking the
-// event distribution system. Applications should process events promptly to
-// avoid missing events.
+// The returned channel is buffered with capacity 1. Events are never
+// silently dropped; the fan-out worker blocks until the subscriber
+// accepts each event, matching the "no loss" contract that the Rust and
+// Python thin clients uphold. Consequently an application that
+// stops consuming from its sink will stall the entire fan-out
+// (including events destined for other subscribers). Applications
+// must drain promptly or call StopEventSink() to release their
+// subscription.
 //
 // Important: Always call StopEventSink() when done with the channel to prevent
 // resource leaks and ensure proper cleanup.
+//
+// Note: The event sink channel is NOT closed when the client shuts down.
+// Consumers should also select on HaltCh() to detect shutdown, or they
+// can check for a ShutdownEvent in the event stream.
 //
 // Returns:
 //   - chan Event: A buffered channel that will receive all client events
@@ -892,14 +1275,19 @@ func (t *ThinClient) worker() {
 //	eventSink := client.EventSink()
 //	defer client.StopEventSink(eventSink)
 //
-//	for event := range eventSink {
-//		switch e := event.(type) {
-//		case *MessageReplyEvent:
-//			fmt.Printf("Received reply: %s\n", e.Payload)
-//		case *ConnectionStatusEvent:
-//			fmt.Printf("Connection status: %v\n", e.IsConnected)
-//		case *NewDocumentEvent:
-//			fmt.Printf("New PKI document for epoch %d\n", e.Document.Epoch)
+//	for {
+//		select {
+//		case event := <-eventSink:
+//			switch e := event.(type) {
+//			case *MessageReplyEvent:
+//				fmt.Printf("Received reply: %s\n", e.Payload)
+//			case *ConnectionStatusEvent:
+//				fmt.Printf("Connection status: %v\n", e.IsConnected)
+//			case *NewDocumentEvent:
+//				fmt.Printf("New PKI document for epoch %d\n", e.Document.Epoch)
+//			}
+//		case <-client.HaltCh():
+//			return // Client is shutting down
 //		}
 //	}
 func (t *ThinClient) EventSink() chan Event {
@@ -947,22 +1335,21 @@ func (t *ThinClient) eventSinkWorker() {
 		case drain := <-t.drainRemove:
 			delete(drains, drain)
 		case event := <-t.eventSink:
-			bad := make([]chan Event, 0)
+			// Deliver to every subscriber, blocking as long as
+			// necessary. The Rust and Python thin clients both
+			// uphold a "no silent loss" contract for the events
+			// they surface; prior Go behaviour evicted a drain
+			// that didn't accept within 100ms, diverging from
+			// the other implementations. A stuck subscriber now
+			// stalls the fan-out (and, like Python's callback
+			// model, the reader pipeline behind it) — HaltCh
+			// remains the escape hatch so Close() still works.
 			for drain := range drains {
 				select {
 				case <-t.HaltCh():
 					return
 				case drain <- event:
-					// Successfully sent event
-				case <-time.After(100 * time.Millisecond):
-					// Channel blocked for too long
-					t.log.Warning("Removing unresponsive channel from eventSink drains")
-					bad = append(bad, drain)
 				}
-			}
-			// remove blocked drains
-			for _, drain := range bad {
-				delete(drains, drain)
 			}
 		}
 	}
@@ -1064,6 +1451,129 @@ func (t *ThinClient) PKIDocumentForEpoch(epoch uint64) (*cpki.Document, error) {
 	return nil, errors.New("no PKI document available for the requested epoch")
 }
 
+// GetPKIDocumentRaw returns the cert.Certificate-wrapped signed PKI
+// document for the requested epoch, with every directory authority
+// signature intact. Pass epoch == 0 to request the document that the daemon
+// believes is current.
+//
+// The thin client receives the stripped PKI document by default (as
+// pushed in NewPKIDocumentEvent). Use this method when the caller
+// needs to verify the directory authority signatures itself. The
+// payload can be deserialized and verified with core/pki.FromPayload.
+//
+// Returns:
+//   - []byte: the cert.Certificate-wrapped signed PKI document.
+//   - uint64: the epoch of the returned document.
+//   - error: any error encountered (notably if no document for the
+//     requested epoch is cached by the daemon).
+func (t *ThinClient) GetPKIDocumentRaw(epoch uint64) ([]byte, uint64, error) {
+	queryID := t.NewQueryID()
+	req := &Request{
+		GetPKIDocument: &GetPKIDocument{
+			QueryID: queryID,
+			Epoch:   epoch,
+		},
+	}
+
+	eventSink := t.EventSink()
+	defer t.StopEventSink(eventSink)
+
+	if err := t.writeMessage(req); err != nil {
+		return nil, 0, err
+	}
+
+	for {
+		var event Event
+		select {
+		case event = <-eventSink:
+		case <-t.HaltCh():
+			return nil, 0, errHalting
+		}
+
+		switch v := event.(type) {
+		case *GetPKIDocumentReply:
+			if v.QueryID == nil {
+				t.log.Debugf("GetPKIDocumentRaw: reply with nil QueryID, ignoring")
+				continue
+			}
+			if !bytes.Equal(v.QueryID[:], queryID[:]) {
+				t.log.Debugf("GetPKIDocumentRaw: reply with mismatched QueryID, ignoring")
+				continue
+			}
+			if v.ErrorCode != ThinClientSuccess {
+				return nil, v.Epoch, errors.New(ThinClientErrorToString(v.ErrorCode))
+			}
+			return v.Payload, v.Epoch, nil
+		case *ConnectionStatusEvent:
+			t.setConnected(v.IsConnected)
+		case *NewDocumentEvent:
+			// Ignore PKI document updates while we wait for our reply.
+		default:
+			// Ignore other events.
+		}
+	}
+}
+
+// GetDirectoryAuthorities returns the directory authority descriptors the
+// client daemon is configured with.
+//
+// A thin client holds only its dial transport configuration and never sees
+// the daemon's voting authority peer list. This method surfaces it, so a
+// caller may, for instance, map a PKI document's signature fingerprints (the
+// keys of its Signatures map) to human-readable authority identifiers via
+// each descriptor's IdentityKeyHash.
+//
+// Returns:
+//   - []*DirectoryAuthority: the configured directory authority descriptors.
+//   - error: any error encountered (notably if the daemon has no voting
+//     authority peers configured).
+func (t *ThinClient) GetDirectoryAuthorities() ([]*DirectoryAuthority, error) {
+	queryID := t.NewQueryID()
+	req := &Request{
+		GetDirectoryAuthorities: &GetDirectoryAuthorities{
+			QueryID: queryID,
+		},
+	}
+
+	eventSink := t.EventSink()
+	defer t.StopEventSink(eventSink)
+
+	if err := t.writeMessage(req); err != nil {
+		return nil, err
+	}
+
+	for {
+		var event Event
+		select {
+		case event = <-eventSink:
+		case <-t.HaltCh():
+			return nil, errHalting
+		}
+
+		switch v := event.(type) {
+		case *GetDirectoryAuthoritiesReply:
+			if v.QueryID == nil {
+				t.log.Debugf("GetDirectoryAuthorities: reply with nil QueryID, ignoring")
+				continue
+			}
+			if !bytes.Equal(v.QueryID[:], queryID[:]) {
+				t.log.Debugf("GetDirectoryAuthorities: reply with mismatched QueryID, ignoring")
+				continue
+			}
+			if v.ErrorCode != ThinClientSuccess {
+				return nil, errors.New(ThinClientErrorToString(v.ErrorCode))
+			}
+			return v.Authorities, nil
+		case *ConnectionStatusEvent:
+			t.setConnected(v.IsConnected)
+		case *NewDocumentEvent:
+			// Ignore PKI document updates while we wait for our reply.
+		default:
+			// Ignore other events.
+		}
+	}
+}
+
 // GetServices returns all services matching the specified capability name.
 //
 // This method searches the current PKI document for services that provide
@@ -1143,7 +1653,7 @@ func (t *ThinClient) NewMessageID() *[MessageIDLength]byte {
 	return id
 }
 
-// NewSURBID generates a new Single Use Reply Block identifier.
+// NewSURBID generates a new SURB.
 //
 // SURB IDs are used in the legacy API to correlate reply messages with
 // their original requests. Each SURB should have a unique ID.
@@ -1175,10 +1685,6 @@ func (t *ThinClient) NewQueryID() *[QueryIDLength]byte {
 
 // SendMessageWithoutReply sends a fire-and-forget message using the legacy API.
 //
-// DEPRECATED: This method is part of the legacy API. New applications should
-// use the Pigeonhole Channel API (CreateWriteChannel, WriteChannel, etc.) which
-// provides better reliability, ordering guarantees, and state management.
-//
 // This method sends a message without any reply capability. The message is
 // encapsulated in a Sphinx packet and sent through the mixnet, but no response
 // can be received. This is suitable for notifications or one-way communication.
@@ -1208,6 +1714,11 @@ func (t *ThinClient) NewQueryID() *[QueryIDLength]byte {
 //	destQueue := echoService.RecipientQueueID
 //	err = client.SendMessageWithoutReply([]byte("Hello"), &destNode, destQueue)
 func (t *ThinClient) SendMessageWithoutReply(payload []byte, destNode *[32]byte, destQueue []byte) error {
+	// Check if we're in offline mode
+	if !t.IsConnected() {
+		return errors.New("cannot send message in offline mode - daemon not connected to mixnet")
+	}
+
 	req := &Request{
 		SendMessage: &SendMessage{
 			WithSURB:          false,
@@ -1222,12 +1733,8 @@ func (t *ThinClient) SendMessageWithoutReply(payload []byte, destNode *[32]byte,
 
 // SendMessage sends a message with reply capability using the legacy API.
 //
-// DEPRECATED: This method is part of the legacy API. New applications should
-// use the Pigeonhole Channel API (CreateWriteChannel, WriteChannel, etc.) which
-// provides better reliability, ordering guarantees, and state management.
-//
 // This method sends a message with a Single Use Reply Block (SURB) that allows
-// the destination to send a reply. The method is asynchronous - it only blocks
+// the destination to send a reply. The method is asynchronous: it only blocks
 // until the daemon receives the send request, not until the message is actually
 // transmitted or a reply is received.
 //
@@ -1274,6 +1781,11 @@ func (t *ThinClient) SendMessage(surbID *[sConstants.SURBIDLength]byte, payload 
 		return errors.New("surbID cannot be nil")
 	}
 
+	// Check if we're in offline mode
+	if !t.IsConnected() {
+		return errors.New("cannot send message in offline mode - daemon not connected to mixnet")
+	}
+
 	req := &Request{
 		SendMessage: &SendMessage{
 			SURBID:            surbID,
@@ -1289,16 +1801,12 @@ func (t *ThinClient) SendMessage(surbID *[sConstants.SURBIDLength]byte, payload 
 
 // BlockingSendMessage sends a message and blocks until a reply is received.
 //
-// DEPRECATED: This method is part of the legacy API. New applications should
-// use the Pigeonhole Channel API (CreateWriteChannel, WriteChannel, etc.) which
-// provides better reliability, ordering guarantees, and state management.
-//
 // This method provides a synchronous request-response pattern by automatically
 // generating a SURB ID, sending the message, and waiting for the reply. It
 // blocks until either a reply is received or the context times out.
 //
 // This is convenient for simple request-response interactions but lacks the
-// advanced features of the Pigeonhole Channel API such as message ordering,
+// advanced features of the Pigeonhole channel API such as message ordering,
 // channel persistence, and offline operation support.
 //
 // Requirements:
@@ -1340,6 +1848,11 @@ func (t *ThinClient) BlockingSendMessage(ctx context.Context, payload []byte, de
 		return nil, errContextCannotBeNil
 	}
 
+	// Check if we're in offline mode
+	if !t.IsConnected() {
+		return nil, errors.New("cannot send message in offline mode - daemon not connected to mixnet")
+	}
+
 	surbID := t.NewSURBID()
 	eventSink := t.EventSink()
 	defer t.StopEventSink(eventSink)
@@ -1362,7 +1875,9 @@ func (t *ThinClient) BlockingSendMessage(ctx context.Context, payload []byte, de
 		case *MessageIDGarbageCollected:
 			// Ignore garbage collection events
 		case *ConnectionStatusEvent:
-			t.isConnected = v.IsConnected
+			if !v.IsConnected {
+				return nil, errConnectionLost
+			}
 		case *NewDocumentEvent:
 			// Ignore PKI document updates
 		case *MessageSentEvent:
@@ -1374,1257 +1889,8 @@ func (t *ThinClient) BlockingSendMessage(ctx context.Context, payload []byte, de
 				continue
 			}
 		default:
-			panic("impossible event type")
+			t.log.Debugf("BlockingSendMessage: ignoring unexpected event %T", v)
 		}
 	}
 	// unreachable
-}
-
-// SendReliableMessage sends a message with automatic retransmission (ARQ).
-//
-// DEPRECATED: This method is part of the legacy API. New applications should
-// use the Pigeonhole Channel API (CreateWriteChannel, WriteChannel, etc.) which
-// provides better reliability, ordering guarantees, and state management.
-//
-// This method implements Automatic Repeat reQuest (ARQ) functionality, where
-// the message is automatically retransmitted until an acknowledgment is received
-// or the maximum retry limit is reached. This provides better reliability than
-// basic SendMessage but is still inferior to the Pigeonhole Channel API.
-//
-// The method is asynchronous - it returns immediately after initiating the
-// reliable send process. Applications should monitor events to track the
-// final outcome of the transmission.
-//
-// Requirements:
-//   - The daemon must be connected to the mixnet (IsConnected() == true)
-//   - The destination service must support ARQ acknowledgments
-//   - A unique message ID must be provided for tracking
-//
-// Parameters:
-//   - messageID: Unique identifier for tracking this message (use NewMessageID())
-//   - payload: Message data to send
-//   - destNode: Hash of the destination service's identity key
-//   - destQueue: Queue ID of the destination service
-//
-// Returns:
-//   - error: Any error encountered during message preparation or initial sending
-//
-// Example:
-//
-//	// Send reliable message with ARQ
-//	messageID := client.NewMessageID()
-//	echoService, err := client.GetService("echo")
-//	if err != nil {
-//		return err
-//	}
-//
-//	destNode := hash.Sum256(echoService.MixDescriptor.IdentityKey)
-//	err = client.SendReliableMessage(messageID, []byte("Important message"),
-//		&destNode, echoService.RecipientQueueID)
-//
-//	// Monitor events for final outcome
-//	eventSink := client.EventSink()
-//	defer client.StopEventSink(eventSink)
-//	// ... handle MessageSentEvent and MessageReplyEvent
-func (t *ThinClient) SendReliableMessage(messageID *[MessageIDLength]byte, payload []byte, destNode *[32]byte, destQueue []byte) error {
-	req := &Request{
-		SendARQMessage: &SendARQMessage{
-			ID:                messageID,
-			WithSURB:          true,
-			Payload:           payload,
-			DestinationIdHash: destNode,
-			RecipientQueueID:  destQueue,
-		},
-	}
-
-	return t.writeMessage(req)
-}
-
-// BlockingSendReliableMessage sends a message with ARQ and blocks until completion.
-//
-// DEPRECATED: This method is part of the legacy API. New applications should
-// use the Pigeonhole Channel API (CreateWriteChannel, WriteChannel, etc.) which
-// provides better reliability, ordering guarantees, and state management.
-//
-// This method combines reliable message sending with synchronous operation by
-// implementing Automatic Repeat reQuest (ARQ) and blocking until either the
-// message is successfully acknowledged or the maximum retry limit is reached.
-// It provides the highest reliability available in the legacy API.
-//
-// The method blocks until the complete ARQ process finishes, which may take
-// significant time depending on network conditions and retry configuration.
-//
-// Requirements:
-//   - The daemon must be connected to the mixnet (IsConnected() == true)
-//   - The destination service must support ARQ acknowledgments
-//   - A unique message ID must be provided for tracking
-//   - A context with appropriate timeout should be provided
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control (recommended: 60s+ timeout)
-//   - messageID: Unique identifier for tracking this message (use NewMessageID())
-//   - payload: Message data to send
-//   - destNode: Hash of the destination service's identity key
-//   - destQueue: Queue ID of the destination service
-//
-// Returns:
-//   - []byte: Reply payload from the destination service (if any)
-//   - error: Any error encountered during the reliable send process
-//
-// Example:
-//
-//	// Send reliable message and wait for completion
-//	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-//	defer cancel()
-//
-//	messageID := client.NewMessageID()
-//	echoService, err := client.GetService("echo")
-//	if err != nil {
-//		return err
-//	}
-//
-//	destNode := hash.Sum256(echoService.MixDescriptor.IdentityKey)
-//	reply, err := client.BlockingSendReliableMessage(ctx, messageID,
-//		[]byte("Critical message"), &destNode, echoService.RecipientQueueID)
-//	if err != nil {
-//		log.Printf("Reliable send failed: %v", err)
-//		return err
-//	}
-//
-//	fmt.Printf("Reliable send completed, reply: %s\n", reply)
-func (t *ThinClient) BlockingSendReliableMessage(ctx context.Context, messageID *[MessageIDLength]byte, payload []byte, destNode *[32]byte, destQueue []byte) (reply []byte, err error) {
-	if ctx == nil {
-		return nil, errContextCannotBeNil
-	}
-
-	if messageID == nil {
-		messageID = new([MessageIDLength]byte)
-		_, err := io.ReadFull(rand.Reader, messageID[:])
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	req := &Request{
-		SendARQMessage: &SendARQMessage{
-			ID:                messageID,
-			WithSURB:          true,
-			Payload:           payload,
-			DestinationIdHash: destNode,
-			RecipientQueueID:  destQueue,
-		},
-	}
-
-	sentWaitChan := make(chan error)
-	t.sentWaitChanMap.Store(*messageID, sentWaitChan)
-	defer t.sentWaitChanMap.Delete(*messageID)
-
-	replyWaitChan := make(chan *MessageReplyEvent)
-	t.replyWaitChanMap.Store(*messageID, replyWaitChan)
-	defer t.replyWaitChanMap.Delete(*messageID)
-
-	err = t.writeMessage(req)
-	if err != nil {
-		return nil, err
-	}
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case err = <-sentWaitChan:
-		if err != nil {
-			return nil, err
-		}
-	case <-t.HaltCh():
-		return nil, errHalting
-	}
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case reply := <-replyWaitChan:
-		if reply.ErrorCode != ThinClientSuccess {
-			return nil, fmt.Errorf("message reply error: %s", ThinClientErrorToString(reply.ErrorCode))
-		}
-		return reply.Payload, nil
-	case <-t.HaltCh():
-		return nil, errHalting
-	}
-
-	// unreachable
-}
-
-/****
-
-NEW PIGEONHOLE CHANNEL API
-
-****/
-
-// CreateWriteChannel creates a new Pigeonhole write channel for sending messages.
-//
-// This method creates a new communication channel using the Pigeonhole protocol,
-// which provides reliable, ordered message delivery. The channel is created with
-// fresh cryptographic capabilities that allow writing messages to the channel
-// and sharing read access with other parties.
-//
-// The returned capabilities have the following purposes:
-//   - ReadCap: Can be shared with others to allow them to read messages from this channel
-//   - WriteCap: Should be stored securely for channel persistence and resumption
-//   - ChannelID: Used for subsequent operations on this channel
-//
-// Channel operations work in offline mode (when daemon is not connected to mixnet),
-// allowing applications to prepare messages even without network connectivity.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//
-// Returns:
-//   - uint16: Channel ID for subsequent operations
-//   - *bacap.ReadCap: Read capability that can be shared with message recipients
-//   - *bacap.WriteCap: Write capability for channel persistence and resumption
-//   - error: Any error encountered during channel creation
-//
-// Example:
-//
-//	ctx := context.Background()
-//	channelID, readCap, writeCap, err := client.CreateWriteChannel(ctx)
-//	if err != nil {
-//		log.Fatal("Failed to create write channel:", err)
-//	}
-//
-//	// Share readCap with Bob so he can read messages
-//	// Store writeCap for channel resumption after restart
-//	fmt.Printf("Created channel %d\n", channelID)
-func (t *ThinClient) CreateWriteChannel(ctx context.Context) (uint16, *bacap.ReadCap, *bacap.WriteCap, error) {
-	if ctx == nil {
-		return 0, nil, nil, errContextCannotBeNil
-	}
-
-	queryID := t.NewQueryID()
-	req := &Request{
-		CreateWriteChannel: &CreateWriteChannel{
-			QueryID: queryID,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.writeMessage(req)
-	if err != nil {
-		return 0, nil, nil, err
-	}
-
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return 0, nil, nil, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return 0, nil, nil, errHalting
-		}
-
-		switch v := event.(type) {
-		case *CreateWriteChannelReply:
-			if v.QueryID == nil {
-				t.log.Debugf("CreateWriteChannel: Received CreateWriteChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("CreateWriteChannel: Received CreateWriteChannelReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return 0, nil, nil, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.ChannelID, v.ReadCap, v.WriteCap, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// CreateReadChannel creates a read channel from a read capability.
-//
-// This method creates a channel for reading messages using a read capability
-// that was obtained from the creator of a write channel. The read capability
-// allows access to messages written to the corresponding write channel.
-//
-// Read channels maintain their own state independent of the write channel,
-// allowing multiple readers to consume messages at their own pace. Each
-// reader tracks its own position in the message sequence.
-//
-// Like other channel operations, this works in offline mode, allowing
-// applications to set up channels even when the daemon is not connected
-// to the mixnet.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - readCap: Read capability obtained from the channel creator
-//
-// Returns:
-//   - uint16: Channel ID for subsequent read operations
-//   - error: Any error encountered during channel creation
-//
-// Example:
-//
-//	// Bob creates a read channel using Alice's read capability
-//	ctx := context.Background()
-//	channelID, err := client.CreateReadChannel(ctx, readCap)
-//	if err != nil {
-//		log.Fatal("Failed to create read channel:", err)
-//	}
-//
-//	// Now Bob can read messages from Alice's channel
-//	fmt.Printf("Created read channel %d\n", channelID)
-func (t *ThinClient) CreateReadChannel(ctx context.Context, readCap *bacap.ReadCap) (uint16, error) {
-	if ctx == nil {
-		return 0, errContextCannotBeNil
-	}
-	if readCap == nil {
-		return 0, errors.New("readCap cannot be nil")
-	}
-	queryID := t.NewQueryID()
-
-	req := &Request{
-		CreateReadChannel: &CreateReadChannel{
-			QueryID: queryID,
-			ReadCap: readCap,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.writeMessage(req)
-	if err != nil {
-		return 0, err
-	}
-
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return 0, errHalting
-		}
-
-		switch v := event.(type) {
-		case *CreateReadChannelReply:
-			if v.QueryID == nil {
-				t.log.Debugf("CreateReadChannel: Received CreateReadChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("CreateReadChannel: Received CreateReadChannelReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return 0, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.ChannelID, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// WriteChannel prepares a message for writing to a Pigeonhole channel.
-//
-// This method performs the first step of the two-phase channel write process:
-// it prepares the cryptographic payload that will be sent through the mixnet.
-// The actual transmission is performed separately using SendChannelQuery().
-//
-// This separation allows for:
-//   - State management and persistence between preparation and transmission
-//   - Retry logic and error recovery
-//   - Offline operation (preparation works without mixnet connectivity)
-//
-// The method validates the payload size against the configured Pigeonhole
-// geometry limits and returns all information needed to complete the write
-// operation, including state for resumption after interruption.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - channelID: Channel ID returned by CreateWriteChannel or ResumeWriteChannel
-//   - payload: Message data to write (must not exceed MaxPlaintextPayloadLength)
-//
-// Returns:
-//   - *WriteChannelReply: Contains prepared payload and state information
-//   - error: Any error encountered during preparation
-//
-// Example:
-//
-//	message := []byte("Hello, Bob!")
-//	writeReply, err := client.WriteChannel(ctx, channelID, message)
-//	if err != nil {
-//		log.Fatal("Failed to prepare write:", err)
-//	}
-//
-//	// Now send the prepared message
-//	destNode, destQueue, _ := client.GetCourierDestination()
-//	messageID := client.NewMessageID()
-//	_, err = client.SendChannelQueryAwaitReply(ctx, channelID,
-//		writeReply.SendMessagePayload, destNode, destQueue, messageID)
-func (t *ThinClient) WriteChannel(ctx context.Context, channelID uint16, payload []byte) (*WriteChannelReply, error) {
-	if ctx == nil {
-		return nil, errContextCannotBeNil
-	}
-
-	queryID := t.NewQueryID()
-
-	// Validate payload size against pigeonhole geometry
-	if len(payload) > t.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength {
-		return nil, fmt.Errorf("payload size %d exceeds maximum allowed size %d", len(payload), t.cfg.PigeonholeGeometry.MaxPlaintextPayloadLength)
-	}
-
-	req := &Request{
-		WriteChannel: &WriteChannel{
-			ChannelID: channelID,
-			QueryID:   queryID,
-			Payload:   payload,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.writeMessage(req)
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return nil, errHalting
-		}
-
-		switch v := event.(type) {
-		// match our queryID
-		case *WriteChannelReply:
-			if v.QueryID == nil {
-				t.log.Debugf("WriteChannel: Received WriteChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("WriteChannel: Received WriteChannelReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return nil, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// ResumeWriteChannel resumes a write channel from a previous session.
-//
-// This method allows applications to restore a write channel after a restart
-// or interruption by providing the write capability and message index that
-// were saved from a previous session. This enables persistent communication
-// channels that survive application restarts.
-//
-// The write capability and message index should be obtained from:
-//   - CreateWriteChannelReply.WriteCap and CreateWriteChannelReply.NextMessageIndex
-//   - WriteChannelReply.NextMessageIndex from previous write operations
-//
-// After resumption, the channel can be used normally with WriteChannel()
-// and other channel operations.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - writeCap: Write capability from the original channel creation
-//   - messageBoxIndex: Message index to resume from (typically the next index to write);
-//     if set to nil then the channel will start from the beginning.
-//
-// Returns:
-//   - uint16: Channel ID for subsequent operations on the resumed channel
-//   - error: Any error encountered during resumption
-//
-// Example:
-//
-//	// During application shutdown, save these values persistently:
-//	// writeCap (from CreateWriteChannelReply)
-//	// nextMessageIndex (from last WriteChannelReply)
-//
-//	// After restart, resume the channel:
-//	channelID, err := client.ResumeWriteChannel(ctx, writeCap, nextMessageIndex)
-//	if err != nil {
-//		log.Fatal("Failed to resume write channel:", err)
-//	}
-//
-//	// Continue using the channel normally
-//	message := []byte("Resumed channel message")
-//	writeReply, err := client.WriteChannel(ctx, channelID, message)
-func (t *ThinClient) ResumeWriteChannel(
-	ctx context.Context,
-	writeCap *bacap.WriteCap,
-	messageBoxIndex *bacap.MessageBoxIndex) (uint16, error) {
-
-	if ctx == nil {
-		return 0, errContextCannotBeNil
-	}
-	if writeCap == nil {
-		return 0, errors.New("writeCap cannot be nil")
-	}
-	queryID := t.NewQueryID()
-
-	req := &Request{
-		ResumeWriteChannel: &ResumeWriteChannel{
-			QueryID:         queryID,
-			WriteCap:        writeCap,
-			MessageBoxIndex: messageBoxIndex,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.writeMessage(req)
-	if err != nil {
-		return 0, err
-	}
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return 0, errHalting
-		}
-
-		switch v := event.(type) {
-		// match our queryID
-		case *ResumeWriteChannelReply:
-			if v.QueryID == nil {
-				t.log.Debugf("ResumeWriteChannel: Received ResumeWriteChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("ResumeWriteChannel: Received ResumeWriteChannelReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return 0, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.ChannelID, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// ResumeWriteChannelQuery resumes a write channel with a specific query state.
-//
-// This method provides more granular resumption control than ResumeWriteChannel
-// by allowing the application to resume from a specific query state, including
-// the envelope descriptor and hash. This is useful when resuming from a partially
-// completed write operation that was interrupted during transmission.
-//
-// This method is typically used when an application has saved the complete state
-// from a WriteChannelReply and wants to resume from that exact point, including
-// any pending query state.
-//
-// All parameters are required for this method, unlike the basic ResumeWriteChannel
-// which only requires the write capability and message index.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - writeCap: Write capability from the original channel creation
-//   - messageBoxIndex: Exact message index to resume from
-//   - envelopeDescriptor: Envelope descriptor from the interrupted operation
-//   - envelopeHash: Hash of the envelope from the interrupted operation
-//
-// Returns:
-//   - uint16: Channel ID for subsequent operations on the resumed channel
-//   - error: Any error encountered during resumption
-//
-// Example:
-//
-//	// During interruption, save complete state from WriteChannelReply:
-//	// writeCap, messageBoxIndex, envelopeDescriptor, envelopeHash
-//
-//	// Resume with complete query state:
-//	channelID, err := client.ResumeWriteChannelQuery(ctx, writeCap,
-//		messageBoxIndex, envelopeDescriptor, envelopeHash)
-//	if err != nil {
-//		log.Fatal("Failed to resume write channel query:", err)
-//	}
-//
-//	// Channel is now ready to continue from the exact interrupted state
-func (t *ThinClient) ResumeWriteChannelQuery(
-	ctx context.Context,
-	writeCap *bacap.WriteCap,
-	messageBoxIndex *bacap.MessageBoxIndex,
-	envelopeDescriptor []byte,
-	envelopeHash *[32]byte) (uint16, error) {
-
-	if ctx == nil {
-		return 0, errContextCannotBeNil
-	}
-	if writeCap == nil {
-		return 0, errors.New("writeCap cannot be nil")
-	}
-	queryID := t.NewQueryID()
-
-	req := &Request{
-		ResumeWriteChannelQuery: &ResumeWriteChannelQuery{
-			QueryID:            queryID,
-			WriteCap:           writeCap,
-			MessageBoxIndex:    messageBoxIndex,
-			EnvelopeDescriptor: envelopeDescriptor,
-			EnvelopeHash:       envelopeHash,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.writeMessage(req)
-	if err != nil {
-		return 0, err
-	}
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return 0, errHalting
-		}
-
-		switch v := event.(type) {
-		// match our queryID
-		case *ResumeWriteChannelQueryReply:
-			if v.QueryID == nil {
-				t.log.Debugf("ResumeWriteChannel: Received ResumeWriteChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("ResumeWriteChannel: Received ResumeWriteChannelReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return 0, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.ChannelID, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// ReadChannel prepares a read query for a Pigeonhole channel.
-//
-// This method performs the first step of the two-phase channel read process:
-// it prepares the cryptographic query that will be sent through the mixnet
-// to retrieve the next message from the channel. The actual transmission is
-// performed separately using SendChannelQuery() or SendChannelQueryAwaitReply().
-//
-// Note that the last two parameters are useful if you want to send two read
-// queries to the same Box id in order to retrieve two different replies. Our
-// current sharding scheme ensures that two storage replicas will store a copy
-// of the Box we are interested in reading. Thus we can optionally select the
-// specific storage replica to query.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - channelID: Channel ID returned by CreateReadChannel or ResumeReadChannel
-//   - messageBoxIndex: Optional specific message index to read (nil for next message)
-//   - replyIndex: Optional specific reply index within the message (nil for default)
-//
-// Returns:
-//   - *ReadChannelReply: Contains prepared query payload and state information
-//   - error: Any error encountered during preparation
-//
-// Example:
-//
-//	// Read the next message in sequence
-//	readReply, err := client.ReadChannel(ctx, channelID, nil, nil)
-//	if err != nil {
-//		log.Fatal("Failed to prepare read:", err)
-//	}
-//
-//	// Send the prepared query
-//	destNode, destQueue, _ := client.GetCourierDestination()
-//	messageID := client.NewMessageID()
-//	replyPayload, err := client.SendChannelQueryAwaitReply(ctx, channelID,
-//		readReply.SendMessagePayload, destNode, destQueue, messageID)
-func (t *ThinClient) ReadChannel(ctx context.Context, channelID uint16, messageBoxIndex *bacap.MessageBoxIndex, replyIndex *uint8) (*ReadChannelReply, error) {
-	if ctx == nil {
-		return nil, errContextCannotBeNil
-	}
-
-	queryID := t.NewQueryID()
-
-	req := &Request{
-		ReadChannel: &ReadChannel{
-			ChannelID:       channelID,
-			QueryID:         queryID,
-			MessageBoxIndex: messageBoxIndex,
-			ReplyIndex:      replyIndex,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.writeMessage(req)
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return nil, errHalting
-		}
-
-		switch v := event.(type) {
-		// match our queryID
-		case *ReadChannelReply:
-			if v.QueryID == nil {
-				t.log.Debugf("ReadChannel: Received ReadChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return nil, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// ResumeReadChannel resumes a read channel from a previous session.
-//
-// This method allows applications to restore a read channel after a restart
-// or interruption by providing the read capability and position information
-// that were saved from a previous session. This enables persistent communication
-// channels that survive application restarts.
-//
-// The read capability should be obtained from the channel creator, and the
-// position information should be saved from previous read operations to
-// maintain proper message sequencing.
-//
-// After resumption, the channel can be used normally with ReadChannel()
-// and other channel operations.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - readCap: Read capability obtained from the channel creator
-//   - nextMessageIndex: Message index to resume from. If set to nil then the channel
-//     will start from the beginning index value indicated by the readCap.
-//   - replyIndex: Reply index within the message (nil for default)
-//
-// Returns:
-//   - uint16: Channel ID for subsequent operations on the resumed channel
-//   - error: Any error encountered during resumption
-//
-// Example:
-//
-//	// During application shutdown, save these values persistently:
-//	// readCap (from channel creator)
-//	// nextMessageIndex (from last ReadChannelReply)
-//	// replyIndex (from last ReadChannelReply)
-//
-//	// After restart, resume the channel:
-//	channelID, err := client.ResumeReadChannel(ctx, readCap,
-//		nextMessageIndex, replyIndex)
-//	if err != nil {
-//		log.Fatal("Failed to resume read channel:", err)
-//	}
-//
-//	// Continue reading messages normally
-//	readReply, err := client.ReadChannel(ctx, channelID, nil, nil)
-func (t *ThinClient) ResumeReadChannel(
-	ctx context.Context,
-	readCap *bacap.ReadCap,
-	nextMessageIndex *bacap.MessageBoxIndex,
-	replyIndex *uint8) (uint16, error) {
-
-	queryID := t.NewQueryID()
-	req := &Request{
-		ResumeReadChannel: &ResumeReadChannel{
-			QueryID:          queryID,
-			ReadCap:          readCap,
-			NextMessageIndex: nextMessageIndex,
-			ReplyIndex:       replyIndex,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-	err := t.writeMessage(req)
-	if err != nil {
-		return 0, err
-	}
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return 0, errHalting
-		}
-
-		switch v := event.(type) {
-		// match our queryID
-		case *ResumeReadChannelReply:
-			if v.QueryID == nil {
-				t.log.Debugf("ResumeReadChannel: Received ResumeReadChannelReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("ResumeReadChannel: Received ResumeReadChannelReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return 0, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.ChannelID, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// ResumeReadChannelQuery resumes a read channel with a specific query state.
-//
-// This method provides more granular resumption control than ResumeReadChannel
-// by allowing the application to resume from a specific query state, including
-// the envelope descriptor and hash. This is useful when resuming from a partially
-// completed read operation that was interrupted during transmission.
-//
-// This method is typically used when an application has saved the complete state
-// from a ReadChannelReply and wants to resume from that exact point, including
-// any pending query state.
-//
-// Most parameters are required for this method. Only replyIndex may be nil,
-// in which case it defaults to 0 (the first reply in the message).
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - readCap: Read capability obtained from the channel creator
-//   - nextMessageIndex: Exact message index to resume from (required)
-//   - replyIndex: Reply index within the message (nil defaults to 0)
-//   - envelopeDescriptor: Envelope descriptor from the interrupted operation (required)
-//   - envelopeHash: Hash of the envelope from the interrupted operation (required)
-//
-// Returns:
-//   - uint16: Channel ID for subsequent operations on the resumed channel
-//   - error: Any error encountered during resumption
-//
-// Example:
-//
-//	// During interruption, save complete state from ReadChannelReply:
-//	// readCap, nextMessageIndex, replyIndex, envelopeDescriptor, envelopeHash
-//
-//	// Resume with complete query state:
-//	channelID, err := client.ResumeReadChannelQuery(ctx, readCap,
-//		nextMessageIndex, replyIndex, envelopeDescriptor, envelopeHash)
-//	if err != nil {
-//		log.Fatal("Failed to resume read channel query:", err)
-//	}
-//
-//	// Channel is now ready to continue from the exact interrupted state
-func (t *ThinClient) ResumeReadChannelQuery(
-	ctx context.Context,
-	readCap *bacap.ReadCap,
-	nextMessageIndex *bacap.MessageBoxIndex,
-	replyIndex *uint8,
-	envelopeDescriptor []byte,
-	envelopeHash *[32]byte) (uint16, error) {
-
-	queryID := t.NewQueryID()
-	req := &Request{
-		ResumeReadChannelQuery: &ResumeReadChannelQuery{
-			QueryID:            queryID,
-			ReadCap:            readCap,
-			NextMessageIndex:   nextMessageIndex,
-			ReplyIndex:         replyIndex,
-			EnvelopeDescriptor: envelopeDescriptor,
-			EnvelopeHash:       envelopeHash,
-		},
-	}
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-	err := t.writeMessage(req)
-	if err != nil {
-		return 0, err
-	}
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return 0, errHalting
-		}
-
-		switch v := event.(type) {
-		// match our queryID
-		case *ResumeReadChannelQueryReply:
-			if v.QueryID == nil {
-				t.log.Debugf("ResumeReadChannelQuery: Received ResumeReadChannelQueryReply with nil QueryID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.QueryID[:], queryID[:]) {
-				t.log.Debugf("ResumeReadChannelQuery: Received ResumeReadChannelQueryReply with mismatched QueryID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return 0, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.ChannelID, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// CloseChannel closes a Pigeonhole channel and releases its resources.
-//
-// This method cleanly closes a channel that was created with CreateWriteChannel,
-// CreateReadChannel, or any of the Resume methods. Closing a channel releases
-// the associated resources in the client daemon and should be called when the
-// channel is no longer needed.
-//
-// After closing a channel, the channel ID becomes invalid and should not be
-// used for further operations. Attempting to use a closed channel ID will
-// result in errors.
-//
-// This operation works in both online and offline modes, as it only affects
-// local state in the client daemon.
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - channelID: Channel ID to close (from Create or Resume operations)
-//
-// Returns:
-//   - error: Any error encountered during channel closure
-//
-// Example:
-//
-//	// Create a channel
-//	channelID, readCap, writeCap, err := client.CreateWriteChannel(ctx)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Use the channel for operations...
-//	// ...
-//
-//	// Clean up when done
-//	err = client.CloseChannel(ctx, channelID)
-//	if err != nil {
-//		log.Printf("Warning: failed to close channel %d: %v", channelID, err)
-//	}
-//
-//	// Store writeCap and readCap for future resumption if needed
-func (t *ThinClient) CloseChannel(ctx context.Context, channelID uint16) error {
-	if ctx == nil {
-		return errContextCannotBeNil
-	}
-
-	req := &Request{
-		CloseChannel: &CloseChannel{
-			ChannelID: channelID,
-		},
-	}
-
-	return t.writeMessage(req)
-}
-
-// SendChannelQuery sends a prepared channel query to the mixnet without waiting for a reply.
-//
-// This method performs the second step of the two-phase channel operation process.
-// It takes a payload prepared by WriteChannel or ReadChannel and transmits it
-// through the mixnet to the specified courier service.
-//
-// This is a fire-and-forget operation - it does not wait for a reply. Use
-// SendChannelQueryAwaitReply if you need to wait for and receive the response.
-//
-// Requirements:
-//   - The daemon must be connected to the mixnet (IsConnected() == true)
-//   - The payload must be prepared by WriteChannel or ReadChannel
-//   - The destination must be obtained from GetCourierDestination()
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - channelID: Channel ID from CreateWriteChannel/CreateReadChannel/Resume operations
-//   - payload: Prepared payload from WriteChannel or ReadChannel
-//   - destNode: Courier service node hash from GetCourierDestination()
-//   - destQueue: Courier service queue ID from GetCourierDestination()
-//   - messageID: Unique message identifier for correlation
-//
-// Returns:
-//   - error: Any error encountered during transmission
-//
-// Example:
-//
-//	// Prepare a write operation
-//	writeReply, err := client.WriteChannel(ctx, channelID, message)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Get courier destination
-//	destNode, destQueue, err := client.GetCourierDestination()
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Send without waiting for reply
-//	messageID := client.NewMessageID()
-//	err = client.SendChannelQuery(ctx, channelID, writeReply.SendMessagePayload,
-//		destNode, destQueue, messageID)
-func (t *ThinClient) SendChannelQuery(
-	ctx context.Context,
-	channelID uint16,
-	payload []byte,
-	destNode *[32]byte,
-	destQueue []byte,
-	messageID *[MessageIDLength]byte,
-) error {
-
-	if ctx == nil {
-		return errContextCannotBeNil
-	}
-
-	req := &Request{
-		SendChannelQuery: &SendChannelQuery{
-			MessageID:         messageID,
-			ChannelID:         &channelID,
-			Payload:           payload,
-			DestinationIdHash: destNode,
-			RecipientQueueID:  destQueue,
-		},
-	}
-
-	return t.writeMessage(req)
-}
-
-// SendChannelQueryAwaitReply sends a prepared channel query and waits for the reply.
-//
-// This method performs the second step of the two-phase channel operation process
-// and blocks until a reply is received or the context times out. It combines
-// sending the prepared payload with waiting for and returning the response.
-//
-// This is the most commonly used method for channel operations as it provides
-// a complete request-response cycle. For fire-and-forget operations, use
-// SendChannelQuery instead.
-//
-// Requirements:
-//   - The daemon must be connected to the mixnet (IsConnected() == true)
-//   - The payload must be prepared by WriteChannel or ReadChannel
-//   - The destination must be obtained from GetCourierDestination()
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control (recommended: 30s timeout)
-//   - channelID: Channel ID from CreateWriteChannel/CreateReadChannel/Resume operations
-//   - payload: Prepared payload from WriteChannel or ReadChannel
-//   - destNode: Courier service node hash from GetCourierDestination()
-//   - destQueue: Courier service queue ID from GetCourierDestination()
-//   - messageID: Unique message identifier for correlation
-//
-// Returns:
-//   - []byte: Response payload from the courier service
-//   - error: Any error encountered during transmission or while waiting for reply
-//
-// Example:
-//
-//	// Prepare a read operation
-//	readReply, err := client.ReadChannel(ctx, channelID, nil, nil)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Get courier destination
-//	destNode, destQueue, err := client.GetCourierDestination()
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Send and wait for reply
-//	messageID := client.NewMessageID()
-//	replyPayload, err := client.SendChannelQueryAwaitReply(ctx, channelID,
-//		readReply.SendMessagePayload, destNode, destQueue, messageID)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Process the received message
-//	fmt.Printf("Received: %s\n", replyPayload)
-func (t *ThinClient) SendChannelQueryAwaitReply(
-	ctx context.Context,
-	channelID uint16,
-	payload []byte,
-	destNode *[32]byte,
-	destQueue []byte,
-	messageID *[MessageIDLength]byte,
-) ([]byte, error) {
-
-	eventSink := t.EventSink()
-	defer t.StopEventSink(eventSink)
-
-	err := t.SendChannelQuery(ctx, channelID, payload, destNode, destQueue, messageID)
-	if err != nil {
-		return nil, err
-	}
-	for {
-		var event Event
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case event = <-eventSink:
-		case <-t.HaltCh():
-			return nil, errHalting
-		}
-
-		switch v := event.(type) {
-		case *ChannelQuerySentEvent:
-			if v.MessageID == nil {
-				t.log.Debugf("SendChannelQueryAwaitReply: Received ChannelQuerySentEvent with nil MessageID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.MessageID[:], messageID[:]) {
-				t.log.Debugf("SendChannelQueryAwaitReply: Received ChannelQuerySentEvent with mismatched MessageID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return nil, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			continue
-		case *ChannelQueryReplyEvent:
-			if v.MessageID == nil {
-				t.log.Debugf("SendChannelQueryAwaitReply: Received MessageReplyEvent with nil MessageID, ignoring")
-				continue
-			}
-			if !bytes.Equal(v.MessageID[:], messageID[:]) {
-				t.log.Debugf("SendChannelQueryAwaitReply: Received MessageReplyEvent with mismatched MessageID, ignoring")
-				continue
-			}
-			if v.ErrorCode != ThinClientSuccess {
-				return nil, errors.New(ThinClientErrorToString(v.ErrorCode))
-			}
-			return v.Payload, nil
-		case *ConnectionStatusEvent:
-			// Update connection state but don't fail channel operations
-			t.isConnected = v.IsConnected
-		case *NewDocumentEvent:
-			// Ignore PKI document updates
-		default:
-			// Ignore other events
-		}
-	}
-}
-
-// GetCourierDestination returns a courier service destination for the current epoch.
-//
-// This method finds and randomly selects a courier service from the current
-// PKI document. Courier services handle Pigeonhole protocol operations,
-// storing and retrieving messages for channels. The random selection provides
-// automatic load balancing across available courier instances.
-//
-// The returned destination information is used with SendChannelQuery and
-// SendChannelQueryAwaitReply to transmit prepared channel operations to
-// the mixnet.
-//
-// Returns:
-//   - *[32]byte: Hash of the courier service's identity key (destination node)
-//   - []byte: Queue ID for the courier service
-//   - error: Error if no courier services are available
-//
-// Example:
-//
-//	// Get courier destination for sending a channel query
-//	destNode, destQueue, err := client.GetCourierDestination()
-//	if err != nil {
-//		log.Fatal("No courier services available:", err)
-//	}
-//
-//	// Use with SendChannelQuery
-//	messageID := client.NewMessageID()
-//	err = client.SendChannelQuery(ctx, channelID, payload,
-//		destNode, destQueue, messageID)
-func (t *ThinClient) GetCourierDestination() (*[32]byte, []byte, error) {
-	epoch, _, _ := epochtime.Now()
-	epochDoc, err := t.PKIDocumentForEpoch(epoch)
-	if err != nil {
-		return nil, nil, err
-	}
-	courierServices := common.FindServices("courier", epochDoc)
-	if len(courierServices) == 0 {
-		return nil, nil, errors.New("no courier services found")
-	}
-	// Select a random courier service for load distribution
-	courierService := courierServices[rand.NewMath().Intn(len(courierServices))]
-	destNode := hash.Sum256(courierService.MixDescriptor.IdentityKey)
-	destQueue := courierService.RecipientQueueID
-	return &destNode, destQueue, nil
 }

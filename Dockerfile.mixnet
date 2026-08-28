@@ -40,7 +40,9 @@ COPY katzenpost /src/katzenpost
 
 # Katzenpost core/log exports Backend but some code expects Logger; add type alias
 RUN printf '\n// Alias for backward compatibility\ntype Logger = logging.Logger\n' \
-    >> /src/katzenpost/core/log/log.go
+     >> /src/katzenpost/core/log/log.go
+
+RUN cd /src/katzenpost && go clean -cache
 
 RUN mkdir /dest && \
     cd /src/katzenpost && \
