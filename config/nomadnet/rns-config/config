@@ -1,0 +1,16 @@
+# Dedicated RNS config for NomadNet (separate instance from rnsd)
+# No TCP server interface: rnsd owns 37428; NomadNet uses AutoInterface only.
+# NOTE: nomadnet must NOT share rnsd's reticulum config — duplicate interface
+# creation triggers RNS.panic() (silent os._exit(255) crash loop).
+[reticulum]
+  enable_transport = false
+  share_instance = false
+  panic_on_interface_error = false
+  loglevel = 4
+
+[logging]
+  loglevel = 4
+  destination = stdout
+
+[[AutoInterface]]
+  enabled = yes
