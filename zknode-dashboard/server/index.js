@@ -488,13 +488,20 @@ const NODE_HOME = process.env.NODE_HOME || '/home/<node-user>/zknode-autonomi';
 
 const ZKCHAT_RUNNER = 'zkchat-poll-runner';
 function ensureZkchatRunner() {
-  const base = ['create', '--name', ZKCHAT_RUNNER, '--label', 'zkchat-poll-runner', '--network', 'host',
-    '-v', NODE_HOME + '/config/mixnet:/var/lib/katzenpost',
-    '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
-    'zeros/mixnet-node:arm64', 'tail', '-f', '/dev/null'];
-  const c = spawnSync('docker', base, { timeout: 30000, encoding: 'utf8' });
-  if (c.status !== 0 && !/already exists/.test((c.stderr || '') + (c.stdout || ''))) {
-    return { ok: false, error: 'ensure runner: ' + ((c.stderr || c.stdout || c.error?.message || 'create failed').trim()) };
+  const insp = spawnSync('docker', ['inspect', '-f', '{{.State.Running}}', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8' });
+  if (insp.status === 0 && String(insp.stdout || '').trim() === 'true') return { ok: true };
+  if (insp.status !== 0 && !/no such container/i.test((insp.stderr || '') + (insp.stdout || ''))) {
+    return { ok: false, error: 'runner inspect: ' + ((insp.stderr || insp.stdout || insp.error?.message || 'inspect failed').trim()) };
+  }
+  if (insp.status !== 0) {
+    const base = ['create', '--name', ZKCHAT_RUNNER, '--label', 'zkchat-poll-runner', '--network', 'host',
+      '-v', NODE_HOME + '/config/mixnet:/var/lib/katzenpost',
+      '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
+      'zeros/mixnet-node:arm64', 'tail', '-f', '/dev/null'];
+    const c = spawnSync('docker', base, { timeout: 30000, encoding: 'utf8' });
+    if (c.status !== 0 && !/already in use|already exists/i.test((c.stderr || '') + (c.stdout || ''))) {
+      return { ok: false, error: 'ensure runner: ' + ((c.stderr || c.stdout || c.error?.message || 'create failed').trim()) };
+    }
   }
   const s = spawnSync('docker', ['start', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8' });
   if (s.status !== 0) return { ok: false, error: 'runner start: ' + ((s.stderr || s.stdout || s.error?.message || 'start failed').trim()) };
