@@ -848,35 +848,61 @@ app.all('/ethereum', async (req, res) => {
     const isBatch = Array.isArray(body);
 
     // The mixnet tunnel caps a single payload at UserForwardPayloadLength
-    // (2000 bytes). MetaMask sends large batched/filter-poll requests
-    // (64KB+); proxying them is pointless — walletshield would fail to
-    // send and the reconnect churn would disrupt every other request.
-    // Reject oversized bodies up front with a clean JSON-RPC error.
-    const raw = JSON.stringify(body);
-    if (Buffer.byteLength(raw) > 1900) {
-      const oversizeErr = (id) => ({ jsonrpc: '2.0', id, error: { code: -32005, message: 'request too large for mixnet tunnel (max ~1900 bytes): limit batch size or reduce params' } });
-      return res.json(isBatch ? body.map(item => oversizeErr(item.id ?? 1)) : oversizeErr(body.id ?? 1));
-    }
+    // (2000 bytes). Batch arrays are SPLIT into sub-batches that each fit,
+    // and replies merged back in original order — MetaMask's large batched
+    // polls work without touching the tunnel limit. A single request that
+    // alone exceeds the limit cannot be split generically: clean -32005.
+    const oversizeErr = (id) => ({ jsonrpc: '2.0', id, error: { code: -32005, message: 'single request too large for mixnet tunnel (max ~1900 bytes)' } });
+    const itemTooBig = (item) => Buffer.byteLength(JSON.stringify(item)) > 1900;
 
     if (isBatch) {
-      const results = await Promise.all(body.map(async (item) => {
-        const method = item.method;
-        const id = item.id ?? 1;
-        const cached = cachedResponse(method, id);
-        if (cached) return cached;
+      // Split into sub-batches by serialized size; per-item oversize errors.
+      const jobs = body.map((item) => ({ item, tooBig: itemTooBig(item) }));
+      const groups = [];
+      let cur = [], curSize = 0;
+      for (const j of jobs) {
+        if (j.tooBig) { groups.push({ items: [j.item], single: true }); continue; }
+        const sz = Buffer.byteLength(JSON.stringify(j.item)) + 2;
+        if (cur.length && curSize + sz > 1900) { groups.push({ items: cur, single: false }); cur = []; curSize = 0; }
+        cur.push(j.item); curSize += sz;
+      }
+      if (cur.length) groups.push({ items: cur, single: false });
+
+      const results = new Array(body.length);
+      // Pre-fill oversize singles with -32005, remember index mapping.
+      const idxByRef = new Map();
+      body.forEach((item, i) => idxByRef.set(item, i));
+      for (const g of groups) {
+        if (g.single) {
+          results[idxByRef.get(g.items[0])] = oversizeErr(g.items[0].id ?? 1);
+        }
+      }
+      // Forward each splittable group as one sub-batch, scatter replies back.
+      await Promise.all(groups.filter(g => !g.single).map(async (g) => {
         try {
-          const txt = await wsProxy(JSON.stringify(item));
-          const p = JSON.parse(txt);
-          if (method === 'eth_chainId' && p.result) cachedChainId = p.result;
-          if (method === 'net_version' && p.result) cachedNetVersion = p.result;
-          return p;
+          const txt = await wsProxy(JSON.stringify(g.items));
+          const replies = JSON.parse(txt);
+          const byId = new Map();
+          for (const rep of (Array.isArray(replies) ? replies : [replies])) {
+            byId.set(JSON.stringify(rep.id ?? 1), rep);
+          }
+          g.items.forEach((item, k) => {
+            const rep = byId.get(JSON.stringify(item.id ?? 1));
+            results[idxByRef.get(item)] = rep || { jsonrpc: '2.0', id: item.id ?? 1, error: { code: -32603, message: 'missing reply in batch' } };
+          });
         } catch (e) {
-          const c = cachedResponse(method, id);
-          if (c) return c;
-          return { jsonrpc: '2.0', id, error: { code: -32603, message: e.message } };
+          g.items.forEach((item) => {
+            const c = cachedResponse(item.method, item.id ?? 1);
+            results[idxByRef.get(item)] = c || { jsonrpc: '2.0', id: item.id ?? 1, error: { code: -32603, message: e.message } };
+          });
         }
       }));
       return res.json(results);
+    }
+
+    const raw = JSON.stringify(body);
+    if (Buffer.byteLength(raw) > 1900) {
+      return res.json(oversizeErr(body.id ?? 1));
     }
 
     const method = body?.method;
