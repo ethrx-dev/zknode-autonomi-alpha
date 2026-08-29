@@ -1,8 +1,8 @@
 # Ops Session 2026-08-28 — Mixnet Stabilization, WalletShield, Autonomi, zkchat
 
-> Full incident + stabilization log for the SCM4 node (`192.168.9.133`). Everything
+> Full incident + stabilization log for the SCM4 node (`<node-ip>`). Everything
 > below was applied, verified live, and pushed. Start/stop of the whole stack is
-> unchanged: `docker compose up -d` in `/home/zero-tech/zknode-autonomi`.
+> unchanged: `docker compose up -d` in `/home/<node-user>/zknode-autonomi`.
 
 ## 1. Mixnet client (kpclientd) — PKI fetch fixes
 
@@ -40,7 +40,7 @@ min into it. Verified: `SUCCESS! Achieved threshold consensus for epoch 243020`.
 
 ## 3. WalletShield — MetaMask RPC over the mixnet
 
-MetaMask endpoint: **`http://192.168.9.133:8080/ethereum`**
+MetaMask endpoint: **`http://<node-ip>:8080/ethereum`**
 (dashboard `POST /ethereum` → `walletshield :9200` → kpclientd `:64332` →
 `proxy`/`http_proxy` service on servicenode1 → `ethereum-rpc.publicnode.com`).
 

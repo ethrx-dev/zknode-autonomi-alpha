@@ -48,7 +48,7 @@ The SCM4 has active tamper detection. Avoid triggering it:
 
 | Item | Value |
 |------|-------|
-| SCM4 IP | `<node-ip>` (e.g. `192.168.9.133`) |
+| SCM4 IP | `<node-ip>` (e.g. `<node-ip>`) |
 | SSH user | `<node-user>` (never root) |
 | SSH key | `~/.ssh/id_ed25519_scm4` |
 | Sudo password | `<sudo-password>` |
