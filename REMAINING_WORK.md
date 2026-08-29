@@ -1,86 +1,101 @@
-# Remaining Work - WalletShield End-to-End RPC
+# Remaining Work
 
-## Current Status (as of 2026-08-20)
+> **Status as of 2026-08-28.** The 2026-08-20 blockers (WalletShield end-to-end
+> RPC) are **resolved** — RPC works end-to-end through the mixnet, verified
+> live. Full incident/fix history: `docs/OPS_SESSION_2026-08-28.md`.
 
-### ✅ Completed
-- **Dirauth consensus**: 3/3 signatures for epochs 242488-242496
-- **Gateway in consensus**: Successfully uploading descriptors
-- **PKI document fallback**: Working for failed epochs (242491, 242493, etc.)
-- **Thin client listener**: Port 64332 on kpclientd accepting connections
-- **Thin client PKI sync**: Working via fallback mechanism
-- **Service discovery**: Walletshield finds proxy service (epoch 242492+)
-- **Servicenode descriptors**: Successfully accepted for epochs 242491-242496
-- **http-proxy-server**: Running on servicenode, processed requests earlier (17:xx UTC)
-- **Echo service**: Need to deploy for SURB testing
-- **Mixnet consensus**: Stable at 3/3 signatures
+## Previously blocked — now DONE
 
-### ❌ Blocked: WalletShield End-to-End RPC
+| 2026-08-20 item | State |
+|---|---|
+| Rebuild WalletShield with updated thin client | ✅ Done — walletshield runs the current `client/thin`; deployed image `ws-deploy:latest` |
+| WalletShield E2E RPC blocked | ✅ Working — `POST /ethereum` and `ws-heartbeat` verified live (block numbers advancing) |
+| Deploy echo service for SURB testing | ✅ Running on servicenode1 (loop decoys + ping rely on it) |
+| PKI document fallback / epoch blacklist | ✅ Fixed upstream in `client/pki.go` (transient errors no longer blacklist; `now-1` fetch; recheckInterval /32) |
+| Forward path / SURB debug | ✅ Round trips verified (eth_blockNumber, echo, loop decoys) |
 
-#### Root Cause
-WalletShield uses a **forked thin client** (`walletshield-fix/thin/`) with old `client2` import paths that are incompatible with the updated kpclientd (which uses `client/thin`). The protocol mismatch causes:
-1. WalletShield connects to kpclientd and gets PKI docs successfully
-2. But `BlockingSendMessage` fails silently or messages aren't routed
-3. Gateway shows no incoming messages for proxy service
+---
 
-#### Error Symptoms
-- WalletShield: "GetService(proxy) ok" but RPC times out
-- Gateway: Only RetrieveMessage (PKI docs), no service messages
-- kpclientd: WalletShield connects but no message processing logs
-- http-proxy-server: Last activity 17:xx UTC, no recent requests
+## Current remaining work (prioritized)
 
-### 🔧 Required Fixes
+### 1. Automated backups — HIGH (ops safety)
+`/api/health` reports `last_backup_age_hours: -1` — there is **no automated
+daily backup** despite the dashboard expecting `/mnt/backup/zknode/daily/`.
+- [ ] Schedule a daily job: configs + keys + compose + `.env` (exclude logs)
+      → `/mnt/autonomi/backups/daily/YYYY-MM-DD/`, retain 14 days.
+- [ ] Include the deployed image tarballs pointer
+      (`/mnt/autonomi/backups/mixnet-stable-20260828/`).
+- [ ] Wire `last_backup_age_hours` to the actual job so the dashboard shows it.
 
-#### 1. Rebuild WalletShield with Updated Thin Client (HIGH PRIORITY)
-**Problem**: WalletShield's forked thin client (`walletshield-fix/thin/`) uses old `client2` imports, incompatible with updated `client/thin`.
+### 2. Log rotation — HIGH (disk safety)
+Root fs sits at ~81% and katzenpost logs grow continuously at INFO. The 90%
+incidents came from logs + `/tmp` tarballs.
+- [ ] Add logrotate config (or a cron `truncate`) for
+      `config/mixnet/*/katzenpost.log` with size caps.
+- [ ] Move walletshield/chatd stdout into rotation or size-capped files.
 
-**Attempted Solutions** (all failed due to dependency conflicts):
-- `go get` pulls incompatible hpqc v0.0.78 vs opt repo's v0.0.68
-- `go mod tidy` pulls client2 imports from other opt packages
-- Pre-built binary uses old client2 protocol
+### 3. antd daemon-managed nodes — MEDIUM (upstream)
+`ant node daemon`-managed nodes (0.17.2) fail with `Failed to create
+dual-stack network nodes` — the daemon does not propagate env/flags to spawned
+processes. The storage node therefore runs as the **direct binary** via the
+container entrypoint.
+- [ ] Track/patch upstream (`WithAutonomi/ant-client` daemon spawn env
+      propagation + dual-stack on IPv4-only hosts).
+- [ ] When fixed: migrate to daemon-managed nodes for the web console,
+      keeping `ANT_IPV4_ONLY=true`.
 
-**Remaining Approaches**:
-- [ ] Patch walletshield-fix go.mod to use hpqc v0.0.78 + update go.sum
-- [ ] Update all opt repo packages to use `client/thin` instead of `client2`
-- [ ] Cross-compile walletshield on local machine with local katzenpost
-- [ ] Use a minimal walletshield binary that only uses the new thin client
+### 4. zkchat identity persistence — MEDIUM
+The `zkchat` container derives its 16-byte identity from
+`/etc/zkchat/.zkchat/identity`, which is **not on a persistent volume** —
+recreating the container mints a new identity (groups owned by the old ID
+become invisible to it).
+- [ ] Mount `./data/zkchat/identity:/etc/zkchat/.zkchat` (or pass the config
+      from a persisted dir) so the poll/send identity survives recreations.
+- [ ] Note: the **dashboard** identity IS persisted
+      (`config/mixnet/client/.zkchat/identity`) — groups created via the UI
+      are stable.
 
-#### 2. Deploy Echo Service for SURB Testing (MEDIUM)
-- Add echo-plugin to mix1 config
-- Redeploy mix1
-- Test ping tool for SURB round-trip verification
+### 5. MetaMask large batch payloads — MEDIUM (UX)
+The mixnet caps a single payload at ~2000 bytes; MetaMask occasionally sends
+64KB batched/filter requests. The dashboard now rejects them instantly with
+JSON-RPC `-32005` (no tunnel churn — see OPS_SESSION §7).
+- [ ] Optional: implement request **splitting** in the dashboard `/ethereum`
+      proxy (split batches, forward ≤1900-byte items, merge replies) instead
+      of rejecting.
+- [ ] Optional: document recommended MetaMask settings (disable advanced
+      batched fetching) in the dashboard UI.
 
-#### 3. Debug Forward Path (MEDIUM)
-- Verify gateway routing to servicenode
-- Check SURB generation/forwarding
-- Test basic mixnet round-trip with ping tool
+### 6. Mixnet widget epoch accuracy — LOW (cosmetic)
+`/api/mixnet` shows the dirauths' *voting* epoch, which can lag/lead the
+published-consensus epoch. Cosmetic only — `/api/health` and consensus are
+authoritative.
+- [ ] Surface `currentDocument().Epoch` from mix-client (authoritative) next
+      to the authority epochs.
 
-### Disk Space
-- Root: 14G total, 11G used, **2.3G free (83%)** - OK
+### 7. Upstream contributions — LOW (hygiene)
+The katzenpost patch line lives in `ethrx-dev/katzenpost-v0.0.84-patched`
+(clean tree; upstream history contains a 58MB blob that blocks normal pushes).
+- [ ] Consider upstream PRs (katzenpost/katzenpost) for the client/pki.go
+      blacklist + epoch-boundary fixes and the chatd service.
+- [ ] Keep `ethrx-dev/katzenpost-v0.0.84-patched` in sync with any new
+      patches; both `main` and `p4p-0.99-upgrade` are merged as of
+      `4676d5b` (tag `v0.01-stable-mixnet`) on GitHub and `git.zknet.cloud`.
 
-### Next Session Priority
-1. **Fix walletshield-fix/go.mod** to use hpqc v0.0.78, run `go mod tidy`, rebuild
-2. Deploy echo-plugin on mix1
-3. Test ping tool → verify SURB path
-4. Verify walletshield RPC end-to-end
+### 8. Cover traffic — LOW (privacy tradeoff)
+`DisableDecoyTraffic = true` on mix-client (the 2026-08-28 load fix; decoys
+were the dominant CPU load at load-avg 11).
+- [ ] Revisit with 2 GB swap + INFO logging in place: re-enable and measure
+      kpclientd CPU. Restore when more mesh peers join (network-level cover).
 
-### Files Modified This Session
-- `katzenpost/client/pki.go` - PKI fallback accept mismatched epochs
-- `katzenpost/authority/voting/server/state.go` - Widen DB fallback
-- `katzenpost/authority/voting/client/client.go` - Accept mismatched epochs
-- `katzenpost/client/thin/thin.go` - TOML config fixes, Dial/Listen support
-- `katzenpost/client/thin/thin_messages.go` - Added missing message types
-- `katzenpost/client/thin/thin_events.go` - InstanceToken support
-- `katzenpost/client/thin/thin_pigeonhole.go` - (copied to walletshield-fix)
-- `katzenpost/client/thin/transport/` - (copied to walletshield-fix)
-- `katzenpost/core/log/log.go` - discardCloser fix
-- `katzenpost/client/common/common.go` - FindServices panic fix
-- `katzenpost/pigeonhole/geo/geometry.go` - TOML tags
-- `katzenpost/core/sphinx/geo/geo.go` - TOML tags
-- `walletshield-fix/main.go` - Fixed imports to use client/thin
-- `walletshield-fix/thin/*` - Copied updated thin client
-- `KATZENPOST_CHANGES.md` - Documentation
-- `REMAINING_WORK.md` - This file
+---
 
-### Git Status
-- Committed: `f92b941` - "Fix katzenpost thin client, PKI fallback, and SURB issues"
-- Pushed to `main` and `p4p-alpha-unified`
+## Verification loop (post any change)
+
+```
+curl -s http://127.0.0.1:8080/api/health          # healthy, 6/6
+curl -s http://127.0.0.1:8080/api/ant | jq .totalRunning
+curl -x socks5h://127.0.0.1:1080 http://httpbin.org/ip
+curl -s -X POST http://127.0.0.1:8080/ethereum \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+docker logs mix-client --since 5m 2>&1 | grep -c 'Lost connection'   # 0
+```
