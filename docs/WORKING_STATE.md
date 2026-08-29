@@ -317,18 +317,18 @@ Build Machine (blaqbox)         SCM4 (<node-hostname>.local)
        │                              │
        │  SSH (id_ed25519_zk)         │
        │  Dashboard: http://:8080     │
-       │  MetaMask: http://:9292     │
+       │  MetaMask: http://:9292      │
        │  WiFi mesh: <mesh-ssid> ch1  │
        │  TCP mesh: :4242             │
        ▼                              ▼
 ┌─────────────────┐      ┌─────────────────────────────┐
-│  This machine   │      │  zknode SCM4                 │
-│  Git remote:    │      │  15 Docker containers        │
-│  ethrx-dev/     │      │  Reticulum + NomadNet        │
-│  zknode-...     │      │  ant-node (Autonomi testnet) │
-│                 │      │  Dashboard on :8080          │
-│  SSH key:       │      │  Patched walletshield :9200  │
-│  ~/.ssh/..._zk    │      │  CORS proxy :9292           │
+│  This machine   │      │  zknode SCM4                │
+│  Git remote:    │      │  15 Docker containers       │
+│  ethrx-dev/     │      │  Reticulum + NomadNet       │
+│  zknode-...     │      │  ant-node (Autonomi testnet)│
+│                 │      │  Dashboard on :8080         │
+│  SSH key:       │      │  Patched walletshield :9200 │
+│  ~/.ssh/..._zk  │      │  CORS proxy :9292           │
 └─────────────────┘      └─────────────────────────────┘
 ```
 
