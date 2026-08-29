@@ -192,7 +192,11 @@ services:
     - --config
     - /etc/reticulum
     container_name: reticulum
-    image: zeros/reticulum:arm64
+    # zeros/reticulum:arm64 (RNS 1.3.7) hangs silently at startup — rnsd never
+    # binds its interfaces or creates the shared instance. The nomadnet image
+    # bundles a working rnsd (0.8.7); reuse it until the reticulum image is rebuilt.
+    image: zknode-autonomi-nomadnet:latest
+    entrypoint: rnsd
     network_mode: host
     restart: unless-stopped
     volumes:
@@ -211,7 +215,9 @@ services:
     - ./config/nomadnet/pages:/var/lib/nomadnet/pages:rw
     - ./data/nomadnet:/var/lib/nomadnet
     - ./config/nomadnet/llm-wiki-proxy.sh:/usr/local/bin/llm-wiki-proxy.sh:ro
-    - ./config/reticulum/config:/etc/reticulum:rw
+    # Dedicated RNS config: nomadnet must NOT share rnsd's config (duplicate
+    # TCP server interface on 37428 -> RNS.panic() -> silent exit 255 loop)
+    - ./config/nomadnet/rns-config:/etc/reticulum:rw
     - ./data/reticulum:/var/lib/reticulum:rw
   storage-proved:
     command:
