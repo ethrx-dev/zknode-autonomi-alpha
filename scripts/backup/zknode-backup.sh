@@ -6,7 +6,7 @@ set -euo pipefail
 TS=$(date +%Y%m%d_%H%M%S)
 LABEL="${1:-daily}"
 BACKUP_BASE="/mnt/usb_sda3/backup"
-SOURCE="/home/zero-tech/zknode-autonomi"
+SOURCE="${ZK_SOURCE:-/home/<node-user>/zknode-autonomi}"
 RETENTION_DAILY=7
 RETENTION_WEEKLY=4
 RETENTION_MONTHLY=3

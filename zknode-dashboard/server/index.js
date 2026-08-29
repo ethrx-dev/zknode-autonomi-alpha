@@ -481,12 +481,16 @@ app.post('/api/wiki/commit', async (req, res) => {
 });
 
 const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
+// Host root of the deployment (docker -v mounts resolve on the HOST, so the
+// dashboard must know the host path). Injected via compose NODE_HOME; the
+// default is a placeholder — set NODE_HOME in .env on a real node.
+const NODE_HOME = process.env.NODE_HOME || '/home/<node-user>/zknode-autonomi';
 
 function zkchatCmd(args, timeout = 60000) {
   try {
     const dockerArgs = ['run', '--rm', '--label', 'zkchat-poll', '--network', 'host',
-      '-v', '/home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost',
-      '-v', '/home/zero-tech/zknode01/bin:/usr/local/bin',
+      '-v', NODE_HOME + '/config/mixnet:/var/lib/katzenpost',
+      '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
       'zeros/mixnet-node:arm64', '/usr/local/bin/zkchat'];
     const parsed = [];
     let cur = '';
@@ -742,8 +746,8 @@ app.get('/api/mesh/nomadnet', (req, res) => {
 });
 
 app.get('/api/mesh/rns', (req, res) => {
-  const status = runShell('/home/zero-tech/.local/bin/rnstatus -j 2>/dev/null', 5000);
-  const paths = runShell('/home/zero-tech/.local/bin/rnpath -t -j 2>/dev/null', 5000);
+  const status = runShell(NODE_HOME + '/.local/bin/rnstatus -j 2>/dev/null', 5000);
+  const paths = runShell(NODE_HOME + '/.local/bin/rnpath -t -j 2>/dev/null', 5000);
   const wifi = runShell('/usr/sbin/iw dev wlan0 info 2>/dev/null', 3000);
   const peers = runShell('/usr/sbin/iw dev wlan0 station dump 2>/dev/null', 3000);
   let data = { interfaces: [], transport_id: null, uptime: 0, traffic: { txb: 0, rxb: 0 } };
