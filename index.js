@@ -395,7 +395,7 @@ app.post('/api/wiki/export/:slug', async (req, res) => {
 const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
 
 function zkchatCmd(args, timeout = 10000) {
-  const cmd = 'docker run --rm --network host -v /home/zero-tech/zknode-autonomi/config/mixnet:/var/lib/katzenpost -v /home/zero-tech/zknode01/bin:/usr/local/bin zeros/mixnet-node-fixed:v0.0.84 /usr/local/bin/zkchat ' + args + ' 2>&1';
+  const cmd = 'docker run --rm --network host -v /home/<node-user>/zknode-autonomi/config/mixnet:/var/lib/katzenpost -v /home/<node-user>/zknode01/bin:/usr/local/bin zeros/mixnet-node-fixed:v0.0.84 /usr/local/bin/zkchat ' + args + ' 2>&1';
   const r = runShell(cmd, timeout);
   if (!r.ok) {
     const err = r.stderr || r.error || '';
@@ -516,7 +516,7 @@ app.get('/api/mesh/status', (req, res) => {
   const rnsRunning = !!rnsPid;
   const pages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
   const config = runShell('cat /var/nomadnet/config 2>/dev/null');
-  const wikiPages = runShell('grep "^pages" /home/zero-tech/.llm-wiki/indexes/p4p/state.toml 2>/dev/null | grep -oP "\\d+"');
+  const wikiPages = runShell('grep "^pages" /home/<node-user>/.llm-wiki/indexes/p4p/state.toml 2>/dev/null | grep -oP "\\d+"');
   const nomadPages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
   res.json({
     rnsd: rnsRunning ? 'running' : 'not running',
@@ -545,8 +545,8 @@ app.get('/api/mesh/nomadnet', (req, res) => {
 });
 
 app.get('/api/mesh/rns', (req, res) => {
-  const status = runShell('/home/zero-tech/.local/bin/rnstatus -j 2>/dev/null', 5000);
-  const paths = runShell('/home/zero-tech/.local/bin/rnpath -t -j 2>/dev/null', 5000);
+  const status = runShell('/home/<node-user>/.local/bin/rnstatus -j 2>/dev/null', 5000);
+  const paths = runShell('/home/<node-user>/.local/bin/rnpath -t -j 2>/dev/null', 5000);
   const wifi = runShell('/usr/sbin/iw dev wlan0 info 2>/dev/null', 3000);
   const peers = runShell('/usr/sbin/iw dev wlan0 station dump 2>/dev/null', 3000);
   let data = { interfaces: [], transport_id: null, uptime: 0, traffic: { txb: 0, rxb: 0 } };
