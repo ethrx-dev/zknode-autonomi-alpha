@@ -1117,7 +1117,12 @@ app.get('/api/health', async (req, res) => {
     const [lastBackup, disk, dirauthConsensus] = await Promise.all([
       runShellAsync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', 3000).then(r => {
         if (!r.ok || !r.data) return -1;
-        return runShellAsync('echo $(( ($(date +%s) - $(stat -c %Y "' + r.data + '")) / 3600 ))', 3000).then(r2 => parseInt(r2.data) || -1).catch(() => -1);
+        // NOTE: a 0-hour-old backup is the GOOD case — `parseInt("0") || -1`
+        // would report -1 here. Guard NaN explicitly instead of falsy-or.
+        return runShellAsync('echo $(( ($(date +%s) - $(stat -c %Y "' + r.data + '")) / 3600 ))', 3000).then(r2 => {
+          const v = parseInt(r2.data);
+          return Number.isFinite(v) && v >= 0 ? v : -1;
+        }).catch(() => -1);
       }).catch(() => -1),
       runShellAsync("df / | tail -1 | awk '{print $5}' | sed 's/%//'", 3000).then(r => parseFloat(r.data) || 0).catch(() => 0),
       runShellAsync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false)

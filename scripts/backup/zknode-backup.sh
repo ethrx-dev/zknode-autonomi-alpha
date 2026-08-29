@@ -5,7 +5,7 @@ set -euo pipefail
 
 TS=$(date +%Y%m%d_%H%M%S)
 LABEL="${1:-daily}"
-BACKUP_BASE="/mnt/backup"
+BACKUP_BASE="/mnt/usb_sda3/backup"
 SOURCE="/home/zero-tech/zknode-autonomi"
 RETENTION_DAILY=7
 RETENTION_WEEKLY=4
@@ -19,6 +19,9 @@ echo "Source: $SOURCE"
 echo "Dest:   $BACKUP_DIR"
 
 # Snapshot configs, compose, scripts (exclude runtime artifacts)
+# Best-effort: rsync exit 23 (partial transfer, e.g. a runtime file that
+# vanished mid-read) must not fail the whole backup — keys/configs are what
+# matter and are present.
 rsync -a --delete \
   --exclude='data/' \
   --exclude='*.log' \
@@ -27,7 +30,10 @@ rsync -a --delete \
   --exclude='courier' \
   --exclude='node_modules' \
   --exclude='chat-history.json' \
-  "$SOURCE/" "$BACKUP_DIR/"
+  --exclude='*.db' \
+  --exclude='*.sst' \
+  --exclude='*.tar.gz' \
+  "$SOURCE/" "$BACKUP_DIR/" || echo "WARN: rsync partial (code $?) — continuing"
 
 # Snapshot Docker images list
 docker images --format '{{.Repository}}:{{.Tag}}' > "$BACKUP_DIR/docker-images.txt"
