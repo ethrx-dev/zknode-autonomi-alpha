@@ -38,7 +38,7 @@ Replace `20260717_050058` with the timestamp of the backup to restore.
 ### 3. Start services
 
 ```bash
-cd /home/zero-tech/zknode-autonomi
+cd /home/<node-user>/zknode-autonomi
 docker compose up -d
 ```
 
@@ -63,7 +63,7 @@ cd zknode-autonomi-alpha
 
 ```bash
 sudo rsync -a /mnt/backup/zknode/daily/<timestamp>/config/ ./config/
-sudo chown -R zero-tech:zero-tech .
+sudo chown -R <node-user>:<node-user> .
 ```
 
 ### Restore Docker images

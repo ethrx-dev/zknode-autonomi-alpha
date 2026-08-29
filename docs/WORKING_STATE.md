@@ -11,10 +11,10 @@
 | Board | Zymbit SEN400 SCM4 (CM4 + Zymbit Security Module) |
 | RAM | 8GB |
 | Storage | eMMC (OS), USB 3.0 pool (data) |
-| HSM | ZSCM Secure Boot Gateway, firmware `01.02.02release`, serial `2712AF4B7AC2F93FD13F8B33BA15A44C36C52F2F1495246261BBC0FEE6D52475` |
+| HSM | ZSCM Secure Boot Gateway, firmware `01.02.02release`, serial `<hsm-serial>` |
 | WiFi | wlan0 — IBSS mesh (see §5) |
 | GPIO | SPI enabled (`dtparam=spi=on` in `/boot/config.txt`) — awaiting RNode LoRa |
-| IP | `<node-ip>` (static on `192.168.9.0/24`) |
+| IP | `<node-ip>` (static on `<lan-subnet>`) |
 
 ### Failure Mode
 
@@ -26,7 +26,7 @@ The SCM blue LED shows **constant rapid blinking**: SCM in Production Mode, hold
 
 - **OS**: Debian bookworm (aarch64) — preinstalled Zymbit image
 - **User**: `<node-user>` (primary ops user)
-- **Passwords**: `r00ts3cur3` (sudo)
+- **Passwords**: `<sudo-password>` (sudo)
 - **SSH key**: `~/.ssh/id_ed25519_zk` (on build machine, `~/.ssh/id_ed25519_zk.pub` on SCM4)
 - **Hostname**: `<node-hostname>` (via `/etc/hosts` on LAN: `<node-ip> <node-hostname>.local`)
 

@@ -13,7 +13,7 @@ fi
 
 DEVICE="$1"
 TIMESTAMP="$2"
-USER_HOME="/home/zero-tech"
+USER_HOME="${ZK_USER_HOME:-/home/<node-user>}"
 ZK_DIR="$USER_HOME/zknode-autonomi"
 BACKUP_MOUNT="/mnt/backup"
 
@@ -48,7 +48,7 @@ sudo rsync -a --delete \
   "$BACKUP_PATH/" "$ZK_DIR/"
 
 # Fix ownership
-sudo chown -R zero-tech:zero-tech "$ZK_DIR"
+sudo chown -R ${ZK_USER:-<node-user>}:${ZK_USER:-<node-user>} "$ZK_DIR"
 
 # Pull Docker images from backup list
 if [ -f "$BACKUP_PATH/docker-images.txt" ]; then
