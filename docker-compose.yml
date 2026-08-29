@@ -16,6 +16,17 @@ services:
     - ANT_NETWORK_MODE=testnet
     - ANT_REWARDS_ADDRESS=0xf21CEFD6773491323B05162f62bE5106B27893aa
     user: root
+    # I/O throttle: ant-node writes its data+logs to the USB HDD (/mnt/usb_sda3).
+    # Unthrottled, its sustained random writes saturate the single-spindle drive,
+    # pinning iowait (60-75%) and wedging the whole box (sshd/dockerd block -> no SSH).
+    # Cap write at 40MB/s, read at 100MB/s so it can't starve the rest of the stack.
+    blkio_config:
+      device_write_bps:
+      - path: /dev/sda
+        rate: 41943040
+      device_read_bps:
+      - path: /dev/sda
+        rate: 104857600
     volumes:
     - ${NODE_HOME}/.local/share/ant:/var/lib/antd/.local/share/ant
     - /var/lib/ant-node:/var/lib/ant-node
