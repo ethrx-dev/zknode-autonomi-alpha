@@ -486,12 +486,22 @@ const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
 // default is a placeholder — set NODE_HOME in .env on a real node.
 const NODE_HOME = process.env.NODE_HOME || '/home/<node-user>/zknode-autonomi';
 
+const ZKCHAT_RUNNER = 'zkchat-poll-runner';
+function ensureZkchatRunner() {
+  const base = ['create', '--name', ZKCHAT_RUNNER, '--label', 'zkchat-poll-runner', '--network', 'host',
+    '-v', NODE_HOME + '/config/mixnet:/var/lib/katzenpost',
+    '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
+    'zeros/mixnet-node:arm64', 'tail', '-f', '/dev/null'];
+  const c = spawnSync('docker', base, { timeout: 30000, encoding: 'utf8' });
+  if (c.status !== 0 && !/already exists/.test((c.stderr || '') + (c.stdout || ''))) {
+    return { ok: false, error: 'ensure runner: ' + ((c.stderr || c.stdout || c.error?.message || 'create failed').trim()) };
+  }
+  const s = spawnSync('docker', ['start', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8' });
+  if (s.status !== 0) return { ok: false, error: 'runner start: ' + ((s.stderr || s.stdout || s.error?.message || 'start failed').trim()) };
+  return { ok: true };
+}
 function zkchatCmd(args, timeout = 60000) {
   try {
-    const dockerArgs = ['run', '--rm', '--label', 'zkchat-poll', '--network', 'host',
-      '-v', NODE_HOME + '/config/mixnet:/var/lib/katzenpost',
-      '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
-      'zeros/mixnet-node:arm64', '/usr/local/bin/zkchat'];
     const parsed = [];
     let cur = '';
     let inQ = false;
@@ -501,7 +511,9 @@ function zkchatCmd(args, timeout = 60000) {
       cur += ch;
     }
     if (cur) parsed.push(cur);
-    for (const a of parsed) dockerArgs.push(a);
+    const ensure = ensureZkchatRunner();
+    if (!ensure.ok) return ensure;
+    const dockerArgs = ['exec', ZKCHAT_RUNNER, '/usr/local/bin/zkchat', ...parsed];
     const r = spawnSync('docker', dockerArgs, { timeout, encoding: 'utf8', maxBuffer: 2097152 });
     if (r.status === 0) return { ok: true, data: r.stdout.trim() };
     const stderr = (r.stderr || '').trim();
