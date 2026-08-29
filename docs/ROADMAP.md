@@ -124,20 +124,29 @@ and Autonomi node/storage status. See `docs/OPS_SESSION_2026-08-28.md`.
 
 ---
 
-## Gap 5b: Backup content verification — PARTIAL
+## Gap 5b: Backup content verification — ✅ Completed (2026-08-28)
 
-**Problem**: The `zknode-backup.timer` fires daily, but `/mnt/backup/zknode/daily/`
-(the path `/api/health` reads for `last_backup_age_hours`) is **empty** — the job
-runs without producing the expected artifact, so the dashboard shows
-`last_backup_age_hours: -1`.
+**Problem (was)**: The `zknode-backup.timer` fired daily, but the job failed at
+spawn (`status=203/EXEC` — script committed without the exec bit) and
+`/mnt/backup/zknode/daily/` was empty, so `/api/health` showed
+`last_backup_age_hours: -1` forever.
 
-**Needed**:
-1. Debug the `zknode-backup.service` job (target dir, rsync exit status).
-2. Ensure config/keys/compose/.env snapshots (excluding logs) land in the
-   monitored path with a dated directory.
-3. Wire the health endpoint to the real artifact and alert on staleness.
+**Fixed**:
+1. `scripts/backup/zknode-backup.sh` — exec bit committed (`100755`); target
+   moved off the root fs to `/mnt/usb_sda3/backup` (`/mnt/backup/zknode` is a
+   symlink so the health endpoint path is unchanged); `*.db`/`*.sst`/`*.tar.gz`
+   excludes added (spool.db alone was 161M); rsync is best-effort (a partial
+   transfer no longer fails the whole backup).
+2. Service now runs as **root** — root-owned PEMs (identity/link/sphinx
+   private keys) and `.env` are captured; verified in the artifact.
+3. Dashboard mounts `/mnt/usb_sda3/backup:/mnt/backup:ro` so its health check
+   can see the artifacts.
+4. `last_backup_age_hours` falsy-zero bug fixed (`parseInt("0") || -1` used to
+   report a 0-hour-old backup as -1).
 
-**Status**: ⚠️ Partial — timer exists, artifact path unverified.
+**Verified**: manual + timer runs produce a dated 59M artifact with keys,
+configs, compose and `.env`; health reports `last_backup_age_hours: 0`,
+`status: healthy`.
 
 ---
 
@@ -211,10 +220,10 @@ and publishes to ghcr.io.
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Log rotation | High | INFO logs grow continuously; root fs has hit 90% twice. Add logrotate/size-capped truncate for `config/mixnet/*/katzenpost.log`. |
+| Log rotation | High | ✅ Completed 2026-08-28 — `/etc/logrotate.d/zknode-mixnet` (`maxsize 100M, rotate 2, compress, copytruncate`), journal vacuumed + capped, root fs 87% → 72%. |
 | Re-enable cover traffic | Low | `DisableDecoyTraffic = true` on mix-client (load fix). Revisit with 2 GB swap + INFO in place and more mesh peers. |
-| zkchat identity persistence | Medium | Container identity (`/etc/zkchat/.zkchat/`) is not volume-mounted — recreations mint a new identity. Dashboard identity is persisted. |
-| MetaMask batch splitting | Medium | Oversized batched requests are rejected (`-32005`). Optional: split/forward ≤1900-byte items and merge replies in the `/ethereum` proxy. |
+| zkchat identity persistence | Medium | ✅ Completed 2026-08-28 — `./data/zkchat/identity:/etc/zkchat/.zkchat` mounted; identity survives force-recreations (verified twice). |
+| MetaMask batch splitting | Medium | ✅ Completed 2026-08-28 — `/ethereum` splits oversized batch arrays into ≤1900B sub-batches and scatters replies in order; per-item `-32005` only for unsplittable singles. 30-item batch verified 30/30. |
 | antd daemon-managed nodes | Medium | Upstream `WithAutonomi/ant-client`: daemon spawn env propagation + dual-stack on IPv4-only hosts. Direct binary works today. |
 | Upstream katzenpost PRs | Low | Client pki.go blacklist/epoch fixes + chatd — offer to `katzenpost/katzenpost` from `ethrx-dev/katzenpost-v0.0.84-patched`. |
 | Mixnet widget epoch accuracy | Low | `/api/mixnet` shows the dirauths' voting epoch; surface mix-client's `currentDocument().Epoch` alongside. |
@@ -238,16 +247,16 @@ that can be run from a fresh OS install.
 
 | Gap | Priority | Effort | Target |
 |-----|----------|--------|--------|
-| Backups automation | High | Small | ⚠️ Partial (timer runs; artifact path unverified — Gap 5b) |
+| Backups automation | High | Small | ✅ Completed 2026-08-28 (Gap 5b fixed + verified) |
 | Monitoring/alerting | High | Small | ✅ Completed (extended 2026-08-28) |
 | CI/CD pipeline | High | Medium | ✅ Completed |
 | Recovery documentation | Medium | Small | ✅ Completed |
 | Peer onboarding | Medium | Medium | ✅ Completed |
 | mixnet-proxy fix | High | Medium | ✅ Completed |
 | Post-v1 stabilization | High | Large | ✅ Completed 2026-08-28 |
-| Log rotation | High | Small | Next |
-| MetaMask batch splitting | Medium | Medium | Next |
-| zkchat identity persistence | Medium | Small | Next |
+| Log rotation | High | Small | ✅ Completed 2026-08-28 |
+| MetaMask batch splitting | Medium | Medium | ✅ Completed 2026-08-28 |
+| zkchat identity persistence | Medium | Small | ✅ Completed 2026-08-28 |
 | antd daemon nodes upstream | Medium | Medium | Future |
 | Upstream katzenpost PRs | Low | Medium | Future |
 | Re-enable cover traffic | Low | Small | Future |
