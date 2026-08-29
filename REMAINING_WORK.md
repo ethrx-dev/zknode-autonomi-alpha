@@ -18,21 +18,19 @@
 
 ## Current remaining work (prioritized)
 
-### 1. Automated backups — HIGH (ops safety)
-`/api/health` reports `last_backup_age_hours: -1` — there is **no automated
-daily backup** despite the dashboard expecting `/mnt/backup/zknode/daily/`.
-- [ ] Schedule a daily job: configs + keys + compose + `.env` (exclude logs)
-      → `/mnt/autonomi/backups/daily/YYYY-MM-DD/`, retain 14 days.
-- [ ] Include the deployed image tarballs pointer
-      (`/mnt/autonomi/backups/mixnet-stable-20260828/`).
-- [ ] Wire `last_backup_age_hours` to the actual job so the dashboard shows it.
+### 1. Automated backups — ✅ DONE (2026-08-28)
+`/api/health` now reports `last_backup_age_hours: 0`. Fixed chain: script exec
+bit committed; target moved to `/mnt/usb_sda3/backup` (symlinked from
+`/mnt/backup/zknode`); `*.db`/`*.sst`/`*.tar.gz` excluded; service runs as root
+so root-owned PEMs and `.env` are captured; dashboard mounts the backup root
+read-only; 0-hour-age falsy bug fixed. Daily timer verified end-to-end
+(59M artifact with keys/configs/compose/.env; 7-day retention).
 
-### 2. Log rotation — HIGH (disk safety)
-Root fs sits at ~81% and katzenpost logs grow continuously at INFO. The 90%
-incidents came from logs + `/tmp` tarballs.
-- [ ] Add logrotate config (or a cron `truncate`) for
-      `config/mixnet/*/katzenpost.log` with size caps.
-- [ ] Move walletshield/chatd stdout into rotation or size-capped files.
+### 2. Log rotation — ✅ DONE (2026-08-28)
+`/etc/logrotate.d/zknode-mixnet`: `maxsize 100M, rotate 2, compress,
+copytruncate` over `config/mixnet/*/katzenpost.log` (validated dry-run + forced
+cycle; containers keep writing). Journal vacuumed to 100M with its own rotate
+config; 2.3G of stale `/tmp` tarballs removed. Root fs 87% → 72%.
 
 ### 3. antd daemon-managed nodes — MEDIUM (upstream)
 `ant node daemon`-managed nodes (0.17.2) fail with `Failed to create
@@ -44,26 +42,17 @@ container entrypoint.
 - [ ] When fixed: migrate to daemon-managed nodes for the web console,
       keeping `ANT_IPV4_ONLY=true`.
 
-### 4. zkchat identity persistence — MEDIUM
-The `zkchat` container derives its 16-byte identity from
-`/etc/zkchat/.zkchat/identity`, which is **not on a persistent volume** —
-recreating the container mints a new identity (groups owned by the old ID
-become invisible to it).
-- [ ] Mount `./data/zkchat/identity:/etc/zkchat/.zkchat` (or pass the config
-      from a persisted dir) so the poll/send identity survives recreations.
-- [ ] Note: the **dashboard** identity IS persisted
-      (`config/mixnet/client/.zkchat/identity`) — groups created via the UI
-      are stable.
+### 4. zkchat identity persistence — ✅ DONE (2026-08-28)
+`./data/zkchat/identity:/etc/zkchat/.zkchat` mounted; current identity migrated
+into the volume. Identity survives force-recreations (verified twice). The
+dashboard identity was already persisted.
 
-### 5. MetaMask large batch payloads — MEDIUM (UX)
-The mixnet caps a single payload at ~2000 bytes; MetaMask occasionally sends
-64KB batched/filter requests. The dashboard now rejects them instantly with
-JSON-RPC `-32005` (no tunnel churn — see OPS_SESSION §7).
-- [ ] Optional: implement request **splitting** in the dashboard `/ethereum`
-      proxy (split batches, forward ≤1900-byte items, merge replies) instead
-      of rejecting.
-- [ ] Optional: document recommended MetaMask settings (disable advanced
-      batched fetching) in the dashboard UI.
+### 5. MetaMask large batch payloads — ✅ DONE (2026-08-28)
+The `/ethereum` proxy now **splits oversized batch arrays** into sub-batches
+that fit the 1900-byte tunnel limit, forwards each, and merges replies in
+original order. A single request that alone exceeds the limit still gets a
+clean JSON-RPC `-32005`. Verified: 30-item batch → 30/30 replies; mixed batch
+→ per-item outcomes; small path unchanged.
 
 ### 6. Mixnet widget epoch accuracy — LOW (cosmetic)
 `/api/mixnet` shows the dirauths' *voting* epoch, which can lag/lead the
@@ -78,8 +67,9 @@ The katzenpost patch line lives in `ethrx-dev/katzenpost-v0.0.84-patched`
 - [ ] Consider upstream PRs (katzenpost/katzenpost) for the client/pki.go
       blacklist + epoch-boundary fixes and the chatd service.
 - [ ] Keep `ethrx-dev/katzenpost-v0.0.84-patched` in sync with any new
-      patches; both `main` and `p4p-0.99-upgrade` are merged as of
-      `4676d5b` (tag `v0.01-stable-mixnet`) on GitHub and `git.zknet.cloud`.
+      patches; `main` and `p4p-0.99-upgrade` are merged as of
+      `57bbe58` (tag `v0.01-stable-mixnet`) on GitHub and `git.zknet.cloud`
+      (default branch: `main`).
 
 ### 8. Cover traffic — LOW (privacy tradeoff)
 `DisableDecoyTraffic = true` on mix-client (the 2026-08-28 load fix; decoys
