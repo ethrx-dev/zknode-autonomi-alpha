@@ -1,0 +1,11 @@
+[Unit]
+Description=zknode living-intelligence watchdog (I/O-aware self-healing)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zknode-watchdog.sh
+TimeoutStartSec=300
+Nice=10
+IOSchedulingClass=idle
