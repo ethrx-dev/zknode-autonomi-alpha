@@ -229,7 +229,7 @@ services:
     # Dedicated RNS config: nomadnet must NOT share rnsd's config (duplicate
     # TCP server interface on 37428 -> RNS.panic() -> silent exit 255 loop)
     - ./config/nomadnet/rns-config:/etc/reticulum:rw
-    - ./data/reticulum:/var/lib/reticulum:rw
+    - ./data/nomadnet/rns:/var/lib/reticulum:rw
   storage-proved:
     command:
     - --listen
