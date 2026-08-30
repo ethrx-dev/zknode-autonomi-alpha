@@ -116,6 +116,71 @@ sudo systemctl start docker   # verify: docker info | grep 'Docker Root Dir'
 - Safest order: mount NVMe -> rsync -> repoint -> verify -> REBOOT and verify again ->
   only then `rm -rf /mnt/autonomi/docker.old` / old antd-data if space reclaim needed.
 
+## Security / Tamper Analysis (Zymbit SBS + Greenfield IFS on SCM4)
+
+This SCM4 runs **Zymbit Supervised Boot (SBS) with Greenfield IFS-encrypted root**.
+Understanding the trust chain is REQUIRED before any hardware or boot work. A mistake in
+this area can **lock/brick the unit.**
+
+### Verified boot/security architecture (as-configured)
+- ROOT is LUKS-encrypted: `/dev/mmcblk0p2` (crypto_LUKS) → `cryptrfs` (ext4 `/`).
+- Unlock happens at **preboot** via `zk_get_key` keyscript; the LUKS key blob is stored
+  internally in the Zymkey M3 (`/var/lib/zymbit/key.bin.lock`) and released ONLY after
+  the signed boot chain passes (`/boot/zboot/scripts/create-initramfs.sh` lines 60/66/
+  104-128/161-162).
+- `/boot/config.txt` ends with (Signed-chain markers):
+  ```
+  [all]         initramfs initrd.img followkernel
+  # Zymbit      kernel=u-boot.bin   arm_64bit=1   enable_uart=1
+  ```
+- `/boot/zb_config.enc` (912B) is the signed Zymbit boot config; `u-boot.bin` is the
+  **signed U-Boot** verified by the CM4 ROM.
+
+### NO-GO — touching ANY of these can LOCK/BRICK the SCM4 (halt at preboot, no LUKS unlock)
+1. `/boot/config.txt` — do NOT remove/alter the `dtoverlay=dwc2,dr_mode=host` line or
+   the `kernel=u-boot.bin` / `initramfs` markers.
+2. `/boot/cmdline.txt`, `/boot/u-boot.bin`, `/boot/initrd.img`, `/boot/kernel8.img`,
+   `/boot/overlays/*`, `/boot/zb_config.enc` — all signature-verified. Any change breaks
+   verification -> U-Boot halts -> IFS never unlocks -> no boot until re-enrolled/signed
+   via `zbcli imager` + the Zymkey private key.
+3. LUKS key slots / `/etc/crypttab*` / the Zymkey IFS slot binding.
+4. `unattended-upgrades` (AGENTS.md): can repackage kernel/initramfs and break the chain.
+5. Setting `tamper_policy` to self-destruct during development.
+- **This migration plan NEVER touches any of the above.**
+
+### Why the NVMe plan is SAFE (no lock / no brick)
+- `/etc/fstab`, `/etc/docker/daemon.json`, and `docker-compose.yml` all live on the
+  **already-decrypted, running rootfs** (`cryptrfs`, mounted rw). They are NOT part of the
+  U-Boot / Zymkey trust chain and are NOT measured at preboot. Editing them after boot is
+  normal OS configuration and cannot trip Secure Boot verification or the tamper latch.
+- The new NVMe is separate storage: partitioning/formatting/mounting it (new `/mnt/nvme`
+  fstab entry) does not modify the boot chain, the LUKS root, or the Zymkey key material.
+- Tamper is a **dedicated hardware GPIO latch on the Zymkey**, not a software check of OS
+  files. Adding a PCIe NVMe + fstab entry cannot set that latch.
+
+### Physical-install caveat (the ONLY real risk — avoid at all cost)
+The Zymkey tamper latch is ARMED on this unit (enroll present under
+`/var/lib/zymbit/<m3id>/`). To avoid tripping it during the NVMe install:
+- **Power off fully** (unplug or clean OS shutdown + PSU off) before inserting the NVMe.
+- Do NOT hot-swap, unplug, or lose power on the Zymkey module / its USB (usb 3-1.1) or GPIO.
+- Do NOT short or touch the tamper/GPIO region; insert the NVMe card cleanly and carefully
+  into the PCIe M.2 slot with no contact to the Zymkey area.
+- Use a stable PSU; avoid shocks/movement while powered (`boot handling` per AGENTS.md:
+  let the 90s supervise-boot sequence complete; watch the LED: 1 blink/sec = initializing,
+  1->2->3->4 = SBS verifying, rapid = passed).
+- Avoid hot-plugging USB devices during operation.
+- The LUKS USB pool currently present (`/mnt/autonomi`, sda2 ext4; `/mnt/usb_sda3`,
+  sda3 exfat) is **NOT LUKS-encrypted** despite AGENTS.md describing a zymkey-bound
+  `/mnt/trinity`. Do not assume HSM binding on these volumes; treat them as plain,
+  non-tamper-protected storage and back them up before repointing.
+
+### If a tamper event IS ever triggered (recovery background)
+- Policy here is notify/halt (not self-destruct) per AGENTS.md setup. A tripped latch
+  halts the unit at preboot; it does NOT destroy keys. You must clear tamper events and
+  re-verify the Zymkey is in `secure` state BEFORE expecting the next boot to unlock LUKS:
+  `python3 -c "import zymkey; print(zymkey.client.get_operational_status())"`.
+  (Contact Zymbit support before attempting field recovery of the eMMC/boot chain.)
+
 ## Persistence units / timers already in place (keep)
 - `zknode-io-controller.service`  : `+io` on system.slice before docker  (enabled)
 - `zknode-dirauth-realign.{service,timer}` : restarts 3 dirauths every 4h (enabled)
