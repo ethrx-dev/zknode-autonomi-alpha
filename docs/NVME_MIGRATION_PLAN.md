@@ -36,6 +36,51 @@ only for cold bulk storage.
 > to NVMe is the single biggest win; docker data-root on NVMe removes the slow
 > metadata grind that previously made dockerd 50-90 min to activate.
 
+## PCIe lane conflict — CRITICAL hardware constraint (verified live)
+
+The SCM4 (CM4) exposes exactly **ONE PCIe Gen2 x1 lane** (Zymbit spec: "1 x PCIe
+1-lane Host, Gen 2 (5Gbps)"). The Secure Base Board's M.2 slot (J12) connects to that
+single lane.
+
+Live probe (post-reboot, NVMe installed but NOT detected) shows the lane is held by the
+USB3 controller with **no PCIe switch**:
+```
+lspci -tv
+[0000:00]---00.0-[01]----00.0  VIA Technologies, Inc. VL805 USB 3.0 Host Controller
+```
+- Only one device on the lane: the **VL805 USB3 controller** (which the current USB HDD
+  `sda` depends on). No NVMe, no PCIe switch, no second root port.
+- Therefore NVMe and the USB3 (VL805) **cannot both be active on the same lane at once**
+  on this board. This is why the M.2 NVMe does not enumerate (`/dev/nvme*` absent).
+
+### Physical verification needed before assuming the lane conflict is the cause
+1. Power OFF fully, then re-seat/confirm the NVMe in **J12** (M.2 slot). It must be
+   **fully seated, latched, and powered** (dedicated 15W/3.3V-5A supply; position 1 of
+   SW1 stays open on CM4/SCM4 — that pin is Reserved, do not close).
+2. Confirm the card is a compatible **M.2 B-key / B+M-key** NVMe, form factor
+   **2242 / 2260 / 2280** (Zymbit community-verified sizes). An M-key-only card will not
+   fit B-key keying.
+3. Confirm the carrier model. If it uses a **PCIe switch** (e.g. ASMedia 1806 /
+   PI7C9X2G404SL), BOTH USB3 and M.2 can coexist — then the NVMe simply needs driver/
+   enable and the "no switch" finding above would be wrong for this specific board. If it
+   has NO switch (as lspci indicates), the lane must be given to the M.2 by **disabling /
+   depopulating the VL805 USB3** — losing the current HDD path (acceptable IF the data is
+   moved to NVMe first, but it must be planned so the boot/OS is not left without storage).
+4. Do NOT change `BOOT_ORDER`/EEPROM or any `/boot` config to force NVMe boot — this unit
+   is under Zymbit Supervised Boot (see Security section) and `rpiboot` is disabled; a bad
+   boot change can brick it. If NVMe boot is never required (we only need NVMe as data
+   storage), no EEPROM/BOOT_ORDER change is needed — the kernel merely needs to see the
+   NVMe at runtime on the freed lane.
+
+### Outcome decision
+- If the board has a **PCIe switch**: proceed — USB3 + M.2 coexist; just enable the NVMe
+  driver/mount and run the migration below.
+- If the board has **no switch** (current evidence): choose either
+  (A) give the lane to the **M.2 NVMe** (disable VL805/USB3) and migrate docker data-root
+      + antd-data there — the current HDD becomes unavailable (back it up first), or
+  (B) keep the **USB HDD + antd blkio throttle** (already active and working — this alone
+      fixed the wedge) and drop the NVMe idea.
+
 ## Recommended NVMe layout (proposed after hardware is installed)
 ```
 /dev/nvme0n1  (size TBD, target >= 256G)
