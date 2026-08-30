@@ -10,7 +10,8 @@ set -euo pipefail
 #   sudo ./scripts/deploy.sh --status           # Check deployment status
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+[ -f "$PROJECT_ROOT/docker-compose.yml" ] || PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE="docker compose -f docker-compose.yml"
 COMPOSE_CMD="docker compose -f $PROJECT_ROOT/docker-compose.yml"
 
