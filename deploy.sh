@@ -229,12 +229,106 @@ check_logs() {
     return 1
 }
 
+# ─── Fast Stagger (create-once, start-ordered) ─────────────
+# Optimization (2026-08-30): the old path ran `compose up` per group, which
+# interleaves expensive container CREATION (fsync-heavy metadata writes on the
+# USB HDD) with starts — nine separate I/O storms, hours total.
+# New path: Phase A creates ALL containers in one bounded pass (one storm),
+# Phase B starts them group-by-group (starts are metadata-cheap) with
+# adaptive polling instead of fixed sleeps. Hours -> ~20-40 min.
+
+wait_running() {
+    local container="$1"
+    local max_wait="${2:-120}"
+    local waited=0
+    while [ "$waited" -lt "$max_wait" ]; do
+        local status
+        status=$(docker inspect --format='{{.State.Status}}' "$container" 2>/dev/null || echo "")
+        if [ "$status" = "running" ]; then
+            step "  $container running (after ${waited}s)"
+            return 0
+        fi
+        if [ "$status" = "exited" ]; then
+            warn "  $container EXITED during start — see docker logs"
+            return 1
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    warn "  $container not running after ${max_wait}s (will keep retrying via restart policy)"
+    return 1
+}
+
+wait_consensus() {
+    local max_wait="${1:-240}"
+    local waited=0
+    info "  polling for dirauth consensus (deadline ${max_wait}s)..."
+    while [ "$waited" -lt "$max_wait" ]; do
+        if docker logs mix-dirauth-1 2>&1 | grep -aq "Achieved threshold consensus"; then
+            step "  consensus achieved (after ${waited}s)"
+            return 0
+        fi
+        sleep 10
+        waited=$((waited + 10))
+    done
+    warn "  no consensus within ${max_wait}s — nodes will retry; continuing stagger"
+    return 1
+}
+
+start_group_fast() {
+    local label="$1"; shift
+    local t0=$(date +%s)
+    info "▶ $label: docker start $*"
+    docker start "$@" >/dev/null 2>&1 || true
+    local failed=0
+    for c in "$@"; do
+        wait_running "$c" 120 || failed=$((failed + 1))
+    done
+    info "▶ $label done in $(( $(date +%s) - t0 ))s"
+    return "$failed"
+}
+
+cmd_stagger_all() {
+    local zymkey="${1:-false}"
+    local base="$DEPLOY_BASE"
+    if [ "$zymkey" = "true" ]; then
+        base="$base -f $PROJECT_ROOT/docker-compose.zymkey.yml"
+    fi
+
+    local T0=$(date +%s)
+    info "═══ FAST STAGGER: Phase A — create all containers (one I/O pass) ═══"
+    # Batch 1: mixnet host-net family (shares config volumes; one metadata burst)
+    $base create mix-dirauth-1 mix-dirauth-2 mix-dirauth-3 \
+        mix-1 mix-2 mix-3 mix-gateway mix-servicenode mix-client mixnet-proxy 2>&1 | grep -E "Created|Error" || true
+    # Batch 2: services + mesh + dashboard
+    $base create walletshield storage-proved reticulum nomadnet zknode-dashboard zkchat 2>&1 | grep -E "Created|Error" || true
+    if [ "$zymkey" = "true" ]; then
+        $base -f $PROJECT_ROOT/docker-compose.zymkey.yml create zkifc ant-node antd 2>&1 | grep -E "Created|Error" || true
+    fi
+    info "Phase A complete in $(( $(date +%s) - T0 ))s"
+
+    info "═══ FAST STAGGER: Phase B — ordered start ═══"
+    start_group_fast "1/7 Authorities" mix-dirauth-1 mix-dirauth-2 mix-dirauth-3 || true
+    wait_consensus 240 || true
+    start_group_fast "2/7 Mixes" mix-1 mix-2 mix-3 || true
+    start_group_fast "3/7 Gateway+ServiceNode" mix-gateway mix-servicenode || true
+    start_group_fast "4/7 Client+Proxy" mix-client mixnet-proxy || true
+    start_group_fast "5/7 WalletShield+StorageProver" walletshield storage-proved || true
+    if [ "$zymkey" = "true" ]; then
+        start_group_fast "6/7 Ant (zymkey)" zkifc ant-node antd
+    else
+        info "6/7 Ant skipped (zymkey not enabled)"
+    fi
+    start_group_fast "7/7 Mesh+Dashboard" reticulum nomadnet zknode-dashboard zkchat || true
+
+    info "═══ STAGGER COMPLETE in $(( $(date +%s) - T0 ))s — run zknode-doctor for verdict ═══"
+}
+
 cmd_group() {
     local group="${1:-all}"
     local zymkey="${2:-false}"
     local base="$DEPLOY_BASE"
     local extra=""
-
     if [ "$zymkey" = "true" ]; then
         base="$base -f $PROJECT_ROOT/docker-compose.zymkey.yml"
     fi
@@ -336,9 +430,7 @@ cmd_group() {
             done
             ;;
         all)
-            for g in 1 2 3 4 5 6 7 8 9; do
-                cmd_group "$g" "$zymkey"
-            done
+            cmd_stagger_all "$zymkey"
             ;;
         *)
             err "Unknown group: $group (valid: 1-9, all)"

@@ -468,45 +468,6 @@ type Response struct {
 
 	// ChannelQueryReplyEvent is sent when the client daemon receives a reply to a channel query.
 	ChannelQueryReplyEvent *ChannelQueryReplyEvent `cbor:"channel_query_reply_event"`
-
-	// SessionTokenReply is sent in response to a SessionToken request.
-	SessionTokenReply *SessionTokenReply `cbor:"session_token_reply"`
-
-	// NewKeypairReply is sent in response to a NewKeypair request.
-	NewKeypairReply *NewKeypairReply `cbor:"new_keypair_reply"`
-
-	// EncryptReadReply is sent in response to an EncryptRead request.
-	EncryptReadReply *EncryptReadReply `cbor:"encrypt_read_reply"`
-
-	// EncryptWriteReply is sent in response to an EncryptWrite request.
-	EncryptWriteReply *EncryptWriteReply `cbor:"encrypt_write_reply"`
-
-	// StartResendingEncryptedMessageReply is sent in response to a StartResendingEncryptedMessage request.
-	StartResendingEncryptedMessageReply *StartResendingEncryptedMessageReply `cbor:"start_resending_encrypted_message_reply"`
-
-	// CancelResendingEncryptedMessageReply is sent in response to a CancelResendingEncryptedMessage request.
-	CancelResendingEncryptedMessageReply *CancelResendingEncryptedMessageReply `cbor:"cancel_resending_encrypted_message_reply"`
-
-	// StartResendingCopyCommandReply is sent in response to a StartResendingCopyCommand request.
-	StartResendingCopyCommandReply *StartResendingCopyCommandReply `cbor:"start_resending_copy_command_reply"`
-
-	// CancelResendingCopyCommandReply is sent in response to a CancelResendingCopyCommand request.
-	CancelResendingCopyCommandReply *CancelResendingCopyCommandReply `cbor:"cancel_resending_copy_command_reply"`
-
-	// NextMessageBoxIndexReply is sent in response to a NextMessageBoxIndex request.
-	NextMessageBoxIndexReply *NextMessageBoxIndexReply `cbor:"next_message_box_index_reply"`
-
-	// GetMessageBoxIndexCounterReply is sent in response to a GetMessageBoxIndexCounter request.
-	GetMessageBoxIndexCounterReply *GetMessageBoxIndexCounterReply `cbor:"get_message_box_index_counter_reply"`
-
-	// CreateCourierEnvelopesFromPayloadReply is sent in response to a CreateCourierEnvelopesFromPayload request.
-	CreateCourierEnvelopesFromPayloadReply *CreateCourierEnvelopesFromPayloadReply `cbor:"create_courier_envelopes_from_payload_reply"`
-
-	// CreateCourierEnvelopesFromPayloadsReply is sent in response to a CreateCourierEnvelopesFromPayloads request.
-	CreateCourierEnvelopesFromPayloadsReply *CreateCourierEnvelopesFromPayloadsReply `cbor:"create_courier_envelopes_from_payloads_reply"`
-
-	// CreateCourierEnvelopesFromTombstoneRangeReply is sent in response to a CreateCourierEnvelopesFromTombstoneRange request.
-	CreateCourierEnvelopesFromTombstoneRangeReply *CreateCourierEnvelopesFromTombstoneRangeReply `cbor:"create_courier_envelopes_from_tombstone_range_reply"`
 }
 
 // Request is the thin client's request message to the client daemon.
@@ -541,45 +502,6 @@ type Request struct {
 
 	// CloseChannel is used to close a Pigeonhole channel.
 	CloseChannel *CloseChannel `cbor:"close_channel"`
-
-	// SessionToken is used to register or resume a session.
-	SessionToken *SessionToken `cbor:"session_token"`
-
-	// NewKeypair creates a new keypair for encrypted messaging.
-	NewKeypair *NewKeypair `cbor:"new_keypair"`
-
-	// EncryptRead reads an encrypted message.
-	EncryptRead *EncryptRead `cbor:"encrypt_read"`
-
-	// EncryptWrite writes an encrypted message.
-	EncryptWrite *EncryptWrite `cbor:"encrypt_write"`
-
-	// StartResendingEncryptedMessage starts resending an encrypted message.
-	StartResendingEncryptedMessage *StartResendingEncryptedMessage `cbor:"start_resending_encrypted_message"`
-
-	// CancelResendingEncryptedMessage cancels resending an encrypted message.
-	CancelResendingEncryptedMessage *CancelResendingEncryptedMessage `cbor:"cancel_resending_encrypted_message"`
-
-	// StartResendingCopyCommand starts resending a copy command.
-	StartResendingCopyCommand *StartResendingCopyCommand `cbor:"start_resending_copy_command"`
-
-	// CancelResendingCopyCommand cancels resending a copy command.
-	CancelResendingCopyCommand *CancelResendingCopyCommand `cbor:"cancel_resending_copy_command"`
-
-	// NextMessageBoxIndex gets the next message box index.
-	NextMessageBoxIndex *NextMessageBoxIndex `cbor:"next_message_box_index"`
-
-	// GetMessageBoxIndexCounter gets the message box index counter.
-	GetMessageBoxIndexCounter *GetMessageBoxIndexCounter `cbor:"get_message_box_index_counter"`
-
-	// CreateCourierEnvelopesFromPayload creates courier envelopes from a single payload.
-	CreateCourierEnvelopesFromPayload *CreateCourierEnvelopesFromPayload `cbor:"create_courier_envelopes_from_payload"`
-
-	// CreateCourierEnvelopesFromPayloads creates courier envelopes from multiple payloads.
-	CreateCourierEnvelopesFromPayloads *CreateCourierEnvelopesFromPayloads `cbor:"create_courier_envelopes_from_payloads"`
-
-	// CreateCourierEnvelopesFromTombstoneRange creates courier envelopes from a tombstone range.
-	CreateCourierEnvelopesFromTombstoneRange *CreateCourierEnvelopesFromTombstoneRange `cbor:"create_courier_envelopes_from_tombstone_range"`
 
 	// ThinClose is used to indicate that the thin client is disconnecting
 	// from the daemon.

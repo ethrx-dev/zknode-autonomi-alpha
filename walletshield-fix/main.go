@@ -275,6 +275,11 @@ func (s *Server) Handler(w http.ResponseWriter, req *http.Request) {
 		responsePayload = proxyResp.Payload
 	}
 
+	// strip any binary framing prefix before the HTTP response
+	if idx := bytes.Index(responsePayload, []byte("HTTP/")); idx > 0 {
+		responsePayload = responsePayload[idx:]
+	}
+
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(responsePayload)), nil)
 	if err != nil {
 		s.log.Errorf("Failed to parse response: %s", err)

@@ -5,7 +5,7 @@ Wants=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/zknode-watchdog.sh
+ExecStart=/usr/local/bin/zknode-watchdog
 TimeoutStartSec=300
 Nice=10
 IOSchedulingClass=idle
