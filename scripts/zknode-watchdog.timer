@@ -1,0 +1,11 @@
+[Unit]
+Description=zknode watchdog cycle (every 10 min, randomized)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+RandomizedDelaySec=90
+Persistent=true
+
+[Install]
+WantedBy=timers.target
