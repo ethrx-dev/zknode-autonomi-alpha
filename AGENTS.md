@@ -334,6 +334,12 @@ cd ~/zknode-autonomi
 ./scripts/deploy.sh --start
 ```
 
+`--start` uses the **fast-stagger path**: it creates all containers in one pass
+(one I/O storm instead of nine), then starts them group-by-group
+(authorities → wait for consensus → mixes → gateway+servicenode → …) with
+adaptive `wait_running` polling + a `wait_consensus` deadline. On the USB HDD
+this converges in ~20-40 min instead of hours.
+
 **With zymkey HSM access (SCM4 production):**
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.zymkey.yml up -d
@@ -344,6 +350,25 @@ The zymkey override adds:
 - `/etc/zymbit` and `/var/lib/zymbit` volume mounts
 - `ZYMBIT_ENABLED=true` environment variable
 - Read-only filesystem + no-new-privileges for ant-node and mixnet-proxy
+
+#### 3.4b — Install the Living-Intelligence Layer (recommended)
+
+After the stack is up, install the I/O-aware watchdog + fleet doctor + tuning:
+```bash
+scp scripts/zknode-doctor.sh scripts/zknode-watchdog.sh scripts/zknode-watchdog.service scripts/zknode-watchdog.timer <node-user>@<node-ip>:/tmp/
+ssh <node-user>@<node-ip> -- 'NODE_HOME=<project-root> bash /tmp/install-living-intelligence.sh'
+```
+
+This installs:
+- `zknode-doctor` + `zknode-watchdog` to `/usr/local/bin`
+- `zknode-watchdog.timer` (10-min cycles, randomized, `IOSchedulingClass=idle`)
+- `noatime,commit=60` on the docker/ext4 mounts in fstab
+- `10m` Docker log rotation for future containers
+
+The watchdog enforces the **GOLDEN RULE**: never intervene during an I/O storm
+(iowait ≥ 60% or load ≥ 25 → back off, no interventions). It re-applies the
+antd throttle, detects dirauth desyncs (stale epochs → coordinated restart with
+2h cooldown), and resurfaces bad-behavior yet no-storm cases.
 
 #### 3.5 — Verify Deployment
 
@@ -425,7 +450,7 @@ through the mixnet.
 |--------|---------|
 | `scripts/setup.sh` | Generate configs, create data dirs, fix permissions |
 | `scripts/deploy.sh --check` | Verify prerequisites (Docker, images, storage) |
-| `scripts/deploy.sh --start` | Deploy and start the full stack |
+| `scripts/deploy.sh --start` | Deploy and start the full stack (fast-stagger until consensus) |
 | `scripts/deploy.sh --stop` | Stop the stack (preserves volumes) |
 | `scripts/deploy.sh --clean` | Stop, remove volumes, clean all data |
 | `scripts/deploy.sh --export` | Export images to tarball for air-gapped transfer |
@@ -439,6 +464,11 @@ through the mixnet.
 | `scripts/monitor.sh` | Display stack status (containers, proxy, storage, exits) |
 | `scripts/storage-layout.sh` | Verify two-tier storage hierarchy |
 | `scripts/zymkey-attest.py` | Generate zymkey-signed hardware attestation |
+| `scripts/zknode-doctor.sh` | One-shot fleet diagnostics → HEALTHY / DEGRADED / CRITICAL (iowait, disk, dirty flags, container fleet) |
+| `scripts/zknode-watchdog.sh` | I/O-aware self-healing cycle (antd throttle, dirauth desync, bad-behavior detection); installed to `/usr/local/bin/zknode-watchdog` |
+| `scripts/zknode-watchdog.service / .timer` | Runs watchdog every 10 min (randomized), `Nice=10`, `IOSchedulingClass=idle` |
+| `scripts/install-living-intelligence.sh` | Installs doctor + watchdog + tuning on SCM4: scripts to `/usr/local/bin`, systemd units, `noatime,commit=60` fstab, Docker `10m` log rotation, enables watchdog timer |
+| `scripts/build-usb-image.sh` | Deterministic USB image builder for P4P wiki mesh: `--size 64G` `--stack minimal\|full` `--base wolfi\|debian` `--kernel zeros\|debian` `--output img` `--compress zstd\|gzip\|none` `--device /dev/sdX` `--dry-run` (safe: never touches nvme/sda) |
 
 ## Known Issues
 
@@ -453,11 +483,14 @@ through the mixnet.
 | **reticulum image rnsd hang** | Worked around 2026-08-29 | `zeros/reticulum:arm64` bundles RNS 1.3.7 whose `rnsd` hangs silently at startup (no interfaces, no shared instance). Compose runs `rnsd` from `zknode-autonomi-nomadnet:latest` (RNS 0.8.7, works). Rebuild the reticulum image to restore. |
 | **nomadnet config schema** | Fixed 2026-08-29 | Hand-written config used non-existent sections (`[nomadnet]`, `[pages]`, `[propagation]`, `[lxmf]`) → `applyConfig()` KeyError → `nomadnet.panic()` → silent `os._exit(255)` restart loop. Replaced with 0.4.1 schema (`[logging]`, `[client]`, `[textui]`, `[node]`, `[printing]`); `pages_path` preserved. NomadNet also needs its OWN RNS config (`config/nomadnet/rns-config/`) — sharing rnsd's config duplicates the 37428 TCP server → same panic. |
 | **nomadnet shared RNS storage** | Fixed 2026-08-30 | Even with its own rns-config, nomadnet mounted `./data/reticulum` — the SAME RNS storage dir as the `reticulum` container's rnsd (both `network_mode: host`). With `share_instance = false`, nomadnet's RNS instance collides with rnsd's storage lock → `RNS.panic()` → silent 255 loop with ZERO log output. Fix: nomadnet gets its own storage — compose mounts `./data/nomadnet/rns:/var/lib/reticulum` for nomadnet (rnsd keeps `./data/reticulum`). Diagnose by: container exits 255 with empty `docker logs`. |
-| **zknode-boot stagger (deploy.sh path bug)** | Fixed 2026-08-30 | `zknode-boot.service` (runs `deploy.sh` at boot) failed status=14: `PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"` assumed the script lived in `scripts/`, but on-device it's at the project root → looked for `/home/zero-tech/docker-compose.yml` (one level too high). Fixed with location-agnostic detection: use `$SCRIPT_DIR` if it contains docker-compose.yml, else parent. `deploy.sh --group 1..9` staggers startup groups with health-waits (authorities → mixes → gateway → servicenode → client/proxy → walletshield/storage → ant → mesh → dashboard). Note: containers use `restart: unless-stopped`, so dockerd still auto-starts everything at daemon boot in parallel; the stagger service adds ordered convergence on top. |
+| **zknode-boot stagger (deploy.sh path bug)** | Fixed 2026-08-30 | `zknode-boot.service` (runs `deploy.sh` at boot) failed status=14: `PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"` assumed the script lived in `scripts/`, but on-device it's at the project root → looked for `/home/zero-tech/docker-compose.yml` (one level too high). Fixed with location-agnostic detection: use `$SCRIPT_DIR` if it contains docker-compose.yml, else parent. Note: containers use `restart: unless-stopped`, so dockerd still auto-starts everything at daemon boot in parallel; the stagger service adds ordered convergence on top. |
 | **antd USB HDD I/O storm (box wedge)** | Fixed 2026-08-29 | ant-node writes its data + logs to `/mnt/usb_sda3/antd-data` on a single-spindle USB HDD (sda). Unthrottled, its sustained random writes saturate the drive — iowait 60-75% with `jbd2/sda2`/`usb-storage` in `D` state — starving sshd/dockerd/dashboard (port open but SSH banner times out; "wedged", needs reboot). The high "load" is uninterruptible I/O wait, not CPU (idle) or RAM (free). Fix: `blkio_config.device_write_bps/device_read_bps` on `antd` (device `/dev/sda`, write 40MB/s, read 100MB/s) so the box never starves. Apply live with `echo "8:0 rbps=104857600 wbps=41943040" > <antd-cgroup>/io.max` on cgroup v2, or re-create antd from compose. |
 | **storage-proved boot race** | Known issue | After reboot, `storage-proved` can fail to attach to the bridge network (`failed to save bridge endpoint ... timeout`) and stay Exited(255). Manual `docker start storage-proved` fixes it. |
 | **Host networking** | By design | Mixnet containers share host network for latency. Bridge networking with BindAddresses needed for production multi-instance isolation. |
 | **Go 1.26.2 requirement** | Docker workaround | katzenpost hpqc module requires Go >= 1.26.2. Local builds may fail on older Go. Docker builds use `golang:latest` which works. |
+| **deploy.sh slow start (per-group I/O storms)** | Fixed 2026-08-30 | Old `--start` ran `compose up` per group → 9 separate I/O storms on the USB HDD, hours total. Fast-stagger path creates all containers in one pass, then starts them group-by-group with `wait_running` polling + `wait_consensus` deadline → converges in ~20-40 min. |
+| **walletshield RPC parse (binary framing prefix)** | Fixed 2026-09-01 | Mixnet replies could carry leading binary bytes, breaking HTTP response parse downstream. `walletshield-fix/main.go` now strips the framing prefix before parsing. Thin transport migrated to `client2/common/config`; legacy `Dial.Listen`/session-token reply types dropped. |
+| **watchdog restart path missing** | Fixed 2026-09-01 | `zknode-watchdog.service` ExecStart pointed at a non-build path, so the installed watchdog didn't run. Now `/usr/local/bin/zknode-watchdog`; install via `scripts/install-living-intelligence.sh`. |
 
 ## Troubleshooting
 
