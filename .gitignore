@@ -56,3 +56,6 @@ walletshield-fix/walletshield-arm64
 persistence.db
 spool.db
 *.socket
+
+# RNS/nomadnet private identity — never commit (rotated 2026-09-07, old key was leaked)
+config/nomadnet/storage/identity
