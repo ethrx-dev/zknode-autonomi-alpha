@@ -486,6 +486,9 @@ case "${1:-}" in
     --status)  cmd_status ;;
     --zymkey)  cmd_deploy true ;;
     --group)   cmd_group "${2:-}" "${3:-false}" ;;
+    --export-config)  exec "$SCRIPT_DIR/state.sh" export ;;
+    --backup-state)   shift; exec "$SCRIPT_DIR/state.sh" backup "$@" ;;
+    --restore-state)  shift; exec "$SCRIPT_DIR/state.sh" restore "$@" ;;
     --help|-h)
         echo "Usage: sudo ./scripts/deploy.sh [OPTION]"
         echo ""
@@ -495,6 +498,9 @@ case "${1:-}" in
         echo "  --check       Pre-flight check only (no changes)"
         echo "  --dirs        Create data directories only"
         echo "  --status      Show container status"
+        echo "  --export-config   Drift check: repo topology vs live containers (read-only)"
+        echo "  --backup-state    Encrypted state bundle -> /mnt/autonomi/backup (BACKUP_KEYFILE required)"
+        echo "  --restore-state   Restore a state bundle (see scripts/state.sh)"
         echo "  --help        This message"
         echo ""
         echo "Groups:"
