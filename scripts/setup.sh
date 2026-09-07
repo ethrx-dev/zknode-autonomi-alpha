@@ -65,6 +65,19 @@ sed -i "s|Command = \"/var/lib/katzenpost/courier\"|Command = \"/usr/local/bin/c
 sed -i "s|Command = \"/var/lib/katzenpost/proxy_server\"|Command = \"/usr/local/bin/http-proxy-server\"|g" config/mixnet/servicenode1/katzenpost.toml 2>/dev/null || true
 sed -i "/\[ServiceNode\.CBORPluginKaetzchen\]/,/^$/ { /Disable = false/ s/Disable = false/Disable = true/ }" config/mixnet/servicenode1/katzenpost.toml 2>/dev/null || true
 
+# Fix host-networking addresses: genconfig emits logical hostnames (auth1, mix1,
+# gateway1, servicenode1, replicaN) that do NOT resolve under network_mode: host.
+# All nodes share the host and bind distinct ports, so flatten each node address
+# (name:port) to 127.0.0.1:port. Identifier fields, DataDir paths and
+# ../node/identity.public.pem file refs have no ":port" and are left untouched.
+find config/mixnet -name "*.toml" -print0 | xargs -0 sed -E -i \
+    "s/(auth|mix|gateway|servicenode|replica)[0-9]+:([0-9]{4,5})/127.0.0.1:\2/g" 2>/dev/null || true
+
+# Normalize the client thin-client port: genconfig binds kpclientd to :64331, but
+# the app configs (walletshield, mixnet-proxy) connect on :64332. Align to 64332.
+sed -i -E "s#(tcp://)?kpclientd:[0-9]+#127.0.0.1:64332#g; s#127\.0\.0\.1:64331#127.0.0.1:64332#g" \
+    config/mixnet/client/client.toml 2>/dev/null || true
+
 # Fix data directory permissions (katzenpost requires 700)
 for d in config/mixnet/auth1 config/mixnet/auth2 config/mixnet/auth3 \
          config/mixnet/mix1 config/mixnet/mix2 config/mixnet/mix3 \
