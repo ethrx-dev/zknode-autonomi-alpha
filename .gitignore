@@ -76,3 +76,15 @@ walletshield-fix/walletshield-*
 
 # Lock files (regenerated on npm install)
 # NOTE: package-lock.json IS tracked for reproducible builds
+
+# ─── mixnet99 live-node state (topology tomls ARE tracked; state is NOT) ───
+config/mixnet99/**/.zkchat/
+config/mixnet99/**/*.log
+config/mixnet99/**/*.db
+config/mixnet99/**/*.sst
+config/mixnet99/**/management_sock
+config/mixnet99/**/*.sock
+config/mixnet99/**/*.tmp
+config/mixnet99/**/proxy.*.log
+config/mixnet99/**/chatd.*.log
+config/mixnet99/servicenode1/chatd/
