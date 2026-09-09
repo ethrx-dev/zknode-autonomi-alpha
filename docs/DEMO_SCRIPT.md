@@ -1,5 +1,7 @@
 # zknode-autonomi — Live Demo Script
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 **Post-Quantum Mixnet + ZK Storage Proving + Autonomi P2P Storage**
 
 Verified working with 15 containers, 3.2s mixnet roundtrip, 100% echo success rate.
@@ -22,7 +24,7 @@ Verified working with 15 containers, 3.2s mixnet roundtrip, 100% echo success ra
 docker stop mix-client 2>/dev/null
 docker run --rm --network host \
   -v $(pwd)/config/mixnet:/cfg \
-  zeros/mixnet-node:arm64 \
+  ${IMAGE_MIXNET:-zeros/mixnet-node:arm64} \
   /usr/local/bin/ping -c /cfg/client/client.toml -s echo -n 1
 ```
 
@@ -257,7 +259,7 @@ docker compose down
 To remove all data and start fresh:
 ```bash
 docker compose down -v
-rm -rf data/ config/mixnet/auth*/*.db config/mixnet/auth*/*.log
+rm -rf data/ config/mixnet99/auth*/*.db config/mixnet99/auth*/*.log
 ```
 
 ---
@@ -296,7 +298,7 @@ rm -rf data/ config/mixnet/auth*/*.db config/mixnet/auth*/*.log
 
 ```bash
 # On build machine
-docker save zeros/mixnet-node:arm64 zeros/mixnet-proxy:arm64 \
+docker save ${IMAGE_MIXNET:-zeros/mixnet-node:arm64} zeros/mixnet-proxy:arm64 \
   zeros/ant-node:arm64 zeros/antd:arm64 \
   zeros/storage-proved-rs:arm64 zeros/walletshield:arm64 | \
   gzip > zknode-images.tar.gz

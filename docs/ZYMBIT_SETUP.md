@@ -1,5 +1,7 @@
 # zknode-autonomi — Zymbit/SCM4 Setup Guide
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 > Comprehensive setup for the Zymbit Secure Compute Module 4 (SCM4) with all security features enabled: zymkey HSM, Bootware, LUKS encryption, tamper detection, hardware wallet, and production locking.
 
 ---
@@ -471,7 +473,7 @@ Both commands set `ANT_REWARDS_ADDRESS` automatically. The difference is where t
 # Test container access
 docker run --rm --device /dev/zymkey \
     --platform linux/arm64 \
-    zeros/mixnet-node:arm64 \
+    ${IMAGE_MIXNET} \
     sh -c "ls /dev/zymkey && echo 'zymkey accessible'"
 ```
 

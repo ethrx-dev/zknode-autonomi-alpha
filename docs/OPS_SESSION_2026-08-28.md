@@ -1,3 +1,5 @@
+> **Historical operations log (2026-08-28). Current state: `AGENTS.md` + `REMAINING_WORK.md`.**
+
 # Ops Session 2026-08-28 — Mixnet Stabilization, WalletShield, Autonomi, zkchat
 
 > Full incident + stabilization log for the SCM4 node (`<node-ip>`). Everything

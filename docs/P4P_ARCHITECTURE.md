@@ -1,5 +1,7 @@
 # zknode-autonomi P4P — Reference Architecture
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 **Post-Quantum Mixnet + ZK Storage Prover + Autonomi P2P Storage**
 
 A self-contained private Autonomi storage node with traffic anonymized through an embedded post-quantum mixnet, hardware-bound ZK storage proofs, and arbitrary-scale data proving. Designed for the SCM4/CM4 platform.
@@ -103,11 +105,8 @@ Generates ECDSA-signed attestation over `merkle_root:node_address:serial` using 
 
 ```bash
 # All 7 images
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.ant-node -t zeros/ant-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.antd -t zeros/antd:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.storage-proved -t zeros/storage-proved:arm64 .
+# Multi-arch build (amd64 + arm64):
+./scripts/build.sh --both
 ```
 
 ### Transfer to SCM4

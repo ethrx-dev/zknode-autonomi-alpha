@@ -1,3 +1,5 @@
+> **Historical activation record (2026-07-03). Live status: dashboard `/api/health`; current instructions: `AGENTS.md`.**
+
 # Live Node Status — Autonomi Testnet
 
 **Activated:** 2026-07-03 21:20 UTC

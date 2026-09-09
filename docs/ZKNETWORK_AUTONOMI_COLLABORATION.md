@@ -1,5 +1,7 @@
 # ZKNetwork × Autonomi — Collaboration Proposal
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 ## The Opportunity
 
 Autonomi provides decentralized, permanent, immutable data storage. ZKNetwork provides mixnet-based private communication infrastructure. Together, they solve a problem neither can solve alone: **anonymous storage node operation**.
