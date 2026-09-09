@@ -4,10 +4,48 @@
 
 A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P4P proof-of-useful-work movement.
 
-> **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.4 serving on Arbitrum Sepolia. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
+> **STATUS**: 🟢 **LIVE ON AUTONOMI TESTNET** — ant-node v0.14.4 (pinned) serving on Arbitrum Sepolia. See [Live Node Status](docs/LIVE_NODE_STATUS.md).
 
 **Hardware**: SCM4/CM4 (8GB RAM, aarch64) with zymkey HSM.  
-**Mixnet**: Katzenpost v0.0.73-rc3+ (MLKEM768 PQ wire KEM, BLAKE2b-256 hashing, 3-hop Sphinx).  
+**Multi-arch**: all core images build and run on **amd64 and arm64** (`./scripts/build.sh`).
+
+---
+
+## Quickstart (v0.2 — any amd64/arm64 Linux host)
+
+```bash
+git clone -b main https://github.com/ethrx-dev/zknode-autonomi-alpha.git zknode-autonomi
+cd zknode-autonomi
+cp .env.example .env                   # edit: NODE_HOME, ports; set DASHBOARD_TOKEN for LAN access
+./scripts/build.sh                     # build images for this host's arch
+./scripts/build.sh --both              # ...or amd64 + arm64 tags
+sudo ./scripts/deploy.sh --check       # pre-flight
+sudo ./scripts/deploy.sh               # fast-stagger deploy (creates -> starts group-by-group)
+```
+
+Dashboard: `http://<host>:8080` — binds **127.0.0.1 only** until you set
+`DASHBOARD_TOKEN` in `.env` (generate: `openssl rand -hex 24`); with a token,
+all `/api` endpoints are authenticated and rate-limited.
+
+Node state (keys, identities) lives on the node and is NEVER committed:
+
+```bash
+sudo ./scripts/deploy.sh --backup-state    # encrypted bundle -> /mnt/autonomi/backup (BACKUP_KEYFILE required)
+sudo ./scripts/deploy.sh --restore-state <bundle>   # disaster recovery
+sudo ./scripts/deploy.sh --export-config   # drift check: repo topology vs live containers
+```
+
+Tests: `cd tests && ./run-all.sh` (4 checks + device drift check).
+
+> **Privacy boundaries (honest scope)**: the WalletShield EVM RPC and zkchat
+> messages traverse the embedded Katzenpost mixnet; the embedded 9-node
+> mixnet on one host is an integration lab (single operator = no distributed
+> anonymity); Autonomi P2P QUIC traffic goes out directly (not proxied).
+> See [docs/PRIVACY_BOUNDARIES.md](docs/PRIVACY_BOUNDARIES.md).
+
+---
+
+**Mixnet**: Katzenpost v0.0.99 (pinned `32c27b8`, MLKEM768 PQ wire KEM, 3-hop Sphinx) — built reproducibly for amd64 + arm64.  
 **ZK Proofs**: Merkle storage proofs (BLAKE2b), bandwidth proofs, zymkey hardware attestation.  
 **Storage**: Autonomi ant-node v0.14.4 with LMDB chunk store — managed via systemd --user.
 

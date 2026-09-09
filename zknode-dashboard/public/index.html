@@ -941,6 +941,37 @@ function wsLog(msg) {
 function fmtBytes(b) { if(!b) return '0 B'; const u=['B','KB','MB','GB','TB']; let i=0; while(b>=1024&&i<u.length-1){b/=1024;i++} return b.toFixed(1)+' '+u[i]; }
 function fmtUptime(s) { const d=Math.floor(s/86400); s%=86400; const h=Math.floor(s/3600); s%=3600; const m=Math.floor(s/60); s%=60; return d+'d '+h+'h '+m+'m '+Math.floor(s)+'s'; }
 
+// ── Token auth (v0.2 lockdown): intercept /api 401s, prompt once, retry ──
+window.__zkToken = localStorage.getItem('zk_token') || '';
+window.__zkAuthBusy = false;
+async function zkAuthFlow() {
+  if (window.__zkAuthBusy) return false;
+  window.__zkAuthBusy = true;
+  try {
+    const t = prompt('Dashboard token (DASHBOARD_TOKEN):', window.__zkToken || '');
+    if (!t) return false;
+    const r = await _origFetch('/api/auth?token=' + encodeURIComponent(t));
+    if (!r.ok) { alert('Invalid token'); return false; }
+    window.__zkToken = t;
+    try { localStorage.setItem('zk_token', t); } catch (e) {}
+    return true;
+  } finally { window.__zkAuthBusy = false; }
+}
+const _origFetch = window.fetch.bind(window);
+window.fetch = async function(input, init) {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (url.indexOf('/api/') === -1) return _origFetch(input, init);
+  init = Object.assign({}, init || {});
+  const headers = new Headers(init.headers || (input && input.headers) || {});
+  if (window.__zkToken && !headers.has('x-zk-token')) headers.set('x-zk-token', window.__zkToken);
+  let resp = await _origFetch(input, Object.assign({}, init, { headers }));
+  if (resp.status === 401 && (await zkAuthFlow())) {
+    headers.set('x-zk-token', window.__zkToken);
+    resp = await _origFetch(input, Object.assign({}, init, { headers }));
+  }
+  return resp;
+};
+
 async function api(path, opts) {
   try { const r = await fetch(path, opts); if (!r.ok) return { error: r.statusText }; return await r.json(); }
   catch(e) { return { error: e.message }; }
