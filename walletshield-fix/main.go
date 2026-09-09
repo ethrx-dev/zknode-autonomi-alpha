@@ -27,7 +27,7 @@ import (
 
 var (
 	timeout          = 300 // (default) context timeout
-	ProxyHTTPService = "proxy"
+	ProxyHTTPService = "http"
 
 	// Note: UserForwardPayloadLength should match the same value passed to genconfig.
 	UserForwardPayloadLength = 2000
