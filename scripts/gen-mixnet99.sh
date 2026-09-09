@@ -21,6 +21,12 @@ set -euo pipefail
 #   6. generated docker-compose.yml inside the tree: binary + config paths
 #      fixed (reference only — the repo compose is authoritative)
 #
+# Topology: 3 voting authorities, 1x3 mixes, gateway, servicenode (courier +
+# http plugins), 5 storage replicas (Pigeonhole). In PUBLIC_ADDR mode only
+# the GATEWAY is rewritten to the public address — the mesh, courier and
+# replicas ride the internal docker network; external clients enter via the
+# gateway (docker-compose.vps.yml publishes it).
+#
 # Usage: sudo ./scripts/gen-mixnet99.sh [IMAGE_MIXNET] [OUTDIR]
 #   IMAGE_MIXNET defaults to zeros/mixnet-node:arm64 (override for amd64)
 
@@ -29,9 +35,12 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUTDIR="${2:-$PROJECT_ROOT/config/mixnet99}"
 
 # Topology parameters (match the fleet: 3 authorities, 3 mixes in 1 layer
-# topology of 3, 1 gateway, 1 service node, 3 voting authorities)
+# topology of 3, 1 gateway, 1 service node, 3 voting authorities, and the
+# Pigeonhole storage system: 5 storage replicas feeding the servicenode
+# courier plugin). All node-to-node links stay on internal docker hostnames;
+# only the gateway is ever published for external clients.
 GEN_ARGS=(--voting --wirekem MLKEM768 --nike x25519 --layers 3 --nodes 3
-  --gateways 1 --serviceNodes 1 --nrVoting 3
+  --gateways 1 --serviceNodes 1 --nrVoting 3 --storageNodes 5
   --baseDir /var/lib/katzenpost
   --dockerImage "$IMAGE_MIXNET" --noMetrics)
 
@@ -67,29 +76,31 @@ sed -i \
 sed -i 's|c = "courier.toml"|c = "/var/lib/katzenpost/servicenode1/courier/courier.toml"|' "$SN_TOML"
 
 # Optional public addressing (remote/VPS topology):
-#   PUBLIC_ADDR_MODE=ip PUBLIC_ADDR=185.92.181.101  -> tcp://185.92.181.101:<port>
-#   PUBLIC_ADDR_MODE=dns PUBLIC_ADDR=zknet.cloud    -> tcp://auth1.zknet.cloud:<port>
-# (descriptors bake addresses at post time; DNS names survive IP changes)
+#   PUBLIC_ADDR_MODE=ip PUBLIC_ADDR=185.92.181.101  -> gateway tcp://185.92.181.101:<port>
+#   PUBLIC_ADDR_MODE=dns PUBLIC_ADDR=zknet.cloud    -> gateway tcp://gateway1.zknet.cloud:<port>
+# Only the GATEWAY is rewritten to public: external clients dial the gateway
+# and it fronts the mixnet. Auths/mixes/servicenode/replicas/courier keep
+# their internal docker hostnames (katzenpost-net DNS) for node-to-node links
+# — publishing every node's port would force hairpin NAT and break the mesh.
+# The client config's pinned gateway is rewritten so a remote kpclientd can
+# reach the network (clients fetch the PKI doc from the gateway, so authority
+# addresses in client.toml stay internal-hostname and are unused for contact).
 if [ "${PUBLIC_ADDR_MODE:-}" != "" ]; then
   [ -n "${PUBLIC_ADDR:-}" ] || { err "PUBLIC_ADDR required with PUBLIC_ADDR_MODE"; exit 1; }
-  step "rewriting node addresses to public (${PUBLIC_ADDR_MODE}: ${PUBLIC_ADDR})"
-  for node in auth1 auth2 auth3 mix1 mix2 mix3 gateway1 servicenode1 replica1 replica2 replica3 replica4 replica5; do
-    [ -d "$OUTDIR/$node" ] || continue
-    for f in "$OUTDIR/$node"/*.toml "$OUTDIR/$node"/courier/*.toml; do
-      [ -f "$f" ] || continue
-      case "$PUBLIC_ADDR_MODE" in
-        ip)  sed -i -E "s#^(\\s*)Addresses = \\[\"tcp://${node}:([0-9]+)\"#\\1Addresses = [\"tcp://${PUBLIC_ADDR}:\\2\"#" "$f" ;;
-        dns) sed -i -E "s#^(\\s*)Addresses = \\[\"tcp://${node}:([0-9]+)\"#\\1Addresses = [\"tcp://${node}.${PUBLIC_ADDR}:\\2\"#" "$f" ;;
-      esac
-    done
-  done
-  # client configs must reach the remote gateway/auths too
+  case "$PUBLIC_ADDR_MODE" in
+    ip)  GW="${PUBLIC_ADDR}" ;;
+    dns) GW="gateway1.${PUBLIC_ADDR}" ;;
+    *)   err "PUBLIC_ADDR_MODE must be ip|dns (got: $PUBLIC_ADDR_MODE)"; exit 1 ;;
+  esac
+  step "rewriting gateway + client gateway to public (${PUBLIC_ADDR_MODE}: ${GW})"
+  # gateway descriptor: advertise public, keep bind address internal
+  [ -f "$OUTDIR/gateway1/katzenpost.toml" ] && \
+    sed -i -E "s#^(\\s*)Addresses = \\[\"tcp://gateway1:([0-9]+)\"#\\1Addresses = [\"tcp://${GW}:\\2\"#" \
+      "$OUTDIR/gateway1/katzenpost.toml"
+  # client configs: pinned gateway must be reachable from a remote host
   for f in "$OUTDIR/client"/*.toml; do
     [ -f "$f" ] || continue
-    case "$PUBLIC_ADDR_MODE" in
-      ip)  sed -i -E "s#^(\s*)Addresses = \\[\"tcp://(auth1|auth2|auth3|gateway1):([0-9]+)\"#\1Addresses = [\"tcp://${PUBLIC_ADDR}:\3\"#" "$f" ;;
-      dns) sed -i -E "s#^(\s*)Addresses = \\[\"tcp://(auth1|auth2|auth3|gateway1):([0-9]+)\"#\1Addresses = \"tcp://\2.${PUBLIC_ADDR}:\3\"#" "$f" ;;
-    esac
+    sed -i -E "s#^(\s*)Addresses = \\[?\"tcp://gateway1:([0-9]+)\"#\1Addresses = [\"tcp://${GW}:\2\"#" "$f"
   done
 fi
 
@@ -99,11 +110,13 @@ step "fixing thinclient bind (127.0.0.1, fix 5)"
 
 step "fixing generated compose paths (reference only, fix 6)"
 if [ -f "$OUTDIR/docker-compose.yml" ]; then
+  # with --storageNodes the generated compose includes replica services; point
+  # every node binary at the image PATH (genconfig baked /var/lib/katzenpost/<bin>).
   sed -i \
     -e 's|/var/lib/katzenpost/dirauth|dirauth|g' \
     -e 's|/var/lib/katzenpost/server|server|g' \
     -e 's|/var/lib/katzenpost/kpclientd|kpclientd|g' \
-    -e 's|command: /var/lib/katzenpost/replica -f /var/lib/katzenpost/|command: replica -f /var/lib/katzenpost/|g' \
+    -e 's|command: /var/lib/katzenpost/replica -f|command: replica -f|g' \
     "$OUTDIR/docker-compose.yml"
 fi
 
@@ -114,7 +127,7 @@ find "$OUTDIR" -mindepth 1 -type d -exec chmod 700 {} \;
 
 step "generated topology summary"
 echo "    $(find "$OUTDIR" -name '*.toml' | wc -l) toml files, nodes:"
-for d in auth1 auth2 auth3 mix1 mix2 mix3 gateway1 servicenode1 client; do
+for d in auth1 auth2 auth3 mix1 mix2 mix3 gateway1 servicenode1 replica1 replica2 replica3 replica4 replica5 client; do
   [ -d "$OUTDIR/$d" ] && printf '      %s\n' "$d"
 done
 step "DONE — config/mixnet99 ready. Deploy with the repo compose (services mount ./config/mixnet99)."

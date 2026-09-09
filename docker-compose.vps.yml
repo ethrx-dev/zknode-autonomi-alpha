@@ -1,0 +1,164 @@
+# docker-compose.vps.yml — VPS mixnet core (remote/remote gateway).
+#
+# Deploys ONLY the Katzenpost mixnet on the VPS: 3 dirauths, 3 mixes,
+# 1 gateway (published so remote clients can dial in), 1 servicenode
+# (courier + http plugins), and the 5* Pigeonhole storage replicas.
+# All node-to-node links ride the internal katzenpost-net bridge — only
+# the gateway's port is exposed to the internet.
+#
+# Generate the topology first:
+#   PUBLIC_ADDR_MODE=ip PUBLIC_ADDR=<vps-ip> \
+#     sudo ./scripts/gen-mixnet99.sh zeros/mixnet-node:amd64 /tmp/vps-mixnet
+# Then:
+#   docker compose -f docker-compose.vps.yml up -d
+#
+# * replicas connect to the dirauths over PKI consensus; the servicenode's
+#   courier plugin fans out to them for the Pigeonhole storage layer.
+services:
+  mix-dirauth-1:
+    command: [dirauth, -f, /var/lib/katzenpost/auth1/authority.toml]
+    container_name: mix-dirauth-1
+    hostname: auth1
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-dirauth-2:
+    command: [dirauth, -f, /var/lib/katzenpost/auth2/authority.toml]
+    container_name: mix-dirauth-2
+    hostname: auth2
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-dirauth-3:
+    command: [dirauth, -f, /var/lib/katzenpost/auth3/authority.toml]
+    container_name: mix-dirauth-3
+    hostname: auth3
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-1:
+    command: [server, -f, /var/lib/katzenpost/mix1/katzenpost.toml]
+    container_name: mix-1
+    hostname: mix1
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-2:
+    command: [server, -f, /var/lib/katzenpost/mix2/katzenpost.toml]
+    container_name: mix-2
+    hostname: mix2
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-3:
+    command: [server, -f, /var/lib/katzenpost/mix3/katzenpost.toml]
+    container_name: mix-3
+    hostname: mix3
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-gateway:
+    command: [server, -f, /var/lib/katzenpost/gateway1/katzenpost.toml]
+    container_name: mix-gateway
+    hostname: gateway1
+    depends_on: [mix-1, mix-2, mix-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    ports:
+    # gateway is the ONLY service reachable from the internet; client traffic
+    # enters here and is fanned into the internal mixnet mesh.
+    - ${VPS_GATEWAY_PORT:-30007}:30007/tcp
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-servicenode:
+    command: [server, -f, /var/lib/katzenpost/servicenode1/katzenpost.toml]
+    container_name: mix-servicenode
+    hostname: servicenode1
+    depends_on: [mix-1, mix-2, mix-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-replica-1:
+    command: [replica, -f, /var/lib/katzenpost/replica1/replica.toml]
+    container_name: mix-replica-1
+    hostname: replica1
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-replica-2:
+    command: [replica, -f, /var/lib/katzenpost/replica2/replica.toml]
+    container_name: mix-replica-2
+    hostname: replica2
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-replica-3:
+    command: [replica, -f, /var/lib/katzenpost/replica3/replica.toml]
+    container_name: mix-replica-3
+    hostname: replica3
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-replica-4:
+    command: [replica, -f, /var/lib/katzenpost/replica4/replica.toml]
+    container_name: mix-replica-4
+    hostname: replica4
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+  mix-replica-5:
+    command: [replica, -f, /var/lib/katzenpost/replica5/replica.toml]
+    container_name: mix-replica-5
+    hostname: replica5
+    depends_on: [mix-dirauth-1, mix-dirauth-2, mix-dirauth-3]
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:amd64}
+    networks: [katzenpost-net]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+    - /var/lib/katzenpost:/var/lib/katzenpost
+networks:
+  katzenpost-net:
+    driver: bridge
