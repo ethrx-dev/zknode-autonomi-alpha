@@ -2,14 +2,20 @@
 # repo topology vs live device (SCM4). SKIP if device unreachable.
 set -u
 cd "$(dirname "$0")/.."
-HOST="${SCM4_HOST:-zero-tech@192.168.1.3}"
+HOST="${SCM4_HOST:-<node-user>@<node-ip>}"
 KEY="${SCM4_KEY:-$HOME/.ssh/id_ed25519_scm4}"
+# Sudo password is NEVER stored in the repo — provide via env on the test host.
+# (A previous revision hardcoded it; treat that credential as compromised and
+# rotate it on the device.)
+SUDO_PASS="${SCM4_SUDO_PASS:-}"
+[ -n "$SUDO_PASS" ] || { echo "SKIP: SCM4_SUDO_PASS not set (by design — no credentials in repo)"; exit 77; }
+NODE_HOME="${SCM4_NODE_HOME:-/home/<node-user>/zknode-autonomi}"
 if ! timeout 6 ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=4 "$HOST" true 2>/dev/null; then
   echo "SKIP: device unreachable ($HOST) — export pending"; exit 77
 fi
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ssh -i "$KEY" -o StrictHostKeyChecking=accept-new "$HOST" \
-  "echo REDACTED-ROTATE-DEVICE-SUDO-PASS | sudo -S sh -c 'cd /home/zero-tech/zknode-autonomi && find config/mixnet99 -name \"*.toml\" | tar czf /tmp/mix99drv.tar -T -' 2>/dev/null; chmod 644 /tmp/mix99drv.tar" >/dev/null 2>&1
+  "echo '$SUDO_PASS' | sudo -S sh -c 'cd $NODE_HOME && find config/mixnet99 -name \"*.toml\" | tar czf /tmp/mix99drv.tar -T -' 2>/dev/null; chmod 644 /tmp/mix99drv.tar" >/dev/null 2>&1
 scp -q -i "$KEY" -o StrictHostKeyChecking=accept-new "$HOST:/tmp/mix99drv.tar" "$T/" 2>/dev/null
 mkdir -p "$T/live" && tar xzf "$T/mix99drv.tar" -C "$T/live"
 rc=0
