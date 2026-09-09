@@ -58,8 +58,7 @@ progress_bar() {
 }
 
 # ─── Logo ──────────────────────────────────────────────────────
-LOGO=(
-
+LOGO=$(cat <<'ZKLOGO_EOF'
 █                                                    
 ::::::::::::  .   :::.    :::.              ::              ::::::::::.   .::::::::::::.    .        :      
 '`````;;;;;; .;;,.`;;;;,  `;;;              ;;;              `;;;```.;;;,;';; `;;;```.;;;   ;;,.    ;;;  ;;,
@@ -73,9 +72,9 @@ LOGO=(
                                                     '` '`'` "` '"`  '"'` '""      '`      " '`        '` '`'"""`
                                                                  
                                                                                                                                                                                                                                                
-                                                                                                
-)
 
+ZKLOGO_EOF
+)
 # ─── Data ──────────────────────────────────────────────────────
 node_status() {
     CPU=$(nproc 2>/dev/null || echo "?")
@@ -187,9 +186,9 @@ draw_main_menu() {
 
     # Logo
     echo ""
-    for line in "${LOGO[@]}"; do
+    while IFS= read -r line; do
         printf "  ${C}${D}%s${R}\n" "$line"
-    done
+    done <<< "$LOGO"
     echo ""
 
     # Header
@@ -208,7 +207,7 @@ draw_main_menu() {
             "$num" "$title" "$desc" "$pad" ""
         
         i=$((i+3))
-    done
+    done <<< "$LOGO"
     draw_box_bot "$w"
 
     # Status line
@@ -284,7 +283,7 @@ cmd_dashboard() {
         case "$key" in
             m|M|q|Q|ESC) break ;;
         esac
-    done
+    done <<< "$LOGO"
 }
 
 # ─── Setup Wizard ──────────────────────────────────────────────
@@ -346,7 +345,7 @@ cmd_setup() {
                 ;;
             m|M|q|Q|ESC) break ;;
         esac
-    done
+    done <<< "$LOGO"
 }
 
 stage_complete() {
@@ -528,7 +527,7 @@ cmd_autonomi() {
             4) cmd_autonomi_balance ;;
             m|M|q|Q|ESC) break ;;
         esac
-    done
+    done <<< "$LOGO"
 }
 
 cmd_autonomi_upload() {
@@ -592,7 +591,7 @@ cmd_autonomi_status() {
     journalctl --user -u antnode@54851 --no-pager -n 20 2>/dev/null | \
         grep -oP 'remote_peer_id: PeerId\("[^"]+"\)' | sort -u | while IFS= read -r line; do
         echo -e "  ${K}│${R}  ${D}${line}${R}"
-    done
+    done <<< "$LOGO"
     echo -e "  ${K}│${R}"
     echo -e "  ${K}│${R}  ${W}${PEERS}${R} unique peers seen"
     echo ""; echo -e "  ${K}[Press any key]${R}"; read -rsn1
@@ -624,7 +623,7 @@ cmd_logs() {
     while [ $i -lt ${#services[@]} ]; do
         echo -e "  ${C}${B}${services[$i]}${R}    ${services[$((i+1))]}"
         i=$((i+2))
-    done
+    done <<< "$LOGO"
     echo ""
     echo -e "  ${K}[${R}${B}m${R}${K}]${R} Menu"
     echo -ne "  ${Y}▸${R}  "
@@ -685,7 +684,7 @@ main() {
                 fi
                 ;;
         esac
-    done
+    done <<< "$LOGO"
     mouse_off
     show_cursor
     cls
