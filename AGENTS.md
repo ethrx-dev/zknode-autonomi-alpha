@@ -509,12 +509,18 @@ On the SCM4, the `.git` directory is a symlink to `/mnt/usb_sda3/zknode-autonomi
   HttpOnly cookie), 240 req/min/IP rate limit, security headers; **binds
   127.0.0.1 only unless `DASHBOARD_TOKEN` is set**
 - No key material in git (`**/*.pem`, state dirs ignored; secret-scan test
-  enforces; detector files excluded from self-match)
+  enforces; detector files excluded from self-match); `deploy.sh --check`
+  also runs `scripts/verify-no-secrets.sh` as a deploy gate
+- Compose hardening baseline: `no-new-privileges` on all 18 services;
+  `cap_drop: ALL` + read-only rootfs on proxy/walletshield/zkchat/
+  storage-proved/dashboard
 - Node state lifecycle: encrypted backups (`scripts/state.sh backup`),
   checksum-verified restores, drift checks (`export`) between repo and node
 - Pinned provenance: katzenpost commit, RocksDB, Rust/Go bases; patch
   application is fail-hard in image builds
 - zymbit/SCM4: attestation, tamper notify-only in dev, LUKS key sealed to HSM
+- Development status: actively in development and testing — proof of
+  concept (see [DISCLAIMER.md](DISCLAIMER.md))
 
 ## References
 
