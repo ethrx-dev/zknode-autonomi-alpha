@@ -563,7 +563,7 @@ function ensureZkchatRunner() {
   }
   if (insp.status !== 0) {
     const base = ['create', '--name', ZKCHAT_RUNNER, '--label', 'zkchat-poll-runner', '--network', 'host',
-      '-v', NODE_HOME + '/config/mixnet:/var/lib/katzenpost',
+      '-v', NODE_HOME + '/config/mixnet99:/var/lib/katzenpost',
       '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
       'zeros/mixnet-node:arm64', 'tail', '-f', '/dev/null'];
     const c = spawnSync('docker', base, { timeout: 30000, encoding: 'utf8' });
