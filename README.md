@@ -1,5 +1,9 @@
 # zknode-autonomi — P4P Reference Architecture
 
+> ⚠️ **DISCLAIMER — actively in development & testing (proof of concept).**
+> Not audited, not production-ready, testnet only. Breaking changes and key
+> rotation are routine. See [DISCLAIMER.md](DISCLAIMER.md) before deploying.
+
 **Post-Quantum Mixnet + ZK Storage Proving + Autonomi P2P Storage**
 
 A self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform as a reference architecture for the P4P proof-of-useful-work movement.
@@ -284,4 +288,4 @@ zknode-autonomi/
 Source code: AGPL-3.0-only (matches Katzenpost/ZKNetwork licensing).  
 Documentation: CC-BY-SA-4.0.
 
-**WARNING**: This is a Proof of Concept. Not production-hardened. Keys are generated for testing only.
+**WARNING**: This is a Proof of Concept. Not production-hardened. Keys are generated for testing only. Actively in development and testing — see [DISCLAIMER.md](DISCLAIMER.md).
