@@ -66,6 +66,33 @@ sed -i \
 # make the courier plugin config path absolute (fix 3)
 sed -i 's|c = "courier.toml"|c = "/var/lib/katzenpost/servicenode1/courier/courier.toml"|' "$SN_TOML"
 
+# Optional public addressing (remote/VPS topology):
+#   PUBLIC_ADDR_MODE=ip PUBLIC_ADDR=185.92.181.101  -> tcp://185.92.181.101:<port>
+#   PUBLIC_ADDR_MODE=dns PUBLIC_ADDR=zknet.cloud    -> tcp://auth1.zknet.cloud:<port>
+# (descriptors bake addresses at post time; DNS names survive IP changes)
+if [ "${PUBLIC_ADDR_MODE:-}" != "" ]; then
+  [ -n "${PUBLIC_ADDR:-}" ] || { err "PUBLIC_ADDR required with PUBLIC_ADDR_MODE"; exit 1; }
+  step "rewriting node addresses to public (${PUBLIC_ADDR_MODE}: ${PUBLIC_ADDR})"
+  for node in auth1 auth2 auth3 mix1 mix2 mix3 gateway1 servicenode1 replica1 replica2 replica3 replica4 replica5; do
+    [ -d "$OUTDIR/$node" ] || continue
+    for f in "$OUTDIR/$node"/*.toml "$OUTDIR/$node"/courier/*.toml; do
+      [ -f "$f" ] || continue
+      case "$PUBLIC_ADDR_MODE" in
+        ip)  sed -i -E "s#^(\\s*)Addresses = \\[\"tcp://${node}:([0-9]+)\"#\\1Addresses = [\"tcp://${PUBLIC_ADDR}:\\2\"#" "$f" ;;
+        dns) sed -i -E "s#^(\\s*)Addresses = \\[\"tcp://${node}:([0-9]+)\"#\\1Addresses = [\"tcp://${node}.${PUBLIC_ADDR}:\\2\"#" "$f" ;;
+      esac
+    done
+  done
+  # client configs must reach the remote gateway/auths too
+  for f in "$OUTDIR/client"/*.toml; do
+    [ -f "$f" ] || continue
+    case "$PUBLIC_ADDR_MODE" in
+      ip)  sed -i -E "s#^(\s*)Addresses = \\[\"tcp://(auth1|auth2|auth3|gateway1):([0-9]+)\"#\1Addresses = [\"tcp://${PUBLIC_ADDR}:\3\"#" "$f" ;;
+      dns) sed -i -E "s#^(\s*)Addresses = \\[\"tcp://(auth1|auth2|auth3|gateway1):([0-9]+)\"#\1Addresses = \"tcp://\2.${PUBLIC_ADDR}:\3\"#" "$f" ;;
+    esac
+  done
+fi
+
 step "fixing thinclient bind (127.0.0.1, fix 5)"
 [ -f "$OUTDIR/client/thinclient.toml" ] && \
   sed -i 's|Address = "localhost:64331"|Address = "127.0.0.1:64331"|' "$OUTDIR/client/thinclient.toml"

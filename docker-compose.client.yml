@@ -1,0 +1,11 @@
+# docker-compose.client.yml — local CLIENT-ONLY profile for a remote/VPS mixnet
+#
+# Use when the mixnet core (authorities, mixes, gateway, servicenode) runs
+# remotely (e.g. the zknet VPS). The local node keeps only the client daemon
+# and the client-facing apps; mix-client dials the remote gateway using the
+# addresses baked into config/mixnet99/client/.
+#
+# Usage (from the project root):
+#   docker compose -f docker-compose.yml -f docker-compose.client.yml up -d \
+#     mix-client walletshield zkchat zknode-dashboard antd
+# (mixnet core services stay down; do NOT start mix-* on the local node)
