@@ -14,7 +14,7 @@ services:
     - HOME=/var/lib/antd
     - ANT_IPV4_ONLY=true
     - ANT_NETWORK_MODE=testnet
-    - ANT_REWARDS_ADDRESS=0xf21CEFD6773491323B05162f62bE5106B27893aa
+    - ANT_REWARDS_ADDRESS=${ANT_REWARDS_ADDRESS:-0xf21CEFD6773491323B05162f62bE5106B27893aa}
     user: root
     # I/O throttle: ant-node writes its data+logs to the USB HDD (/mnt/usb_sda3).
     # Unthrottled, its sustained random writes saturate the single-spindle drive,
@@ -32,21 +32,20 @@ services:
     - /var/lib/ant-node:/var/lib/ant-node
     - /mnt/usb_sda3/antd-data/node-1:/var/lib/antd/node-1
     command:
-    - "mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs\nrm -f /var/lib/antd/.local/share/ant/daemon.pid /var/lib/antd/.local/share/ant/daemon.port\nant node daemon start 2>/dev/null || true\nB1=/var/lib/antd/.local/share/ant/bin/ant-node-0.14.4\n\
+    - "mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs\nrm -f /var/lib/antd/.local/share/ant/daemon.pid /var/lib/antd/.local/share/ant/daemon.port\nant node daemon start 2>/dev/null || true\nB1=/var/lib/antd/.local/share/ant/bin/ant-node-0.14.4; if [ ! -x $$B1 ]; then B1=$(ls -1 /var/lib/antd/.local/share/ant/bin/ant-node-* 2>/dev/null | sort -V | tail -1); fi\n\
       if [ ! -x \"$$B1\" ]; then\n  echo \"antd: ERROR: node binary not found at $$B1\"\
       \n  exit 1\nfi\necho \"antd: starting ant-node...\"\n$$B1 \\\n  --rewards-address\
-      \ 0xf21CEFD6773491323B05162f62bE5106B27893aa \\\n  --root-dir /var/lib/antd/node-1\
-      \ \\\n  --port 12000 \\\n  --ipv4-only \\\n  --network-mode testnet \\\n  --evm-network\
-      \ arbitrum-sepolia \\\n  --enable-logging \\\n  --log-level info \\\n  --log-dir\
+      \ ${ANT_REWARDS_ADDRESS:-0xf21CEFD6773491323B05162f62bE5106B27893aa} \\\n  --root-dir /var/lib/antd/node-1\
+      \ \\\n  --port 12000 \\\n  --ipv4-only \\\n  --network-mode testnet \\\n  --evm-network ${AUTONOMI_EVM_NETWORK:-arbitrum-sepolia} \\\n  --enable-logging \\\n  --log-level info \\\n  --log-dir\
       \ /var/lib/antd/logs \\\n  --bootstrap 207.148.94.42:10000 \\\n  --bootstrap\
       \ 45.77.50.10:10000 \\\n  --bootstrap 66.135.23.83:10000 \\\n  --bootstrap 149.248.9.2:10000\
       \ \\\n  --bootstrap 49.12.119.240:10000 \\\n  --bootstrap 5.161.25.133:10000\
       \ \\\n  --bootstrap 18.228.202.183:10000 \\\n  2>&1 &\nP1=$$!\necho \"antd:\
       \ ant-node started (PID $$P1)\"\necho \"antd: entering monitor loop\"\nwhile\
       \ true; do\n  if ! kill -0 $$P1 2>/dev/null; then\n    echo \"antd: node died,\
-      \ restarting...\"\n    $$B1 \\\n      --rewards-address 0xf21CEFD6773491323B05162f62bE5106B27893aa\
+      \ restarting...\"\n    $$B1 \\\n      --rewards-address ${ANT_REWARDS_ADDRESS:-0xf21CEFD6773491323B05162f62bE5106B27893aa}\
       \ \\\n      --root-dir /var/lib/antd/node-1 \\\n      --port 12000 \\\n    \
-      \  --ipv4-only \\\n      --network-mode testnet \\\n      --evm-network arbitrum-sepolia\
+      \  --ipv4-only \\\n      --network-mode testnet \\\n      --evm-network ${AUTONOMI_EVM_NETWORK:-arbitrum-sepolia}\
       \ \\\n      --enable-logging \\\n      --log-level info \\\n      --log-dir\
       \ /var/lib/antd/logs \\\n      --bootstrap 207.148.94.42:10000 \\\n      --bootstrap\
       \ 45.77.50.10:10000 \\\n      --bootstrap 66.135.23.83:10000 \\\n      --bootstrap\
@@ -290,6 +289,8 @@ services:
     environment:
     - PORT=${DASHBOARD_PORT:-8080}
     - WS_PORT=${WS_PORT:-9200}
+    - DASHBOARD_TOKEN=${DASHBOARD_TOKEN:-}
+    - DASHBOARD_BIND=${DASHBOARD_BIND:-}
     - LLM_WIKI_PORT=${LLM_WIKI_PORT:-18765}
     - NODE_HOME=${NODE_HOME}
     image: ${IMAGE_DASHBOARD:-zknode-dashboard:latest}

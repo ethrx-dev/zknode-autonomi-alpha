@@ -23,6 +23,69 @@ try { ZKCHAT_GROUP_HISTORY = JSON.parse(execSync('cat "' + CHAT_HISTORY_FILE + '
 
 const app = express();
 app.use(express.json());
+
+// ─── Security layer (v0.2 lockdown) ─────────────────────────────
+// DASHBOARD_TOKEN unset -> fail-safe: dashboard binds 127.0.0.1 only.
+// DASHBOARD_TOKEN set   -> binds 0.0.0.0 (override DASHBOARD_BIND) and all
+// /api endpoints require the token (Bearer header, x-zk-token header, or
+// HttpOnly SameSite=Strict cookie obtained via /api/auth?token=...).
+const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN || '';
+const DASHBOARD_BIND = process.env.DASHBOARD_BIND || (DASHBOARD_TOKEN ? '0.0.0.0' : '127.0.0.1');
+
+function safeInt(v, min, max, dflt) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
+}
+function safeHexId(v) {
+  return typeof v === 'string' && /^[a-fA-F0-9]{8,64}$/.test(v) ? v.toLowerCase() : null;
+}
+function safeName(v) {
+  return typeof v === 'string' && /^[a-zA-Z0-9_.-]{1,64}$/.test(v) ? v : null;
+}
+
+// naive per-IP rate limit for /api (240 req/min)
+const RATE = { max: 240, windowMs: 60000 };
+const rateMap = new Map();
+function rateLimit(req, res, next) {
+  const now = Date.now();
+  const ip = req.socket.remoteAddress || 'unknown';
+  let e = rateMap.get(ip);
+  if (!e || now - e.start > RATE.windowMs) { e = { start: now, n: 0 }; rateMap.set(ip, e); }
+  e.n++;
+  if (e.n > RATE.max) return res.status(429).json({ error: 'rate limited' });
+  next();
+}
+
+function tokenFromReq(req) {
+  const h = req.headers || {};
+  const bearer = (h.authorization || '').replace(/^Bearer\s+/i, '');
+  const hdr = h['x-zk-token'];
+  const cookie = (h.cookie || '').match(/(?:^|;\s*)zk_token=([A-Za-z0-9_-]+)/);
+  return bearer || (typeof hdr === 'string' ? hdr : '') || (cookie ? cookie[1] : '');
+}
+
+function authMiddleware(req, res, next) {
+  if (!DASHBOARD_TOKEN) return next();
+  if (req.path === '/api/auth') return next();
+  if (tokenFromReq(req) === DASHBOARD_TOKEN) return next();
+  return res.status(401).json({ error: 'unauthorized' });
+}
+
+app.get('/api/auth', (req, res) => {
+  if (!DASHBOARD_TOKEN) return res.json({ ok: true, mode: 'loopback-unauthenticated' });
+  if ((req.query.token || '').toString() !== DASHBOARD_TOKEN) return res.status(401).json({ error: 'invalid token' });
+  res.setHeader('Set-Cookie', 'zk_token=' + encodeURIComponent(DASHBOARD_TOKEN) + '; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400');
+  res.json({ ok: true, mode: 'token' });
+});
+
+app.use('/api', rateLimit, authMiddleware);
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+// ─── end security layer ─────────────────────────────────────────
 app.use(express.static(join(__dirname, '..', 'public')));
 try{ zkid(app); }catch(e){ console.log('zkid init failed', e.message); }
 
@@ -78,14 +141,19 @@ function fetchUrl(url, timeout = 5000, opts = {}) {
 }
 
 function isPortListening(port) {
+  port = safeInt(port, 1, 65535, 0);
+  if (!port) return false;
   return runShell(`netstat -tln 2>/dev/null | grep -qE ":${port} " && echo ok`).ok;
 }
 
 function isProcessAlive(pid) {
+  if (!/^\d+$/.test(String(pid))) return false;
   return runShell(`docker run --rm --pid host alpine kill -0 ${pid} 2>&1`, 5000).ok;
 }
 
 function pgrep(name) {
+  name = safeName(name);
+  if (!name) return null;
   const r = runShell(`pgrep -f "${name}" 2>/dev/null | head -1`, 5000);
   return r.ok && r.data ? parseInt(r.data, 10) : null;
 }
@@ -711,8 +779,9 @@ app.post('/api/chat/groups/leave', (req, res) => {
 });
 
 app.post('/api/chat/groups/delete', (req, res) => {
-  const { group_id } = req.body || {};
-  if (!group_id) return res.json({ error: 'group_id required' });
+  const gid = safeHexId((req.body || {}).group_id);
+  const group_id = gid;
+  if (!gid) return res.json({ error: 'invalid group_id (hex expected)' });
   const identityHex = getIdentityHex();
   if (!identityHex) return res.json({ error: 'cannot determine identity' });
   const metaRaw = runShell(`docker exec mix-servicenode find /tmp/zkchat /var/lib/katzenpost/servicenode1/chatd -path "*/group_${group_id}/meta.json" -exec cat {} +`, 5000);
@@ -1124,7 +1193,7 @@ app.get('/api/ant/balance', async (req, res) => {
 });
 
 app.get('/api/ant/logs', (req, res) => {
-  const lines = parseInt(req.query.lines) || 50;
+  const lines = safeInt(req.query.lines, 1, 500, 50);
   const today = new Date().toISOString().slice(0, 10);
   const r = runShell(`docker exec antd sh -c 'tail -${lines} /var/lib/antd/logs/ant-node.${today}.log 2>/dev/null' 2>/dev/null || echo "no logs"`);
   res.json({ logs: r.ok ? r.data.split('\n') : [] });
@@ -1236,7 +1305,7 @@ async function wsHeartbeat() {
 }
 setInterval(wsHeartbeat, 30000);
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`ZKNode Dashboard running on http://0.0.0.0:${PORT}`);
+app.listen(PORT, DASHBOARD_BIND, () => {
+  console.log(`ZKNode Dashboard running on http://${DASHBOARD_BIND}:${PORT}` + (DASHBOARD_TOKEN ? ' (token auth)' : ' (NO TOKEN — loopback only)'));
 });
 
