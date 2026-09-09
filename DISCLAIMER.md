@@ -35,14 +35,8 @@ loss, lost funds, or privacy failures arising from its use. See the license
   and USB encryption (`--encrypt-usb`) destroys existing data. Read
   `docs/ZYMBIT_SETUP.md` and the safety rules in `AGENTS.md` before running
   any hardware provisioning step.
-<<<<<<< HEAD
 - **Repository history may be rewritten** during development. If a pull
   fails after an announced rewrite, re-clone rather than merging.
-=======
-- **History may be rewritten**: this repository intentionally purges leaked
-  or sensitive material from git history. Re-clone rather than pulling
-  across rewrites.
->>>>>>> origin/main
 
 ## Use at your own risk
 
