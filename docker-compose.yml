@@ -5,10 +5,7 @@ networks:
     driver: bridge
 services:
   antd:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     container_name: antd
     entrypoint:
     - sh
@@ -60,10 +57,7 @@ services:
       \ &\n    P1=$$!\n    echo \"antd: ant-node restarted (PID $$P1)\"\n  fi\n  sleep\
       \ 30\ndone\n"
   mix-1:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/server
     - -f
@@ -74,23 +68,15 @@ services:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-2:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/server
     - -f
@@ -101,23 +87,15 @@ services:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-3:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/server
     - -f
@@ -128,23 +106,15 @@ services:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-client:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/kpclientd
     - -c
@@ -152,90 +122,59 @@ services:
     container_name: mix-client
     depends_on:
     - mix-gateway
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
-=======
-    image: ${IMAGE_MIXNET}
->>>>>>> origin/main
     mem_limit: 128m
     network_mode: host
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-1:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/dirauth
     - -f
     - /var/lib/katzenpost/auth1/authority.toml
     container_name: mix-dirauth-1
     hostname: auth1
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-2:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/dirauth
     - -f
     - /var/lib/katzenpost/auth2/authority.toml
     container_name: mix-dirauth-2
     hostname: auth2
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-3:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/dirauth
     - -f
     - /var/lib/katzenpost/auth3/authority.toml
     container_name: mix-dirauth-3
     hostname: auth3
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-gateway:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - /usr/local/bin/server
     - -f
@@ -246,13 +185,8 @@ services:
     - mix-1
     - mix-2
     - mix-3
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
@@ -263,57 +197,38 @@ services:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/servicenode1/katzenpost.toml
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     container_name: mix-servicenode
     hostname: servicenode1
     depends_on:
     - mix-1
     - mix-2
     - mix-3
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET}
-    mem_limit: ${MIXNET_MEM_LIMIT}
->>>>>>> origin/main
     networks:
     - katzenpost-net
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mixnet-proxy:
-<<<<<<< HEAD
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - --config
     - /etc/mixnet-proxy/config.json
     container_name: mixnet-proxy
     depends_on:
     - mix-client
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET_PROXY:-zeros/mixnet-proxy:arm64}
     mem_limit: ${PROXY_MEM_LIMIT:-256m}
-=======
-    image: ${IMAGE_MIXNET_PROXY}
-    mem_limit: ${PROXY_MEM_LIMIT}
->>>>>>> origin/main
     network_mode: host
     restart: unless-stopped
     volumes:
     - ./config/proxy/config.json:/etc/mixnet-proxy/config.json:ro
     - ./config/proxy/thinclient.toml:/etc/mixnet-proxy/thinclient.toml:ro
   reticulum:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - --config
     - /etc/reticulum
@@ -329,10 +244,7 @@ services:
     - ./config/reticulum/config:/etc/reticulum
     - ./data/reticulum:/var/lib/reticulum
   nomadnet:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     image: zknode-autonomi-nomadnet:latest
     build:
       context: .
@@ -350,14 +262,11 @@ services:
     - ./config/nomadnet/rns-config:/etc/reticulum:rw
     - ./data/nomadnet/rns:/var/lib/reticulum:rw
   storage-proved:
-<<<<<<< HEAD
     cap_drop: [ALL]
     read_only: true
     tmpfs:
       - /tmp
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - --listen
     - 0.0.0.0:9201
@@ -373,14 +282,11 @@ services:
     volumes:
     - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
   walletshield:
-<<<<<<< HEAD
     cap_drop: [ALL]
     read_only: true
     tmpfs:
       - /tmp
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - -config
     - /etc/walletshield/config.toml
@@ -404,14 +310,11 @@ services:
     - ./config/walletshield/config.toml:/etc/walletshield/config.toml:ro
     - ./data/walletshield:/var/lib/walletshield
   zkchat:
-<<<<<<< HEAD
     cap_drop: [ALL]
     read_only: true
     tmpfs:
       - /tmp
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - while true; do /usr/local/bin/zkchat poll /etc/zkchat/thinclient.toml 2>&1;
       sleep 30; done
@@ -419,11 +322,7 @@ services:
     entrypoint:
     - sh
     - -c
-<<<<<<< HEAD
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
-=======
-    image: ${IMAGE_MIXNET}
->>>>>>> origin/main
     network_mode: host
     restart: unless-stopped
     volumes:
@@ -431,11 +330,8 @@ services:
     - ./data/zkchat:/tmp/zkchat
     - ./data/zkchat/identity:/etc/zkchat/.zkchat
   zknode-dashboard:
-<<<<<<< HEAD
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     build:
       context: ./zknode-dashboard
     container_name: zknode-dashboard
@@ -472,10 +368,7 @@ services:
     - '995'
     user: 100:100
   llm-wiki:
-<<<<<<< HEAD
     security_opt: ["no-new-privileges:true"]
-=======
->>>>>>> origin/main
     command:
     - "printf '[safe]\n\tdirectory = /var/lib/llm-wiki\n' > /root/.gitconfig && exec\
       \ /usr/local/bin/llm-wiki serve --http 18765 --wiki /var/lib/llm-wiki"
