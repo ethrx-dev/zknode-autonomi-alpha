@@ -26,5 +26,11 @@ check "thinclient binds 127.0.0.1"  "grep -q '127.0.0.1:64331' $O/client/thincli
 check "gateway hostname address"    "grep -q 'tcp://gateway1:30007' $O/gateway1/katzenpost.toml"
 check "node dirs are 700"           "find $O -mindepth 1 -type d -perm 700 | wc -l | grep -q '$(find $O -mindepth 1 -type d | wc -l)'"
 check "auth identity keys exist"    "test -f $O/auth1/identity.private.pem"
+for i in 1 2 3 4 5; do
+  check "replica$i config exists"    "test -f $O/replica$i/replica.toml"
+  check "replica$i internal addr"    "grep -q 'tcp://replica$i:31' $O/replica$i/replica.toml"
+done
+check "courier config absolute"    "grep -q 'c = \"/var/lib/katzenpost/servicenode1/courier/courier.toml\"' $O/servicenode1/katzenpost.toml"
+check "auths know storage replicas" "grep -q '\[\[StorageReplicas\]\]' $O/auth1/authority.toml"
 [ $rc -eq 0 ] && echo "OK: gen-mixnet99 output structurally valid"
 exit $rc

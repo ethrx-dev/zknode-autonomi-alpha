@@ -211,6 +211,101 @@ services:
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
+  mix-replica-1:
+    security_opt: ["no-new-privileges:true"]
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica1/replica.toml
+    container_name: mix-replica-1
+    hostname: replica1
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet99:/var/lib/katzenpost
+  mix-replica-2:
+    security_opt: ["no-new-privileges:true"]
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica2/replica.toml
+    container_name: mix-replica-2
+    hostname: replica2
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet99:/var/lib/katzenpost
+  mix-replica-3:
+    security_opt: ["no-new-privileges:true"]
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica3/replica.toml
+    container_name: mix-replica-3
+    hostname: replica3
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet99:/var/lib/katzenpost
+  mix-replica-4:
+    security_opt: ["no-new-privileges:true"]
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica4/replica.toml
+    container_name: mix-replica-4
+    hostname: replica4
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet99:/var/lib/katzenpost
+  mix-replica-5:
+    security_opt: ["no-new-privileges:true"]
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica5/replica.toml
+    container_name: mix-replica-5
+    hostname: replica5
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net
+    restart: unless-stopped
+    volumes:
+    - ./config/mixnet99:/var/lib/katzenpost
   mixnet-proxy:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
