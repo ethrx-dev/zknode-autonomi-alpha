@@ -1,3 +1,5 @@
+> **Historical plan (superseded decision: USB HDD + antd throttle retained).**
+
 # SCM4 Storage Analysis & Decision — Wedge Fix (was "NVMe Migration Plan")
 
 ## Decision (FINAL, 2026-08-30)

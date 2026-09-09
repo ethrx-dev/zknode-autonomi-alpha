@@ -1,5 +1,7 @@
 # zknode-autonomi — Roadmap
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 ## Status: Active Development
 
 Working features (v1): Mixnet PKI consensus, encrypted group/DM chat, walletshield
@@ -41,7 +43,7 @@ connects. ant-node cannot route through the mixnet.
 geometry mismatch between proxy and mixnet.
 
 **Debug steps**:
-1. Verify `config/proxy/thinclient.toml` matches `config/mixnet/client/thinclient.toml`
+1. Verify `config/proxy/thinclient.toml` matches `config/mixnet99/client/thinclient.toml`
 2. Check Sphinx geometry constants in proxy source vs mixnet
 3. Test with `docker run` directly (bypass Docker Compose)
 4. Enable debug logging in proxy config

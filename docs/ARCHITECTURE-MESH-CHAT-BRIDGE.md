@@ -1,5 +1,7 @@
 # Mesh Chat Bridge — Architecture
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 ## Goal
 
 Allow users on **reticulum/nomadnet** networks to communicate with users inside
@@ -44,7 +46,7 @@ A Rust binary that:
 
 ### Mixnet Transport
 
-- Reuses existing thinclient config from `config/mixnet/client/`
+- Reuses existing thinclient config from `config/mixnet99/client/`
 - Sends to `chatd` provider via Kaetzchen interface
 - Receives via long-poll or event subscription
 

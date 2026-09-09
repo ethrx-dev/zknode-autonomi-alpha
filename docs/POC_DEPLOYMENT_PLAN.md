@@ -1,5 +1,7 @@
 # zknode-autonomi — PoC Deployment Plan
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 > Package a full Autonomi storage node on SCM4 (8GB RAM, aarch64) with all traffic anonymized through an embedded Katzenpost mixnet. The entire mixnet runs on the same device — no cloud, no VPS.
 
 ---
@@ -89,7 +91,7 @@ All images cross-compile from amd64 → arm64. No QEMU emulation during builds.
 
 | Image | Source | Build Time | Size |
 |-------|--------|------------|------|
-| zeros/mixnet-node:arm64 | Katzenpost bfd5fcfc + RocksDB | ~30 min | 1.47 GB |
+| `${IMAGE_MIXNET}` (zeros/mixnet-node) | Katzenpost v0.0.99 (pinned) — builds in ~5 min (pure-Go deps + cgo KEM) | see build.sh | per-arch |
 | zeros/mixnet-proxy:arm64 | Custom (thin client library) | ~5 min | 122 MB |
 | zeros/ant-node:arm64 | WithAutonomi/ant-node | ~10 min | 119 MB |
 | zeros/antd:arm64 | WithAutonomi/ant-client | ~4 min | 146 MB |
@@ -100,10 +102,8 @@ All images cross-compile from amd64 → arm64. No QEMU emulation during builds.
 
 **Build commands:**
 ```bash
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.ant-node -t zeros/ant-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.antd -t zeros/antd:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
+# Multi-arch build (amd64 + arm64):
+./scripts/build.sh --both
 ```
 
 ### Cross-Compilation Details
@@ -157,10 +157,8 @@ Generated configs produce valid TOML with full SphinxGeometry, PKI keys, and vot
 cd zknode-autonomi/
 
 # Build images (30-60 min total)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.ant-node -t zeros/ant-node:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.antd -t zeros/antd:arm64 .
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
+# Multi-arch build (amd64 + arm64):
+./scripts/build.sh --both
 
 # Export
 docker save zeros/mixnet-node:arm64 zeros/ant-node:arm64 \

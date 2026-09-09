@@ -1,5 +1,7 @@
 # zknode-autonomi — Architecture
 
+> **v0.2 update**: images are multi-arch (amd64+arm64) — build with `./scripts/build.sh`; mixnet topology lives in `config/mixnet99/` (generate with `sudo ./scripts/gen-mixnet99.sh`). Canonical instructions: `AGENTS.md`.
+
 ## System Layers
 
 ```
@@ -15,7 +17,8 @@
 │       ▼          Service Orchestration                    │
 │  ┌────────────────────────────────────────┐               │
 │  │     Docker Compose (15 services)       │               │
-│  │ host network (mixnet) + bridge (auto)  │               │
+│  │ katzenpost-net bridge (mixnet) +       │
+│ autonomi bridge (autonomi)             │               │
 │  │ + systemd --user (ant-node bare metal) │               │
 │  └────────────────────────────────────────┘               │
 ├───────────────────────────────────────────────────────────┤
@@ -28,7 +31,7 @@
 ├───────────────────────────────────────────────────────────┤
 │                  Transport Layer                          │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │  Katzenpost mixnet (host network, 127.0.0.1)         │ │
+│  │  Katzenpost mixnet (bridge, Docker-DNS hostnames)    │ │
 │  │  dirauth×3 + mix×3 + gateway + servicenode           │ │
 │  │  3-hop onion routing, post-quantum Sphinx packets    │ │
 │  └──────────────────────────────────────────────────────┘ │
@@ -81,22 +84,22 @@ Autonomi peer (external)
 
 ```
 ┌──────────────────────────────────────────┐
-│  Host Network (network_mode: host)       │
+│  katzenpost-net bridge (Docker DNS)      │
 │                                          │
-│  mix-dirauth-1 127.0.0.1:30001           │
-│  mix-dirauth-2 127.0.0.1:30002           │
-│  mix-dirauth-3 127.0.0.1:30003           │
-│  mix-1         127.0.0.1:30011           │
-│  mix-2         127.0.0.1:30014           │
-│  mix-3         127.0.0.1:30017           │
-│  mix-gateway   127.0.0.1:30004           │
-│  mix-servicenode 127.0.0.1:30007         │
-│  mix-client      127.0.0.1:64332         │
+│  auth1  tcp://auth1:30001                │
+│  auth2  tcp://auth2:30003                │
+│  auth3  tcp://auth3:30005                │
+│  mix1   tcp://mix1:30014                 │
+│  mix2   tcp://mix2:30017                 │
+│  mix3   tcp://mix3:30020                 │
+│  gateway1 tcp://gateway1:30007           │
+│  servicenode1 tcp://servicenode1:30010   │
+│  mix-client  publishes 127.0.0.1:64331   │
 │  mixnet-proxy    127.0.0.1:1080,9090     │
 │  walletshield    127.0.0.1:9200          │
-│  storage-proved  127.0.0.1:9201          │                         │                (port mapped from bridge) │
+│  storage-proved  127.0.0.1:9201          │
 ├──────────────────────────────────────────┤
-│  Bridge Network (zknode-autonomi-net)    │
+│  Bridge Network (autonomi)               │
 │                                          │
 │  antd          (idle, docker exec)       │
 │                                          │

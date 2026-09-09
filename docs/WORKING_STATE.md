@@ -1,3 +1,5 @@
+> **Historical snapshot (2026-07-18) — the current build/deploy reference is `AGENTS.md`; the v0.2 consolidation is on `main`.**
+
 # zknode Working State — Reference
 
 > **Purpose**: Document the exact working state of the zknode SCM4 system as of 2026-07-18. The device suffered a Supervised Boot failure after a `config.txt` edit. This document captures everything needed to recreate the exact environment.
