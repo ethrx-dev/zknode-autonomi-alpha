@@ -1,33 +1,96 @@
+# Dockerfile.mixnet-proxy — SOCKS5 bridge + ZK-proof API over the mixnet (multi-arch)
+#
+# Builds from repo source (cmd/mixnet-proxy/) against PINNED katzenpost
+# v0.0.99 (same provenance as Dockerfile.mixnet — replaces the old build
+# that vendored the stale v0.0.84 tree via go.mod replace).
+#
+# Multi-arch: TARGETARCH={amd64,arm64}; builder cross-compiles (CGO required
+# transitively by the katzenpost wire KEM); runtime is COPY-only (no RUN,
+# no QEMU/binfmt).
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.mixnet-proxy --build-arg TARGETARCH=arm64 -t zeros/mixnet-proxy:arm64 .
+#   docker build -f Dockerfile.mixnet-proxy --build-arg TARGETARCH=amd64 -t zeros/mixnet-proxy:amd64 .
+#   ./scripts/build.sh --both
+#
+# Pinned upstreams: katzenpost 32c27b8 (= tag v0.0.99), rocksdb v10.2.1,
+# golang 1.26-bookworm
+
+# syntax=docker/dockerfile:1
+
 ARG TARGETARCH=arm64
-ARG BUILDER_ARCH=amd64
+ARG LIBDIR=/usr/lib/aarch64-linux-gnu
 
-FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH=arm64
+ARG KP_COMMIT=32c27b8de06bdd3012218253e88e035b2e6e02c1
+ARG ROCKSDB_VERSION=v10.2.1
 
-WORKDIR /src/proxy
-COPY cmd/mixnet-proxy/ .
-COPY katzenpost /src/katzenpost
-RUN go mod init mixnet-proxy && \
-    go mod edit -replace github.com/katzenpost/katzenpost=/src/katzenpost && \
-    cat /src/katzenpost/go.sum >> go.sum 2>/dev/null || true && \
-    go mod tidy -e && \
-    GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
-    CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-    go build -trimpath -ldflags="-buildid=" -o /dest/mixnet-proxy .
+RUN set -eux; \
+    apt-get update; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+      dpkg --add-architecture arm64; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        libsnappy-dev:arm64 liblz4-dev:arm64 libzstd-dev:arm64 zlib1g-dev:arm64; \
+    else \
+      apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+        libsnappy-dev liblz4-dev libzstd-dev zlib1g-dev; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+# RocksDB shared lib for the TARGET arch (cgo deps)
+RUN set -eux; \
+    git clone --branch "$ROCKSDB_VERSION" --depth 1 https://github.com/facebook/rocksdb.git /tmp/rocksdb; \
+    cd /tmp/rocksdb; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      PORTABLE=1 make -j"$(nproc)" shared_lib \
+        CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+        EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2" \
+        LDFLAGS="-L/usr/aarch64-linux-gnu/lib"; \
+    else \
+      PORTABLE=1 make -j"$(nproc)" shared_lib \
+        EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2"; \
+    fi; \
+    cp -a librocksdb.so* /usr/local/lib/; \
+    cp -a include/* /usr/local/include/; \
+    cd /tmp && rm -rf rocksdb
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Pinned katzenpost source; the proxy builds against it like a cmd
+RUN mkdir -p /src/katzenpost/cmd/mixnet-proxy
+RUN curl -fsSL "https://github.com/katzenpost/katzenpost/archive/${KP_COMMIT}.tar.gz" \
+    | tar xz -C /src/katzenpost --strip-components=1
+COPY cmd/mixnet-proxy/ /src/katzenpost/cmd/mixnet-proxy/
 
+RUN printf '\n// Alias for backward compatibility\ntype Logger = logging.Logger\n' \
+    >> /src/katzenpost/core/log/log.go
+
+RUN set -eux; cd /src/katzenpost; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      export CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+             CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/aarch64-linux-gnu"; \
+    else \
+      export CC=gcc CXX=g++ \
+             CGO_LDFLAGS="-L/usr/local/lib"; \
+    fi; \
+    export GOOS=linux GOARCH="$TARGETARCH" CGO_ENABLED=1 \
+           CGO_CFLAGS="-I/usr/local/include -I/usr/include"; \
+    mkdir -p /dest; \
+    ( cd cmd/mixnet-proxy && go build -trimpath -ldflags="-buildid=" -o /dest/mixnet-proxy . ); \
+    echo "  built mixnet-proxy ($TARGETARCH)"
+
+FROM --platform=linux/${TARGETARCH} debian:bookworm-slim
+
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
+COPY --from=builder /usr/local/lib/librocksdb.so* /usr/local/lib/
+COPY --from=builder ${LIBDIR}/libsnappy.so.1* ${LIBDIR}/liblz4.so.1* ${LIBDIR}/libzstd.so.1* ${LIBDIR}/libz.so.1* /usr/local/lib/
 COPY --from=builder /dest/mixnet-proxy /usr/local/bin/
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 EXPOSE 1080 9090
 

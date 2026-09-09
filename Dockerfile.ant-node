@@ -1,9 +1,27 @@
+# Dockerfile.ant-node — Autonomi storage node (multi-arch, pinned)
+#
+# Pinned to the node version the stack RUNS (v0.14.4 — the binary path the
+# antd entrypoint resolves), so a rebuild reproduces the deployed runtime
+# exactly. AUTONOMI_REF is a build-arg override for deliberate upgrades.
+#
+# Multi-arch: TARGETARCH={amd64,arm64}; the builder cross-compiles for
+# arm64 and builds natively for amd64.
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.ant-node --build-arg TARGETARCH=arm64 -t zeros/ant-node:arm64 .
+#   docker build -f Dockerfile.ant-node --build-arg TARGETARCH=amd64 -t zeros/ant-node:amd64 .
+#   ./scripts/build.sh --both   (wraps the above)
+
+# syntax=docker/dockerfile:1
+
+# Global args so the runtime stage can select its platform
 ARG TARGETARCH=arm64
-ARG BUILDER_ARCH=amd64
 
-FROM --platform=linux/${BUILDER_ARCH} rust:latest AS builder
+FROM --platform=$BUILDPLATFORM rust:1-bookworm AS builder
 
-ARG AUTONOMI_BRANCH=main
+ARG TARGETARCH=arm64
+# Pinned: matches the ant-node version the antd entrypoint launches
+ARG AUTONOMI_REF=v0.14.4
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -11,50 +29,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     protobuf-compiler \
     clang \
-    lld \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    && dpkg --add-architecture arm64 \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    libssl-dev:arm64 \
-    liblzma-dev:arm64 \
-    zlib1g-dev:arm64 \
-    && rm -rf /var/lib/apt/lists/*
+    lld; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+      dpkg --add-architecture arm64; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        libssl-dev:arm64 liblzma-dev:arm64 zlib1g-dev:arm64; \
+      rustup target add aarch64-unknown-linux-gnu; \
+      mkdir -p /root/.cargo; \
+      printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"\nar = "aarch64-linux-gnu-ar"\n' > /root/.cargo/config.toml; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
-RUN rustup target add aarch64-unknown-linux-gnu
-
-# Configure cargo for aarch64 cross-compilation
-RUN mkdir -p /root/.cargo && cat > /root/.cargo/config.toml << 'EOF'
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
-ar = "aarch64-linux-gnu-ar"
-
-[env]
-CC_aarch64_unknown_linux_gnu = "aarch64-linux-gnu-gcc"
-CXX_aarch64_unknown_linux_gnu = "aarch64-linux-gnu-g++"
-AR_aarch64_unknown_linux_gnu = "aarch64-linux-gnu-ar"
-PKG_CONFIG_ALLOW_CROSS = "1"
-PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu = "/usr/lib/aarch64-linux-gnu/pkgconfig"
-CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER = "aarch64-linux-gnu-gcc"
-EOF
-
-RUN git clone --branch ${AUTONOMI_BRANCH} --depth 1 \
+RUN git clone --depth 1 --branch ${AUTONOMI_REF} \
     https://github.com/WithAutonomi/ant-node.git /src/ant-node
 
-RUN cd /src/ant-node && \
-    CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
-    AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-    CC=aarch64-linux-gnu-gcc \
-    CXX=aarch64-linux-gnu-g++ \
-    AR=aarch64-linux-gnu-ar \
-    PKG_CONFIG_ALLOW_CROSS=1 \
-    PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
-    PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
-    cargo build --release --target aarch64-unknown-linux-gnu --bin ant-node
+RUN set -eux; cd /src/ant-node; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      TGT=aarch64-unknown-linux-gnu; \
+      export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+             CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+             AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+             CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+             CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+             PKG_CONFIG_ALLOW_CROSS=1 \
+             PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
+             PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig; \
+    else \
+      TGT=x86_64-unknown-linux-gnu; \
+      rustup target add x86_64-unknown-linux-gnu; \
+    fi; \
+    cargo build --release --target "$TGT" --bin ant-node; \
+    mkdir -p /dest && cp "target/$TGT/release/ant-node" /dest/
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:trixie-slim
+FROM --platform=linux/${TARGETARCH} debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -62,11 +72,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblzma5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /src/ant-node/target/aarch64-unknown-linux-gnu/release/ant-node /usr/local/bin/
+COPY --from=builder /dest/ant-node /usr/local/bin/
 
 RUN mkdir -p /var/lib/ant-node
 
-EXPOSE 12000
-
 ENTRYPOINT ["ant-node"]
-CMD ["--help"]

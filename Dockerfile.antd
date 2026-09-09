@@ -1,9 +1,26 @@
+# Dockerfile.antd — Autonomi CLI + node manager (multi-arch, pinned)
+#
+# Builds the `ant` CLI/daemon from the ant-client workspace, pinned to a
+# release tag for reproducible builds (was: floating main).
+# NOTE: runtime parity with the deployed device binary should be confirmed
+# with `docker exec antd ant --version` on the node; if it differs, pin
+# AUTONOMI_REF to that version instead.
+#
+# Multi-arch: TARGETARCH={amd64,arm64}.
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.antd --build-arg TARGETARCH=arm64 -t zeros/antd:arm64 .
+#   docker build -f Dockerfile.antd --build-arg TARGETARCH=amd64 -t zeros/antd:amd64 .
+
+# syntax=docker/dockerfile:1
+
+# Global args so the runtime stage can select its platform
 ARG TARGETARCH=arm64
-ARG BUILDER_ARCH=amd64
 
-FROM --platform=linux/${BUILDER_ARCH} rust:latest AS builder
+FROM --platform=$BUILDPLATFORM rust:1-bookworm AS builder
 
-ARG AUTONOMI_BRANCH=main
+ARG TARGETARCH=arm64
+ARG AUTONOMI_REF=ant-core-v0.8.1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -11,43 +28,43 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     protobuf-compiler \
     clang \
-    lld \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    && dpkg --add-architecture arm64 \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    libssl-dev:arm64 \
-    liblzma-dev:arm64 \
-    zlib1g-dev:arm64 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN rustup target add aarch64-unknown-linux-gnu
-
-# Configure cargo for aarch64 cross-compilation
-RUN mkdir -p /root/.cargo && cat > /root/.cargo/config.toml << 'EOF'
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
-ar = "aarch64-linux-gnu-ar"
-EOF
+    lld; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+      dpkg --add-architecture arm64; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        libssl-dev:arm64 liblzma-dev:arm64 zlib1g-dev:arm64; \
+      rustup target add aarch64-unknown-linux-gnu; \
+      mkdir -p /root/.cargo; \
+      printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"\nar = "aarch64-linux-gnu-ar"\n' > /root/.cargo/config.toml; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
 # ant-client is a workspace with ant-core + ant-cli
-RUN git clone --branch ${AUTONOMI_BRANCH} --depth 1 \
+RUN git clone --depth 1 --branch ${AUTONOMI_REF} \
     https://github.com/WithAutonomi/ant-client.git /src/ant-client
 
-RUN cd /src/ant-client && \
-    CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
-    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
-    AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
-    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-    CC=aarch64-linux-gnu-gcc \
-    CXX=aarch64-linux-gnu-g++ \
-    AR=aarch64-linux-gnu-ar \
-    PKG_CONFIG_ALLOW_CROSS=1 \
-    PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
-    PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
-    cargo build --release --target aarch64-unknown-linux-gnu --bin ant
+RUN set -eux; cd /src/ant-client; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      TGT=aarch64-unknown-linux-gnu; \
+      export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+             CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+             AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+             CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+             CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+             PKG_CONFIG_ALLOW_CROSS=1 \
+             PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig \
+             PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig; \
+    else \
+      TGT=x86_64-unknown-linux-gnu; \
+      rustup target add x86_64-unknown-linux-gnu; \
+    fi; \
+    cargo build --release --target "$TGT" --bin ant; \
+    mkdir -p /dest && cp "target/$TGT/release/ant" /dest/
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:trixie-slim
+FROM --platform=linux/${TARGETARCH} debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -55,7 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblzma5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /src/ant-client/target/aarch64-unknown-linux-gnu/release/ant /usr/local/bin/
+COPY --from=builder /dest/ant /usr/local/bin/
 
 RUN mkdir -p /var/lib/antd
 
