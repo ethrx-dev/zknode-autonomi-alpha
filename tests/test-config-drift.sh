@@ -4,9 +4,8 @@ set -u
 cd "$(dirname "$0")/.."
 HOST="${SCM4_HOST:-<node-user>@<node-ip>}"
 KEY="${SCM4_KEY:-$HOME/.ssh/id_ed25519_scm4}"
-# Sudo password is NEVER stored in the repo — provide via env on the test host.
-# (A previous revision hardcoded it; treat that credential as compromised and
-# rotate it on the device.)
+# Sudo credentials are NEVER stored in the repo — provide via env on the
+# test host and rotate device passwords on a regular schedule.
 SUDO_PASS="${SCM4_SUDO_PASS:-}"
 [ -n "$SUDO_PASS" ] || { echo "SKIP: SCM4_SUDO_PASS not set (by design — no credentials in repo)"; exit 77; }
 NODE_HOME="${SCM4_NODE_HOME:-/home/<node-user>/zknode-autonomi}"
