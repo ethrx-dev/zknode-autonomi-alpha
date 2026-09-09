@@ -1,5 +1,9 @@
 # Final Status - zknode-autonomi P4P Wiki Mesh Node
 
+> **HISTORICAL SNAPSHOT (2026-08-21).** Superseded by `AGENTS.md`
+> (current playbook), `REMAINING_WORK.md` (current work list) and the
+> v0.2 consolidation on `main`. Kept for reference only.
+
 ## Date: 2026-08-21
 
 ## Infrastructure Status
