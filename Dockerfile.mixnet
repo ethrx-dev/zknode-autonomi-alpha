@@ -104,7 +104,7 @@ RUN set -eux; cd /src/katzenpost; \
     export GOOS=linux GOARCH="$TARGETARCH" CGO_ENABLED=1 \
            CGO_CFLAGS="-I/usr/local/include -I/usr/include"; \
     mkdir -p /dest; \
-    for cmd in dirauth server courier kpclientd ping fetch echo-plugin \
+    for cmd in dirauth server courier replica kpclientd ping fetch echo-plugin \
                genconfig http-proxy-server http-proxy-client chatd zkchat; do \
       ( cd "cmd/$cmd" && go build -trimpath -ldflags="-buildid=" -o "/dest/$cmd" . ); \
       echo "  built $cmd ($TARGETARCH)"; \
