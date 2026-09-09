@@ -5,6 +5,7 @@ networks:
     driver: bridge
 services:
   antd:
+    security_opt: ["no-new-privileges:true"]
     container_name: antd
     entrypoint:
     - sh
@@ -56,6 +57,7 @@ services:
       \ &\n    P1=$$!\n    echo \"antd: ant-node restarted (PID $$P1)\"\n  fi\n  sleep\
       \ 30\ndone\n"
   mix-1:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/server
     - -f
@@ -74,6 +76,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-2:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/server
     - -f
@@ -92,6 +95,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-3:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/server
     - -f
@@ -110,6 +114,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-client:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/kpclientd
     - -c
@@ -124,6 +129,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-1:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/dirauth
     - -f
@@ -138,6 +144,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-2:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/dirauth
     - -f
@@ -152,6 +159,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-3:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/dirauth
     - -f
@@ -166,6 +174,7 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mix-gateway:
+    security_opt: ["no-new-privileges:true"]
     command:
     - /usr/local/bin/server
     - -f
@@ -188,6 +197,7 @@ services:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/servicenode1/katzenpost.toml
+    security_opt: ["no-new-privileges:true"]
     container_name: mix-servicenode
     hostname: servicenode1
     depends_on:
@@ -202,6 +212,8 @@ services:
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost
   mixnet-proxy:
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     command:
     - --config
     - /etc/mixnet-proxy/config.json
@@ -216,6 +228,7 @@ services:
     - ./config/proxy/config.json:/etc/mixnet-proxy/config.json:ro
     - ./config/proxy/thinclient.toml:/etc/mixnet-proxy/thinclient.toml:ro
   reticulum:
+    security_opt: ["no-new-privileges:true"]
     command:
     - --config
     - /etc/reticulum
@@ -231,6 +244,7 @@ services:
     - ./config/reticulum/config:/etc/reticulum
     - ./data/reticulum:/var/lib/reticulum
   nomadnet:
+    security_opt: ["no-new-privileges:true"]
     image: zknode-autonomi-nomadnet:latest
     build:
       context: .
@@ -248,6 +262,11 @@ services:
     - ./config/nomadnet/rns-config:/etc/reticulum:rw
     - ./data/nomadnet/rns:/var/lib/reticulum:rw
   storage-proved:
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt: ["no-new-privileges:true"]
     command:
     - --listen
     - 0.0.0.0:9201
@@ -263,6 +282,11 @@ services:
     volumes:
     - ${AUTONOMI_CHUNK_DB:-./data/chunks}:/var/lib/ant-node/chunks:ro
   walletshield:
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt: ["no-new-privileges:true"]
     command:
     - -config
     - /etc/walletshield/config.toml
@@ -286,6 +310,11 @@ services:
     - ./config/walletshield/config.toml:/etc/walletshield/config.toml:ro
     - ./data/walletshield:/var/lib/walletshield
   zkchat:
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt: ["no-new-privileges:true"]
     command:
     - while true; do /usr/local/bin/zkchat poll /etc/zkchat/thinclient.toml 2>&1;
       sleep 30; done
@@ -301,6 +330,8 @@ services:
     - ./data/zkchat:/tmp/zkchat
     - ./data/zkchat/identity:/etc/zkchat/.zkchat
   zknode-dashboard:
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     build:
       context: ./zknode-dashboard
     container_name: zknode-dashboard
@@ -337,6 +368,7 @@ services:
     - '995'
     user: 100:100
   llm-wiki:
+    security_opt: ["no-new-privileges:true"]
     command:
     - "printf '[safe]\n\tdirectory = /var/lib/llm-wiki\n' > /root/.gitconfig && exec\
       \ /usr/local/bin/llm-wiki serve --http 18765 --wiki /var/lib/llm-wiki"

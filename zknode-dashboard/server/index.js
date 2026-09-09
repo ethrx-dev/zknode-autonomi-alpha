@@ -778,18 +778,32 @@ app.post('/api/chat/groups/leave', (req, res) => {
   res.json(r.ok ? { left: true, output: r.data } : { error: r.error });
 });
 
+// spawn docker with an argv array — never interpolates into a shell string
+function spawnSyncDocker(args, timeoutMs = 10000) {
+  try {
+    const r = spawnSync('docker', args, { timeout: timeoutMs, encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    if (r.status === 0) return { ok: true, data: (r.stdout || '').trim() };
+    return { ok: false, error: ((r.stderr || '') + ' ' + (r.error?.message || '')).trim() || 'command failed' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 app.post('/api/chat/groups/delete', (req, res) => {
   const gid = safeHexId((req.body || {}).group_id);
   const group_id = gid;
   if (!gid) return res.json({ error: 'invalid group_id (hex expected)' });
   const identityHex = getIdentityHex();
   if (!identityHex) return res.json({ error: 'cannot determine identity' });
-  const metaRaw = runShell(`docker exec mix-servicenode find /tmp/zkchat /var/lib/katzenpost/servicenode1/chatd -path "*/group_${group_id}/meta.json" -exec cat {} +`, 5000);
+  // argv-array docker exec — hex-validated gid, no shell interpolation
+  const metaRaw = spawnSyncDocker(['exec', 'mix-servicenode', 'find', '/tmp/zkchat',
+    '/var/lib/katzenpost/servicenode1/chatd', '-path', `*/group_${group_id}/meta.json`, '-exec', 'cat', '{}', '+'], 5000);
   if (!metaRaw.ok || !metaRaw.data) return res.json({ error: 'group not found' });
   try {
     const meta = JSON.parse(metaRaw.data);
     if (!isGroupOwner(meta, identityHex)) return res.json({ error: 'only the group owner can delete the group' });
-    const del = runShell(`docker exec mix-servicenode rm -rf /var/lib/katzenpost/servicenode1/chatd/group_${group_id} /tmp/zkchat/group_${group_id} 2>/dev/null`, 10000);
+    const del = spawnSyncDocker(['exec', 'mix-servicenode', 'rm', '-rf',
+      `/var/lib/katzenpost/servicenode1/chatd/group_${group_id}`, `/tmp/zkchat/group_${group_id}`], 10000);
     res.json(del.ok ? { deleted: true } : { error: del.error || 'delete failed' });
   } catch (e) {
     res.json({ error: e.message });

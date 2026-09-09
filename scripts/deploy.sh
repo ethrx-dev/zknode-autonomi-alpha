@@ -96,6 +96,13 @@ cmd_check() {
     check_deps
     check_images
     check_storage
+    # Secret scan — block deploy if private material got staged into the repo
+    if bash "$SCRIPT_DIR/verify-no-secrets.sh" >/dev/null 2>&1; then
+        echo -e "${GREEN}[ok]${NC} Secret scan passed"
+    else
+        echo -e "${RED}[!!]${NC} Secret scan FAILED — run scripts/verify-no-secrets.sh"
+        return 1
+    fi
     echo ""
     echo -e "${GREEN}All checks passed. Run './scripts/deploy.sh --start' to deploy.${NC}"
 }
