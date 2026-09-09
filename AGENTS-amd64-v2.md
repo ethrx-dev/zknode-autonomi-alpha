@@ -74,20 +74,18 @@ Deploy order = staged groups with health-waits (authorities → mixes → gatewa
 ```bash
 git clone https://git.zknet.cloud/G/zknode-autonomi-P4P-v.01.git
 cd zknode-autonomi-P4P-v.01
-cp .env.example .env    # set WALLET_ADDRESS (Arbitrum), NODE_NAME, STACK_MODE, NETWORK
+cp .env.example .env    # complete reference: .env.example covers every compose variable
 ```
 
 Critical `.env` keys:
 
 | Key | Purpose |
 |---|---|
-| `WALLET_ADDRESS` | MetaMask Arbitrum address — REQUIRED for ANT |
-| `NODE_NAME` | dashboard label |
-| `STACK_MODE` | `auto` / `minimal` / `medium` / `full` |
-| `NETWORK` | `mainnet` or `arbitrum-sepolia` (testnet) |
-| `ENABLE_*` | `MIXNET`, `X0X`, `FAE`, `WIKI`, `MESH` toggles |
-| `MYCOSTACK_*` | Commons/MycoFi/CoFi integration |
-| `SECRET_KEY` | ant-node operator key (Arbitrum), non-HSM hosts |
+| `ANT_REWARDS_ADDRESS` | rewards address (REQUIRED for ANT; HSM hosts set this instead of SECRET_KEY) |
+| `NODE_HOME` | host deployment root (dashboard docker mounts) |
+| `IMAGE_*` | image names — suffix `:amd64` on amd64 hosts |
+| `DASHBOARD_TOKEN` | unset = dashboard loopback-only; set = LAN access with token auth |
+| `MIXNET_MEM_LIMIT` / `PROXY_MEM_LIMIT` | compose mem limits |
 
 ### amd64 images — pull or cross-build
 
@@ -97,12 +95,23 @@ Defaults are `:arm64`-tagged (`zeros/mixnet-node:arm64`, `zeros/antd:arm64`, `ze
 # (a) use an amd64/multi-arch tag if published; verify with:
 docker image inspect --format '{{.Architecture}}' zeros/antd:amd64
 # (b) cross-build from Dockerfiles (TARGETARCH is supported):
-docker build --build-arg TARGETARCH=amd64 -f Dockerfile.mixnet          -t zeros/mixnet-node:amd64 .
-docker build --build-arg TARGETARCH=amd64 -f Dockerfile.antd            -t zeros/antd:amd64 .
-docker build --build-arg TARGETARCH=amd64 -f Dockerfile.storage-proved-rs -t zeros/storage-proved-rs:amd64 .
+# Or build everything with the canonical builder:
+./scripts/build.sh --both        # amd64 + arm64 tags (all 7 images)
+# (manual: docker build --build-arg TARGETARCH=amd64 -f <Dockerfile> -t <tag> .)
 ```
 
-Point compose/env image tags to `:amd64`. The ant-node binary itself is arch-agnostic — `antd` downloads the correct x86_64 `ant-node-<ver>` at first run.
+Point compose/env image tags to `:amd64`. The ant-node binary is pinned
+(`v0.14.4`); the antd entrypoint resolves the node binary dynamically
+(preferring the proven version).
+
+### Mixnet topology (required before first deploy)
+
+```bash
+sudo ./scripts/gen-mixnet99.sh "${IMAGE_MIXNET:-zeros/mixnet-node:amd64}"
+# -> config/mixnet99/ (3 authorities, 3 mixes, gateway, servicenode,
+#    replicas, client) with deployment fixes applied.
+# Restart rule: nodes restart only at epoch boundaries (:00/:20/:40 UTC).
+```
 
 ### Deploy
 
@@ -110,6 +119,15 @@ Point compose/env image tags to `:amd64`. The ant-node binary itself is arch-agn
 sudo ./deploy.sh --check       # pre-flight: RAM/disk/mounts/ports
 sudo ./deploy.sh               # staged groups 1–9
 ./scripts/monitor.sh           # TUI status
+```
+
+Dashboard LAN access: set `DASHBOARD_TOKEN` in `.env` (unset = loopback
+only). The UI prompts for the token on first API call.
+
+### Tests
+
+```bash
+./tests/run-all.sh             # repo test matrix (run before every push)
 ```
 
 ### Verify core

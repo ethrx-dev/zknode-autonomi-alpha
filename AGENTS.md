@@ -6,7 +6,7 @@
 
 zknode-autonomi is a self-contained private Autonomi storage node with traffic routed through an embedded post-quantum Katzenpost mixnet, hardware-bound ZK storage proofs, and metadata-private P2P communication. Built for the SCM4/CM4 platform (aarch64, 8GB RAM, zymkey HSM).
 
-**Repo**: `ethrx-dev/zknode-autonomi-alpha` on branch `p4p-alpha-unified`
+**Repos**: `ethrx-dev/zknode-autonomi-alpha` (GitHub, public mirror) and `git.zknet.cloud/G/zknode-autonomi-P4P-v.01` (source of truth) — branch `main` on both
 **Hardware**: Zymbit SCM4 (CM4 + zymkey HSM, 8GB RAM, 32GB eMMC, Debian Bookworm 64-bit)
 **Stack**: 14 Docker containers (Katzenpost mixnet + Autonomi node + proxy + storage prover)
 
@@ -56,7 +56,7 @@ The SCM4 has active tamper detection. Avoid triggering it:
 | VPS IP | `<your-public-ip>` |
 | VPS SSH alias | `zknet-vps` |
 | GitHub CLI | `gh` (authenticated as `ethrx-dev`) |
-| Git branch | `p4p-alpha-unified` |
+| Git branch | `main` (both remotes) |
 
 ## Local Build Environment
 
@@ -162,7 +162,7 @@ docker compose version
 
 ```bash
 cd ~
-git clone -b p4p-alpha-unified https://github.com/ethrx-dev/zknode-autonomi-alpha.git zknode-autonomi
+git clone -b main https://github.com/ethrx-dev/zknode-autonomi-alpha.git zknode-autonomi   # or the zknet repo
 cd zknode-autonomi
 ```
 
@@ -228,55 +228,34 @@ Run on the amd64 build machine. Images are cross-compiled for arm64.
 #### 2.1 — Clone and Prepare
 
 ```bash
-git clone -b p4p-alpha-unified https://github.com/ethrx-dev/zknode-autonomi-alpha.git zknode-autonomi
+git clone -b main https://github.com/ethrx-dev/zknode-autonomi-alpha.git zknode-autonomi   # or the zknet repo
 cd zknode-autonomi
 cp .env.example .env  # or create .env from template below
 ```
 
 #### 2.2 — Configure .env
 
-Create `.env` with these values (adjust for your deployment):
-
-```env
-IMAGE_MIXNET=zeros/mixnet-node:arm64
-IMAGE_MIXNET_PROXY=zeros/mixnet-proxy:arm64
-IMAGE_ANT_NODE=zeros/ant-node:arm64
-IMAGE_ANTD=zeros/antd:arm64
-
-ANT_NODE_PORT=12000
-AUTONOMI_EVM_NETWORK=arbitrum-sepolia
-AUTONOMI_CHUNK_DB=/mnt/trinity/autonomi/chunks
-AUTONOMI_LOGS_DIR=/mnt/trinity/autonomi/logs
-MIXNET_MEM_LIMIT=256m
-PROXY_MEM_LIMIT=256m
-PROXY_SOCKS_PORT=1080
-
-SECRET_KEY=<your-wallet-private-key>
+```bash
+cp .env.example .env
 ```
 
-**Note**: If using zymkey HSM wallet (SCM4), the `SECRET_KEY` is not used for signing — the HSM holds the key. Set `ANT_REWARDS_ADDRESS` to the HSM-derived EVM address instead.
+`.env.example` is the complete variable reference (image names, ports,
+mem limits, Autonomi, dashboard security). Key entries for a real node:
+`NODE_HOME`, `IMAGE_*` (suffix `:amd64`/`:arm64` to match the target),
+`ANT_REWARDS_ADDRESS` (HSM deployments), `DASHBOARD_TOKEN`
+(`openssl rand -hex 24`) — unset keeps the dashboard loopback-only.
 
-#### 2.3 — Build All Images
+#### 2.3 — Build All Images (multi-arch)
 
 ```bash
-# Katzenpost mixnet node (all binaries: dirauth, server, courier, kpclientd, etc.)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet -t zeros/mixnet-node:arm64 .
-
-# Mixnet proxy (SOCKS5 bridge, Go thin client)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.mixnet-proxy -t zeros/mixnet-proxy:arm64 .
-
-# Autonomi storage node (Rust, cross-compiled)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.ant-node -t zeros/ant-node:arm64 .
-
-# Autonomi CLI / antd
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.antd -t zeros/antd:arm64 .
-
-# Storage prover (Merkle/Winterfell proofs)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.storage-proved -t zeros/storage-proved:arm64 .
-
-# WalletShield (EVM RPC through mixnet)
-docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/walletshield:arm64 .
+./scripts/build.sh              # host arch, canonical image map
+./scripts/build.sh --both       # local amd64 + arm64 tags
+./scripts/build.sh --multiarch --push   # buildx manifest to a registry (REGISTRY=ghcr.io/<org>/)
 ```
+
+Canonical map (one Dockerfile per image): mixnet-node, walletshield,
+mixnet-proxy, ant-node, antd, storage-proved-rs, dashboard. All seven are
+pinned and verified for **amd64 + arm64**; `tests/` gate CI publishes.
 
 **Build notes:**
 - `Dockerfile.mixnet` builds RocksDB v10.2.1 from source for aarch64 and cross-compiles all Katzenpost binaries. This takes ~20-30 minutes.
@@ -309,23 +288,21 @@ cd ~/zknode-autonomi
 # Verifies: architecture, Docker installed, all images present, USB pool mounted
 ```
 
-#### 3.3 — Generate Configs
+#### 3.3 — Generate Mixnet Configs
 
 ```bash
-./scripts/setup.sh
-# Generates: mixnet PKI configs (via genconfig), proxy config, autonomi configs
-# Creates: data/ directories, fixes permissions (katzenpost requires 700 on config dirs)
+sudo ./scripts/gen-mixnet99.sh [IMAGE_MIXNET]     # -> config/mixnet99/
 ```
 
-**What setup.sh does:**
-1. Creates `data/` directories (mixnet, antd, proxy, zymbit)
-2. Checks for USB pool at `/mnt/trinity` (falls back to `./data/` if not mounted)
-3. Runs `genconfig` inside the mixnet Docker image to produce Katzenpost configs:
-   - `--voting --wirekem MLKEM768 --nike x25519` (post-quantum wire KEM)
-   - `--layers 3 --nodes 3 --gateways 1 --serviceNodes 1 --nrVoting 3`
-4. Fixes servicenode config: correct binary paths, disables CBOR plugins
-5. Sets directory permissions to 700 (katzenpost requirement)
-6. Generates proxy config with random API key
+Generates the full Katzenpost v0.0.99 topology (3 voting authorities, 3
+mixes, gateway, service node, storage replicas, client) from the image's
+`genconfig` and applies the deployment fixes (plugin paths, 0700 perms,
+thinclient 127.0.0.1). Validated end-to-end: PKI consensus, 3-hop echo,
+walletshield RPC round-trip.
+
+**Operational rule**: restart mixnet nodes only at epoch boundaries
+(:00/:20/:40 UTC) — mid-epoch restarts regenerate mix keys and invalidate
+the current consensus document.
 
 #### 3.4 — Start the Stack
 
@@ -395,11 +372,14 @@ Expected: 10+ containers running, mixnet consensus achieved, proxy ACTIVE, stora
 
 ### MetaMask / EVM RPC over the mixnet
 
-External RPC endpoint: **`http://<node-ip>:8080/ethereum`** (dashboard proxies to
-walletshield on `127.0.0.1:9200`, which tunnels via kpclientd → `proxy` service
-→ `ethereum-rpc.publicnode.com`). Configure it in MetaMask as a custom RPC;
-`eth_chainId` = `0x1` (mainnet JSON-RPC proxied), balances/block numbers served
-through the mixnet.
+External RPC endpoint: **`http://<node-ip>:8080/ethereum`** (dashboard →
+walletshield on `127.0.0.1:9200` → kpclientd → `http` service on the
+servicenode → `ethereum-rpc.publicnode.com`). Configure it in MetaMask as a
+custom RPC; `eth_chainId` = `0x1`. JSON-RPC responses are capped at 2000
+bytes (Sphinx payload geometry) — core polling (`eth_blockNumber`,
+`eth_chainId`, balances) works; large responses (e.g. full block bodies)
+time out by design. LAN access requires `DASHBOARD_TOKEN` (unset = dashboard
+is loopback-only).
 
 ### Autonomi daemon & node control
 
@@ -414,23 +394,23 @@ through the mixnet.
 
 | Container | Role | Network | RAM Limit | Image |
 |-----------|------|---------|-----------|-------|
-| mix-dirauth-1/2/3 | Directory authorities (PKI consensus) | host | 256MB | zeros/mixnet-node:arm64 |
-| mix-1/2/3 | Mix nodes (3-hop Sphinx routing) | host | 256MB | zeros/mixnet-node:arm64 |
-| mix-gateway | Client entry point | host | 256MB | zeros/mixnet-node:arm64 |
-| mix-servicenode | Exit node (http_proxy, courier) | host | 256MB | zeros/mixnet-node:arm64 |
-| mix-client | Client daemon (kpclientd) | host | 128MB | zeros/mixnet-node:arm64 |
-| mixnet-proxy | SOCKS5 bridge + ZK proof API :9090 | host | 256MB | zeros/mixnet-proxy:arm64 |
-| walletshield | EVM RPC through mixnet :9200 | host | — | zeros/walletshield:arm64 |
-| storage-proved | Merkle/Winterfell storage prover :9201 | bridge | — | zeros/storage-proved:arm64 |
-| antd | Autonomi CLI + node manager | bridge | — | zeros/antd:arm64 |
-| reticulum | Reticulum mesh networking (RNS + LXMF) | host | — | zeros/reticulum:arm64 |
-| zkchat | Mixnet-native group chat (metadata-private) | host | — | zeros/mixnet-node:arm64 |
+| mix-dirauth-1/2/3 | Directory authorities (PKI consensus) | katzenpost-net bridge | 256MB | `${IMAGE_MIXNET}` |
+| mix-1/2/3 | Mix nodes (3-hop Sphinx routing) | katzenpost-net bridge | 256MB | `${IMAGE_MIXNET}` |
+| mix-gateway | Client entry point | katzenpost-net bridge | 256MB | `${IMAGE_MIXNET}` |
+| mix-servicenode | Exit node (http proxy, courier, chat) | katzenpost-net bridge | 256MB | `${IMAGE_MIXNET}` |
+| mix-client | Client daemon (kpclientd) | katzenpost-net bridge, publishes 127.0.0.1:64331 | 128MB | `${IMAGE_MIXNET}` |
+| mixnet-proxy | SOCKS5 bridge + ZK proof API :9090 | host | 256MB | `${IMAGE_MIXNET_PROXY}` |
+| walletshield | EVM RPC through mixnet :9200 | host | — | `${IMAGE_WALLETSHIELD}` |
+| storage-proved | ZK storage prover :9201 | autonomi bridge | — | `${IMAGE_STORAGE_PROVED}` |
+| antd | Autonomi CLI + node manager | autonomi bridge | — | `${IMAGE_ANTD}` |
+| reticulum | Reticulum mesh networking (RNS + LXMF) | host | — | built from Dockerfile.reticulum |
+| zkchat | Mixnet-native group chat (metadata-private) | host | — | `${IMAGE_MIXNET}` |
 
 ### Networking
 
-- **Mixnet containers**: `network_mode: host` — all share host network, communicate via `127.0.0.1` on distinct ports. This avoids Docker bridge overhead for latency-sensitive Sphinx packet routing.
-- **Storage/autonomi containers**: `network_mode: bridge` (named `zknode-autonomi-net`) — isolated bridge network.
-- **All services bind to `127.0.0.1`** — no external exposure except ant-node port 12000 (QUIC/UDP).
+- **Mixnet containers**: on the `katzenpost-net` bridge network — nodes address each other by Docker hostname (`auth1`, `mix1`, `gateway1`, `servicenode1`) resolved by the embedded DNS; PKI documents carry hostname-derived addresses and configs set `AllowHostnameAddresses = true`.
+- **Storage/autonomi containers**: isolated bridge (`autonomi`).
+- **Client-facing services**: `mix-client` publishes `127.0.0.1:64331` (thin clients: walletshield, zkchat, dashboard runner connect there); walletshield and the dashboard bind loopback; ant-node is the only externally exposed port (12000 UDP/QUIC).
 
 ### Storage Layout
 
@@ -468,29 +448,26 @@ through the mixnet.
 | `scripts/zknode-watchdog.sh` | I/O-aware self-healing cycle (antd throttle, dirauth desync, bad-behavior detection); installed to `/usr/local/bin/zknode-watchdog` |
 | `scripts/zknode-watchdog.service / .timer` | Runs watchdog every 10 min (randomized), `Nice=10`, `IOSchedulingClass=idle` |
 | `scripts/install-living-intelligence.sh` | Installs doctor + watchdog + tuning on SCM4: scripts to `/usr/local/bin`, systemd units, `noatime,commit=60` fstab, Docker `10m` log rotation, enables watchdog timer |
+| `scripts/build.sh` | Canonical multi-arch image builder (`host` / `--both` / `--multiarch --push`) |
+| `scripts/gen-mixnet99.sh` | Generate a fresh v0.0.99 mixnet topology (`config/mixnet99`) with deployment fixes applied |
+| `scripts/state.sh` | Node-state lifecycle: `export` (drift check), `backup` (encrypted bundle), `restore` |
+| `tests/run-all.sh` | Repo test matrix (secrets scan, syntax, compose config, backup roundtrip, generator checks) |
+| `tests/test-config-drift.sh` | Repo topology vs live node comparison (via SSH; skips gracefully when the node is unreachable) |
 | `scripts/build-usb-image.sh` | Deterministic USB image builder for P4P wiki mesh: `--size 64G` `--stack minimal\|full` `--base wolfi\|debian` `--kernel zeros\|debian` `--output img` `--compress zstd\|gzip\|none` `--device /dev/sdX` `--dry-run` (safe: never touches nvme/sda) |
 
-## Known Issues
+## Operational Rules
 
-| Issue | Status | Impact |
-|-------|--------|--------|
-| **Zymkey HSM signing** | Not implemented | ant-node cannot sign EVM transactions via HSM. Rewards arrive at HSM-derived address but must be spent separately via zymkey wallet. |
-| **kpclientd epoch sync** | Fixed 2026-08-28 | `client/pki.go`: transient errors (`ErrNoDocument`, `ErrNotConnected`) no longer blacklist an epoch; worker fetches `now-1` when `now` is uncached. See `docs/OPS_SESSION_2026-08-28.md`. |
-| **Dirauth FSM desync** | Known issue | If dirauths disagree on the voting epoch ("No document for current epoch generated and never will be"), restart all three **together**: `docker restart mix-dirauth-1 mix-dirauth-2 mix-dirauth-3`. Skipped epochs are permanently unavailable; clients auto-recover on the next published epoch. |
-| **WalletShield thin config** | Migrated | `config/walletshield/config.toml` and `thinclient.toml` use the new `[Dial.Tcp]` format only — old `[SphinxGeometry]`/`[PigeonholeGeometry]` sections are rejected (`unknown key(s)`). Geometry comes from the daemon handshake. |
-| **antd daemon-managed nodes** | Known issue | `ant node add`-managed 0.17.2 nodes fail (`dual-stack transport`) — the daemon doesn't propagate env/flags to spawned processes. The storage node runs as the **direct binary** from the container entrypoint. Node start/stop = `docker start/stop antd` (monitor loop respawns killed processes). |
-| **zkchat poll containers** | Fixed 2026-08-29 | Dashboard reuses a persistent `zkchat-poll-runner` container via `docker exec` instead of spawning `docker run --rm` per call. Per-call spawning orphaned `Created` containers under dockerd contention (dashboard freeze + load spike). Idempotent ensure: inspect → create-if-missing → start. |
-| **reticulum image rnsd hang** | Worked around 2026-08-29 | `zeros/reticulum:arm64` bundles RNS 1.3.7 whose `rnsd` hangs silently at startup (no interfaces, no shared instance). Compose runs `rnsd` from `zknode-autonomi-nomadnet:latest` (RNS 0.8.7, works). Rebuild the reticulum image to restore. |
-| **nomadnet config schema** | Fixed 2026-08-29 | Hand-written config used non-existent sections (`[nomadnet]`, `[pages]`, `[propagation]`, `[lxmf]`) → `applyConfig()` KeyError → `nomadnet.panic()` → silent `os._exit(255)` restart loop. Replaced with 0.4.1 schema (`[logging]`, `[client]`, `[textui]`, `[node]`, `[printing]`); `pages_path` preserved. NomadNet also needs its OWN RNS config (`config/nomadnet/rns-config/`) — sharing rnsd's config duplicates the 37428 TCP server → same panic. |
-| **nomadnet shared RNS storage** | Fixed 2026-08-30 | Even with its own rns-config, nomadnet mounted `./data/reticulum` — the SAME RNS storage dir as the `reticulum` container's rnsd (both `network_mode: host`). With `share_instance = false`, nomadnet's RNS instance collides with rnsd's storage lock → `RNS.panic()` → silent 255 loop with ZERO log output. Fix: nomadnet gets its own storage — compose mounts `./data/nomadnet/rns:/var/lib/reticulum` for nomadnet (rnsd keeps `./data/reticulum`). Diagnose by: container exits 255 with empty `docker logs`. |
-| **zknode-boot stagger (deploy.sh path bug)** | Fixed 2026-08-30 | `zknode-boot.service` (runs `deploy.sh` at boot) failed status=14: `PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"` assumed the script lived in `scripts/`, but on-device it's at the project root → looked for `/home/zero-tech/docker-compose.yml` (one level too high). Fixed with location-agnostic detection: use `$SCRIPT_DIR` if it contains docker-compose.yml, else parent. Note: containers use `restart: unless-stopped`, so dockerd still auto-starts everything at daemon boot in parallel; the stagger service adds ordered convergence on top. |
-| **antd USB HDD I/O storm (box wedge)** | Fixed 2026-08-29 | ant-node writes its data + logs to `/mnt/usb_sda3/antd-data` on a single-spindle USB HDD (sda). Unthrottled, its sustained random writes saturate the drive — iowait 60-75% with `jbd2/sda2`/`usb-storage` in `D` state — starving sshd/dockerd/dashboard (port open but SSH banner times out; "wedged", needs reboot). The high "load" is uninterruptible I/O wait, not CPU (idle) or RAM (free). Fix: `blkio_config.device_write_bps/device_read_bps` on `antd` (device `/dev/sda`, write 40MB/s, read 100MB/s) so the box never starves. Apply live with `echo "8:0 rbps=104857600 wbps=41943040" > <antd-cgroup>/io.max` on cgroup v2, or re-create antd from compose. |
-| **storage-proved boot race** | Known issue | After reboot, `storage-proved` can fail to attach to the bridge network (`failed to save bridge endpoint ... timeout`) and stay Exited(255). Manual `docker start storage-proved` fixes it. |
-| **Host networking** | By design | Mixnet containers share host network for latency. Bridge networking with BindAddresses needed for production multi-instance isolation. |
-| **Go 1.26.2 requirement** | Docker workaround | katzenpost hpqc module requires Go >= 1.26.2. Local builds may fail on older Go. Docker builds use `golang:latest` which works. |
-| **deploy.sh slow start (per-group I/O storms)** | Fixed 2026-08-30 | Old `--start` ran `compose up` per group → 9 separate I/O storms on the USB HDD, hours total. Fast-stagger path creates all containers in one pass, then starts them group-by-group with `wait_running` polling + `wait_consensus` deadline → converges in ~20-40 min. |
-| **walletshield RPC parse (binary framing prefix)** | Fixed 2026-09-01 | Mixnet replies could carry leading binary bytes, breaking HTTP response parse downstream. `walletshield-fix/main.go` now strips the framing prefix before parsing. Thin transport migrated to `client2/common/config`; legacy `Dial.Listen`/session-token reply types dropped. |
-| **watchdog restart path missing** | Fixed 2026-09-01 | `zknode-watchdog.service` ExecStart pointed at a non-build path, so the installed watchdog didn't run. Now `/usr/local/bin/zknode-watchdog`; install via `scripts/install-living-intelligence.sh`. |
+| Rule | Detail |
+|------|--------|
+| **Epoch-boundary restarts** | Restart mixnet nodes only at epoch boundaries (:00/:20/:40 UTC). Mid-epoch restarts regenerate mix keys and invalidate the current consensus document until the next epoch publishes. The fast-stagger deploy already aligns to boundaries. |
+| **Dirauth restarts are simultaneous** | If authorities disagree on the voting epoch, restart all three **together**; skipped epochs are permanently unavailable and clients recover on the next published epoch. |
+| **antd throttled on SCM4** | `blkio_config` caps ant-node writes (40MB/s) on the single-spindle USB HDD so the box never starves. The watchdog re-applies the cgroup limit. |
+| **antd node = direct binary** | The storage node runs as the direct binary from the container entrypoint (the daemon doesn't propagate env to spawned nodes). Node start/stop = `docker start/stop antd`; the entrypoint monitor respawns it. |
+| **NomadNet/Reticulum storage isolation** | nomadnet mounts its own RNS storage (`./data/nomadnet/rns`); rnsd keeps `./data/reticulum`. Do not share RNS storage between instances. |
+| **WalletShield thin config format** | client2 format only: `[Dial] [Dial.Tcp]` — no geometry sections (geometry comes from the daemon handshake). |
+| **Zymkey HSM signing** | Not implemented: rewards arrive at the HSM-derived address but must be spent via the separate zymkey wallet. |
+| **storage-proved boot race** | After reboot it can stay Exited(255) — `docker start storage-proved` (the watchdog also auto-starts exited containers). |
+| **SCM4 .git quirk** | The device's `.git` is a symlink to exFAT (root-owned, no chown); edit `.git/config` with sudo sed. |
 
 ## Troubleshooting
 
@@ -509,17 +486,14 @@ through the mixnet.
 ## Git Workflow
 
 ```bash
-# Branch: p4p-alpha-unified
-# Remote: origin (ethrx-dev/zknode-autonomi-alpha)
-
-# Pull latest
-git pull --rebase origin p4p-alpha-unified
-
-# Commit and push
-git add -A
-git commit -m "Description of change"
-git push origin p4p-alpha-unified
+# Branch: main — push to BOTH remotes after every change
+git add -A && git commit -m "change"
+git push origin main      # GitHub (public mirror)
+git push zknet main       # git.zknet.cloud (source of truth)
 ```
+
+Run `./tests/run-all.sh` before pushing; CI publishes images only after
+the test matrix passes.
 
 ## SCM4 .git Quirk
 
@@ -529,14 +503,18 @@ On the SCM4, the `.git` directory is a symlink to `/mnt/usb_sda3/zknode-autonomi
 - To edit `.git/config`, use: `echo '<sudo-password>' | sudo -S sed -i '...' .git/config`
 - Git operations (commit, push) work normally as the regular user
 
-## Security Audit
+## Security Posture
 
-The project has been audited with the zkn-security-server scanner. Applied fixes:
-- Docker containers run as non-root users (`katzenpost` / `app`)
-- Systemd service hardened (`NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp`, etc.)
-- npm dependencies pinned to exact versions
-- Private PEM files removed from git history and `.gitignore` updated
-- RPC gateway rate limiting configured (10 req/s, 100 req/min, burst 20)
+- Dashboard: token auth on all `/api` endpoints (Bearer / `x-zk-token` /
+  HttpOnly cookie), 240 req/min/IP rate limit, security headers; **binds
+  127.0.0.1 only unless `DASHBOARD_TOKEN` is set**
+- No key material in git (`**/*.pem`, state dirs ignored; secret-scan test
+  enforces; detector files excluded from self-match)
+- Node state lifecycle: encrypted backups (`scripts/state.sh backup`),
+  checksum-verified restores, drift checks (`export`) between repo and node
+- Pinned provenance: katzenpost commit, RocksDB, Rust/Go bases; patch
+  application is fail-hard in image builds
+- zymbit/SCM4: attestation, tamper notify-only in dev, LUKS key sealed to HSM
 
 ## References
 
