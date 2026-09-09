@@ -1,6 +1,9 @@
 # Katzenpost Local Changes Summary
 
-These changes are in the `katzenpost/` directory which is in `.gitignore`. They are built into Docker images.
+These changes build into Docker images. Current model: `Dockerfile.mixnet`
+pins upstream katzenpost v0.0.99 (commit 32c27b8) and applies the reviewed
+patches from `patches/` at build time; the legacy `katzenpost/` working-tree
+files are v0.0.84-era and are NOT overlaid on 0.99 builds.
 
 ## Fixed Issues
 
