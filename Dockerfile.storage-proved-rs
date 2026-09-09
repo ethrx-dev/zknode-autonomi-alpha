@@ -1,25 +1,48 @@
+# Dockerfile.storage-proved-rs — ZK storage prover (multi-arch, pinned base)
+#
+# Multi-arch: TARGETARCH={amd64,arm64}; builder cross-compiles for arm64,
+# builds natively for amd64. Runtime is per-arch debian (manifest select).
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.storage-proved-rs --build-arg TARGETARCH=arm64 -t zeros/storage-proved-rs:arm64 .
+#   docker build -f Dockerfile.storage-proved-rs --build-arg TARGETARCH=amd64 -t zeros/storage-proved-rs:amd64 .
+#   ./scripts/build.sh --both
+
+# syntax=docker/dockerfile:1
+
 ARG TARGETARCH=arm64
-ARG BUILDER_ARCH=amd64
 
-FROM --platform=linux/${BUILDER_ARCH} rust:latest AS builder
+FROM --platform=$BUILDPLATFORM rust:1-bookworm AS builder
 
-# Install cross-compilation toolchain for arm64
-RUN rustup target add aarch64-unknown-linux-gnu && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-    && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH=arm64
+
+RUN set -eux; \
+    apt-get update; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      rustup target add aarch64-unknown-linux-gnu; \
+      apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+    else \
+      rustup target add x86_64-unknown-linux-gnu; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY cmd/storage-proved-rs/ .
-ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
-ENV CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
-ENV AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
-ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-RUN cargo build --release --target aarch64-unknown-linux-gnu && \
-    mkdir -p /dest && \
-    cp target/aarch64-unknown-linux-gnu/release/storage-proved-rs /dest/
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+RUN set -eux; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      TGT=aarch64-unknown-linux-gnu; \
+      export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+             CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
+             AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+             CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc; \
+    else \
+      TGT=x86_64-unknown-linux-gnu; \
+    fi; \
+    cargo build --release --target "$TGT"; \
+    mkdir -p /dest && cp "target/$TGT/release/storage-proved-rs" /dest/
+
+FROM --platform=linux/${TARGETARCH} debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \

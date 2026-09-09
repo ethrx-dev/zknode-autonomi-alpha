@@ -88,3 +88,6 @@ config/mixnet99/**/*.tmp
 config/mixnet99/**/proxy.*.log
 config/mixnet99/**/chatd.*.log
 config/mixnet99/servicenode1/chatd/
+
+# Dashboard deps (installed via npm ci; lockfile IS tracked)
+zknode-dashboard/node_modules/
