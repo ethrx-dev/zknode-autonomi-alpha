@@ -1,6 +1,10 @@
+# Build context slimming: only intentional overlays enter the build.
+katzenpost/**
+!katzenpost/cmd/chatd/
+!katzenpost/cmd/chatd/main.go
+!katzenpost/cmd/zkchat/
+!katzenpost/cmd/zkchat/main.go
+.git/
+data/
 config/
-*.sock
-*.socket
-*.log
-node_modules/
-p2p-wiki/
+zknode-autonomi-images.tar.gz

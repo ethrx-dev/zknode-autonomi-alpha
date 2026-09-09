@@ -1,71 +1,123 @@
+# Dockerfile.mixnet — Katzenpost v0.0.99 node image (multi-arch)
+#
+# Builds ALL mixnet binaries (dirauth, server, courier, kpclientd, ping,
+# fetch, echo-plugin, genconfig, http-proxy-server, http-proxy-client,
+# chatd, zkchat) from a PINNED upstream commit, overlaying the repo's
+# reviewed modifications (patches/).
+#
+# Multi-arch: the builder stage always runs on $BUILDPLATFORM and
+# cross-compiles (CGO is required by the highctidh wire KEM). The runtime
+# stage has NO RUN steps (COPY-only) so QEMU/binfmt is never required.
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.mixnet --build-arg TARGETARCH=arm64 \
+#     --build-arg LIBDIR=/usr/lib/aarch64-linux-gnu -t zeros/mixnet-node:arm64 .
+#   docker build -f Dockerfile.mixnet --build-arg TARGETARCH=amd64 \
+#     --build-arg LIBDIR=/usr/lib/x86_64-linux-gnu -t zeros/mixnet-node:amd64 .
+#   ./scripts/build.sh --both   (wraps the above)
+#
+# Pinned upstreams (change deliberately, never implicitly):
+#   katzenpost 32c27b8de06bdd3012218253e88e035b2e6e02c1  (= tag v0.0.99)
+#   rocksdb    v10.2.1
+#   golang     1.26-bookworm
+
+# syntax=docker/dockerfile:1
+
+# Global args so the runtime stage can select platform + lib dir
 ARG TARGETARCH=arm64
-ARG BUILDER_ARCH=amd64
+ARG LIBDIR=/usr/lib/aarch64-linux-gnu
 
-FROM --platform=linux/${BUILDER_ARCH} golang:latest AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
 
 ARG TARGETARCH=arm64
+ARG KP_COMMIT=32c27b8de06bdd3012218253e88e035b2e6e02c1
+ARG ROCKSDB_VERSION=v10.2.1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    libsnappy-dev \
-    liblz4-dev \
-    libzstd-dev \
-    zlib1g-dev \
-    gcc-aarch64-linux-gnu \
-    g++-aarch64-linux-gnu \
-    && dpkg --add-architecture arm64 \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    libsnappy-dev:arm64 \
-    liblz4-dev:arm64 \
-    libzstd-dev:arm64 \
-    zlib1g-dev:arm64 \
-    && rm -rf /var/lib/apt/lists/*
+# Cross toolchain + multiarch compression libs (arm64), or native (amd64)
+RUN set -eux; \
+    apt-get update; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+      dpkg --add-architecture arm64; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        libsnappy-dev:arm64 liblz4-dev:arm64 libzstd-dev:arm64 zlib1g-dev:arm64; \
+    else \
+      apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+        libsnappy-dev liblz4-dev libzstd-dev zlib1g-dev; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
-# Build RocksDB for aarch64 (cross-compile)
-RUN cd /tmp \
-    && git clone --branch v10.2.1 --depth 1 https://github.com/facebook/rocksdb.git \
-    && cd rocksdb \
-    && PORTABLE=1 make -j"$(nproc)" shared_lib \
-       CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-       AR=aarch64-linux-gnu-ar \
-       EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2" \
-       LDFLAGS="-L/usr/aarch64-linux-gnu/lib" \
-    && cp -a librocksdb.so* /usr/local/lib/ \
-    && cp -a include/* /usr/local/include/ \
-    && cd /tmp && rm -rf rocksdb
+# RocksDB shared lib for the TARGET arch
+RUN set -eux; \
+    git clone --branch "$ROCKSDB_VERSION" --depth 1 https://github.com/facebook/rocksdb.git /tmp/rocksdb; \
+    cd /tmp/rocksdb; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      PORTABLE=1 make -j"$(nproc)" shared_lib \
+        CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+        EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2" \
+        LDFLAGS="-L/usr/aarch64-linux-gnu/lib"; \
+    else \
+      PORTABLE=1 make -j"$(nproc)" shared_lib \
+        EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2"; \
+    fi; \
+    cp -a librocksdb.so* /usr/local/lib/; \
+    cp -a include/* /usr/local/include/; \
+    cd /tmp && rm -rf rocksdb
 
-# Build Katzenpost components (Go cross-compile to arm64)
-COPY katzenpost /src/katzenpost
+# Pinned katzenpost source + repo overlay (reviewed modifications).
+# Overlay is SURGICAL. NOTE: the legacy katzenpost/ tracked files are
+# v0.0.84-era and are NOT overlaid on the v0.0.99 build; only the local
+# service plugins (chatd, zkchat) ride along — the compiler arbitrates
+# their compatibility (see REMAINING_WORK: thin-API re-port pending).
+RUN mkdir -p /src/katzenpost
+RUN curl -fsSL "https://github.com/katzenpost/katzenpost/archive/${KP_COMMIT}.tar.gz" \
+    | tar xz -C /src/katzenpost --strip-components=1
+COPY katzenpost/cmd/chatd/main.go /src/katzenpost/cmd/chatd/main.go
+COPY katzenpost/cmd/zkchat/main.go /src/katzenpost/cmd/zkchat/main.go
+COPY patches/ /src/patches/
 
-# Katzenpost core/log exports Backend but some code expects Logger; add type alias
+# katzenpost core/log exports Backend but some code expects Logger; alias
 RUN printf '\n// Alias for backward compatibility\ntype Logger = logging.Logger\n' \
-     >> /src/katzenpost/core/log/log.go
+    >> /src/katzenpost/core/log/log.go
 
-RUN cd /src/katzenpost && go clean -cache
+# Apply reviewed patches (fail hard if any no longer applies)
+RUN set -eux; cd /src/katzenpost; \
+    for p in /src/patches/*.patch; do \
+      [ -e "$p" ] || continue; \
+      git init -q . >/dev/null 2>&1 || true; \
+      git apply --check --whitespace=nowarn "$p" || { echo "patch no longer applies: $p"; exit 1; }; \
+      git apply --whitespace=nowarn "$p"; \
+      echo "  applied $(basename "$p")"; \
+    done
 
-RUN mkdir /dest && \
-    cd /src/katzenpost && \
-    export GOOS=linux GOARCH=arm64 CGO_ENABLED=1 \
-           CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
-           CGO_CFLAGS="-I/usr/local/include -I/usr/include" \
-           CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/aarch64-linux-gnu -lrocksdb -lsnappy -llz4 -lzstd -lz" && \
-     set -e; for cmd in dirauth server courier kpclientd ping fetch echo-plugin genconfig http-proxy-server http-proxy-client chatd zkchat; do \
-         cd /src/katzenpost/cmd/$cmd && \
-         go build -trimpath -ldflags="-buildid=" -o /dest/$cmd . && \
-         echo "  built $cmd"; \
-     done
+# Cross-compile for TARGETARCH (cgo: highctidh wire KEM + shared rocksdb)
+RUN set -eux; cd /src/katzenpost; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      export CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+             CGO_LDFLAGS="-L/usr/local/lib -L/usr/lib/aarch64-linux-gnu"; \
+    else \
+      export CC=gcc CXX=g++ \
+             CGO_LDFLAGS="-L/usr/local/lib"; \
+    fi; \
+    export GOOS=linux GOARCH="$TARGETARCH" CGO_ENABLED=1 \
+           CGO_CFLAGS="-I/usr/local/include -I/usr/include"; \
+    mkdir -p /dest; \
+    for cmd in dirauth server courier kpclientd ping fetch echo-plugin \
+               genconfig http-proxy-server http-proxy-client chatd zkchat; do \
+      ( cd "cmd/$cmd" && go build -trimpath -ldflags="-buildid=" -o "/dest/$cmd" . ); \
+      echo "  built $cmd ($TARGETARCH)"; \
+    done
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+FROM --platform=linux/${TARGETARCH} debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    libsnappy1v5 \
-    liblz4-1 \
-    libzstd1 \
-    && rm -rf /var/lib/apt/lists/*
-
+# No RUN steps (binfmt-free): everything the binaries need is COPY'd in.
+# CA roots + rocksdb + compression libs all come from the builder stage.
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
 COPY --from=builder /usr/local/lib/librocksdb.so* /usr/local/lib/
-COPY --from=builder /dest/* /usr/local/bin/
+COPY --from=builder ${LIBDIR}/libsnappy.so.1* ${LIBDIR}/liblz4.so.1* ${LIBDIR}/libzstd.so.1* ${LIBDIR}/libz.so.1* /usr/local/lib/
+COPY --from=builder /dest/ /usr/local/bin/
 
-RUN ldconfig || true
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV LD_LIBRARY_PATH=/usr/local/lib

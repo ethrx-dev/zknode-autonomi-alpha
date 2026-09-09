@@ -1,14 +1,83 @@
+# Dockerfile.walletshield — WalletShield EVM RPC over the mixnet (multi-arch)
+#
+# Builds WalletShield FROM SOURCE (walletshield-fix/) — no prebuilt binaries.
+# The thin-client layer (walletshield-fix/thin) is migrated to katzenpost
+# client2; the mixnet RPC round-trip fixes are part of this source tree.
+#
+# Multi-arch: the builder stage always runs on $BUILDPLATFORM and
+# cross-compiles (CGO required transitively by katzenpost deps). RocksDB is
+# linked STATICALLY; the runtime stage has NO RUN steps (COPY-only), so
+# QEMU/binfmt is never required.
+#
+# Build (from repo root):
+#   docker build -f Dockerfile.walletshield --build-arg TARGETARCH=arm64 -t zeros/walletshield:arm64 .
+#   docker build -f Dockerfile.walletshield --build-arg TARGETARCH=amd64 -t zeros/walletshield:amd64 .
+#   ./scripts/build.sh --both   (wraps the above)
+#
+# Pinned upstreams: rocksdb v10.2.1, golang 1.26-bookworm
+
+# syntax=docker/dockerfile:1
+
+# Global args so the runtime stage can select its platform
 ARG TARGETARCH=arm64
 
-FROM --platform=linux/${TARGETARCH} arm64v8/debian:bookworm-slim
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH=arm64
+ARG ROCKSDB_VERSION=v10.2.1
 
-COPY walletshield-fix/walletshield-arm64 /usr/local/bin/walletshield
+RUN set -eux; \
+    apt-get update; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu; \
+      dpkg --add-architecture arm64; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends \
+        libsnappy-dev:arm64 liblz4-dev:arm64 libzstd-dev:arm64 zlib1g-dev:arm64; \
+    else \
+      apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+        libsnappy-dev liblz4-dev libzstd-dev zlib1g-dev; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
 
-EXPOSE 9200
+# RocksDB static lib for the TARGET arch
+RUN set -eux; \
+    git clone --branch "$ROCKSDB_VERSION" --depth 1 https://github.com/facebook/rocksdb.git /tmp/rocksdb; \
+    cd /tmp/rocksdb; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      PORTABLE=1 make -j"$(nproc)" static_lib \
+        CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ AR=aarch64-linux-gnu-ar \
+        EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2"; \
+    else \
+      PORTABLE=1 make -j"$(nproc)" static_lib \
+        EXTRA_CFLAGS="-O2" EXTRA_CXXFLAGS="-O2"; \
+    fi; \
+    cp -a librocksdb.a /usr/local/lib/; \
+    cp -a include/* /usr/local/include/; \
+    cd /tmp && rm -rf rocksdb
 
-ENTRYPOINT ["walletshield"]
-CMD ["-h"]
+COPY walletshield-fix /src/walletshield-fix
+
+RUN set -eux; cd /src/walletshield-fix; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      export CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ \
+             CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -lsnappy -llz4 -lzstd -lz"; \
+    else \
+      export CC=gcc CXX=g++ \
+             CGO_LDFLAGS="-L/usr/local/lib -lrocksdb -lsnappy -llz4 -lzstd -lz"; \
+    fi; \
+    export GOOS=linux GOARCH="$TARGETARCH" CGO_ENABLED=1 \
+           CGO_CFLAGS="-I/usr/local/include"; \
+    go build -trimpath -ldflags="-buildid=" -o /dest/walletshield .
+
+FROM --platform=linux/${TARGETARCH} debian:bookworm-slim
+
+# No RUN steps (binfmt-free): CA roots come from the builder stage; the
+# binary links rocksdb+compression statically.
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
+COPY --from=builder /dest/walletshield /usr/local/bin/walletshield
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
+ENTRYPOINT ["/usr/local/bin/walletshield"]
