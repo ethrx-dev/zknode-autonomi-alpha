@@ -1,6 +1,8 @@
 networks:
   autonomi:
     driver: bridge
+  katzenpost-net:
+    driver: bridge
 services:
   antd:
     container_name: antd
@@ -59,48 +61,54 @@ services:
     - -f
     - /var/lib/katzenpost/mix1/katzenpost.toml
     container_name: mix-1
+    hostname: mix1
     depends_on:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-2:
     command:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/mix2/katzenpost.toml
     container_name: mix-2
+    hostname: mix2
     depends_on:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-3:
     command:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/mix3/katzenpost.toml
     container_name: mix-3
+    hostname: mix3
     depends_on:
     - mix-dirauth-1
     - mix-dirauth-2
     - mix-dirauth-3
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-client:
     command:
     - /usr/local/bin/kpclientd
@@ -114,75 +122,85 @@ services:
     network_mode: host
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-1:
     command:
     - /usr/local/bin/dirauth
     - -f
     - /var/lib/katzenpost/auth1/authority.toml
     container_name: mix-dirauth-1
+    hostname: auth1
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-2:
     command:
     - /usr/local/bin/dirauth
     - -f
     - /var/lib/katzenpost/auth2/authority.toml
     container_name: mix-dirauth-2
+    hostname: auth2
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-dirauth-3:
     command:
     - /usr/local/bin/dirauth
     - -f
     - /var/lib/katzenpost/auth3/authority.toml
     container_name: mix-dirauth-3
+    hostname: auth3
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-gateway:
     command:
     - /usr/local/bin/server
     - -f
     - /var/lib/katzenpost/gateway1/katzenpost.toml
     container_name: mix-gateway
+    hostname: gateway1
     depends_on:
     - mix-1
     - mix-2
     - mix-3
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
+    - ./config/mixnet99:/var/lib/katzenpost
   mix-servicenode:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/servicenode1/katzenpost.toml
     container_name: mix-servicenode
+    hostname: servicenode1
     depends_on:
     - mix-1
     - mix-2
     - mix-3
-    entrypoint:
-    - /servicenode-entrypoint.sh
     image: ${IMAGE_MIXNET}
     mem_limit: ${MIXNET_MEM_LIMIT}
-    network_mode: host
+    networks:
+    - katzenpost-net
     restart: unless-stopped
     volumes:
-    - ./config/mixnet:/var/lib/katzenpost
-    - ${NODE_HOME}/zknode01/bin/chatd:/usr/local/bin/chatd:ro
-    - ./config/mixnet/servicenode-entrypoint.sh:/servicenode-entrypoint.sh:ro
+    - ./config/mixnet99:/var/lib/katzenpost
   mixnet-proxy:
     command:
     - --config
@@ -261,7 +279,7 @@ services:
     depends_on:
     - mix-client
     entrypoint: /usr/local/bin/walletshield
-    image: ws-deploy:latest
+    image: ${IMAGE_WALLETSHIELD:-zeros/walletshield:arm64}
     network_mode: host
     restart: unless-stopped
     volumes:
@@ -279,7 +297,7 @@ services:
     network_mode: host
     restart: unless-stopped
     volumes:
-    - ./config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    - ./config/mixnet99/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
     - ./data/zkchat:/tmp/zkchat
     - ./data/zkchat/identity:/etc/zkchat/.zkchat
   zknode-dashboard:
@@ -306,8 +324,8 @@ services:
     - ./config/nomadnet/pages:/var/nomadnet/pages:rw
     - ${NODE_HOME}/zknode01/bin/zkchat:/usr/local/bin/zkchat:ro
     - ./data/zkchat:/tmp/zkchat
-    - ${NODE_HOME}/zknode-autonomi/config/mixnet/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
-    - ${NODE_HOME}/zknode-autonomi/config/mixnet/client/.zkchat/identity:/etc/zkchat/identity:ro
+    - ${NODE_HOME}/zknode-autonom./config/mixnet99/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    - ${NODE_HOME}/zknode-autonomi/config/mixnet99/client/.zkchat/identity:/etc/zkchat/identity:ro
     - ./zknode-dashboard/server/:/app/server/
     - ./zknode-dashboard/public/:/app/public/
     - /run/zkstatus/:/run/zkstatus/:ro
