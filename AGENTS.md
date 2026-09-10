@@ -368,6 +368,74 @@ echo '<sudo-password>' | sudo -S ./scripts/setup-zymbit.sh --check
 
 Expected: 10+ containers running, mixnet consensus achieved, proxy ACTIVE, storage paths OK.
 
+## VPS Mixnet Deployment (dev gateway)
+
+A v0.0.99 Katzenpost deploy runs on the dev VPS (`185.92.181.101`, SSH alias
+`zknode-mix`) so remote mesh nodes can reach the mixnet from off-SCM4.
+
+**Compose**: `docker-compose.vps.yml` — 13 containers on `katzenpost-net`
+(3 dirauth, 3 mix, gateway, servicenode, 5 storage replicas; courier runs as
+an embedded CBOR plugin on the servicenode). Topology generated with
+`scripts/gen-mixnet99.sh` (`--storageNodes 5`).
+
+**Public surface**: only the gateway — `tcp://185.92.181.101:30007`. Compose
+publishes `[VPS_GATEWAY_BIND]:[VPS_GATEWAY_PORT]:30007`; set
+`VPS_GATEWAY_BIND=185.92.181.101` so the gateway does not also bind the
+internal-only `0.0.0.0:30007` sidecar. UFW allows 22, 30004, 30007, 5355.
+
+**PKI / consensus**: descriptors are accepted at epoch boundaries
+(:00/:20/:40 UTC); dauth serves the doc (`error code 0`) and the epoch
+advances normally. Restart mixnet nodes only at a boundary — mid-epoch
+restarts regenerate mix keys and break the current doc.
+
+**Remote client** (on another machine, e.g. the build box):
+```toml
+# /tmp/vps-client-local.toml  (thin [Dial] only — geometry comes from the daemon)
+[Dial]
+Address = "tcp://185.92.181.101:30007"
+LinkKey = "gateway1 public link key from the PKI"
+IdentityKey = "gateway1 public identity key"
+# + [[Dial.VotingAuthority]] entries for auth1/2/3
+```
+Run `kpclientd -cfg <that config> -listen 127.0.0.1:64331` (adapt
+`Listen Address` from the VPS client config — do not reuse the
+container-internal `kpclientd:64331`). Then thin clients (walletshield,
+ping) connect to `127.0.0.1:64331`.
+
+**walletshield /ethereum** (validated HTTP 200):
+```bash
+docker run -d --name ws-test --network host \
+  -v config/walletshield/config.toml:/etc/ws.toml:ro zeros/walletshield:amd64 \
+  -config /etc/ws.toml -listen 127.0.0.1:9202 \
+  -upstream https://ethereum-rpc.publicnode.com
+curl -X POST http://127.0.0.1:9202/ethereum -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+```
+Gotchas (both cost debugging time):
+- **Must pass `-upstream`** — without it the handler sends an origin-form
+  request line and the mixnet `http-proxy-server` fails
+  (`unsupported protocol scheme ""`, then the client times out → HTTP 000/500).
+  With the absolute-form the `-upstream` path produces, the plugin's
+  `http.DefaultTransport.RoundTrip` works unmodified.
+- **Port 9200 is taken by the local `mix-client` container's `walletshield-kps`**
+  on the build box — bind the test to a free port (e.g. 9202) or your test
+  container silently exits (bind failure) and you hit the stale process.
+- Check the servicenode CBOR-plugin log on failure:
+  `sudo docker exec mix-servicenode tail -5 /var/lib/katzenpost/servicenode1/proxy.23.log`
+  (the plugin's socket is named after its PID).
+
+**P4P wiki mesh node connectivity**: a mesh node reaches the mixnet as a
+client — run `kpclientd` against `tcp://185.92.181.101:30007` (PinnedGateways
++ voting authorities), fetch the doc from the gateway, then use thin clients /
+SOCKS on the daemon port. Services reachable: `+echo`, `+http`, `+testdest`,
+`courier` (advertised in the PKI doc as `servicenode1` capabilities).
+
+**Image/build notes**: `Dockerfile.mixnet` pins katzenpost `32c27b8`
+(v0.0.99); GHCR is private, so transfer images with
+`docker save ... | gzip | scp | gzip -d | docker load`. Current upstream
+`main` (214161aa) has the same `http-proxy-server` scheme bug — the
+`-upstream` path sidesteps it.
+
 ## Stack Architecture
 
 ### MetaMask / EVM RPC over the mixnet
