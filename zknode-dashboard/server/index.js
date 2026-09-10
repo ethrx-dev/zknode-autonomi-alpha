@@ -335,16 +335,44 @@ async function getSystemStats() {
   };
 }
 
+// Core VPS mixnet service names (only these should appear in dashboard)
+const CORE_VPS_SERVICES = [
+  'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3',
+  'mix-1', 'mix-2', 'mix-3',
+  'mix-gateway',
+  'mix-servicenode',
+  'mix-replica-1', 'mix-replica-2', 'mix-replica-3', 'mix-replica-4', 'mix-replica-5'
+];
+
 async function getContainers() {
-  const data = await dockerApi('/containers/json?all=true');
-  if (data.error) return data;
-  if (!Array.isArray(data)) return { error: 'unexpected response' };
-  return data.map(c => ({
-    id: c.Id?.slice(0, 12), name: c.Names?.[0]?.replace(/^\//, ''),
-    image: c.Image, state: c.State, status: c.Status,
-    ports: c.Ports?.map(p => `${p.PublicPort || ''}:${p.PrivatePort}/${p.Type}`) || [],
-    created: c.Created, networkMode: c.HostConfig?.NetworkMode
-  }));
+  // Query VPS for core mixnet containers
+  try {
+    const result = await runVpsShellAsync(
+      `docker compose -f ${VPS_COMPOSE_DIR}/docker-compose.vps.yml ps --format json`, 30000
+    );
+    if (!result.ok || !result.data) {
+      return { error: 'VPS compose ps failed', stderr: result.stderr };
+    }
+    const containers = result.data.trim().split('\n')
+      .filter(l => l.trim())
+      .map(l => {
+        try { return JSON.parse(l); } catch { return null; }
+      })
+      .filter(Boolean);
+
+    return containers
+      .filter(c => CORE_VPS_SERVICES.includes(c.Name?.replace(/^\//, '')))
+      .map(c => ({
+        id: c.ID?.slice(0, 12),
+        name: c.Name?.replace(/^\//, ''),
+        image: c.Image,
+        state: c.State,
+        status: c.Status,
+        ports: (c.Ports || []).map(p => `${p.PublishedPort || ''}:${p.TargetPort || p.PrivatePort || ''}/${p.Protocol || ''}`) || []
+      }));
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 async function getMixnetStatus() {
@@ -392,6 +420,127 @@ async function getStorageStatus() {
   }
   return { running: false, error: data?.error || 'no response' };
 }
+
+// ─── VPS MIXNET MONITORING ──────────────────────────────────────
+
+const VPS_HOST = process.env.VPS_HOST || 'zknode-mix';
+const VPS_USER = process.env.VPS_USER || 'ethrx-dev';
+const VPS_COMPOSE_DIR = process.env.VPS_COMPOSE_DIR || '/var/lib/katzenpost';
+const VPS_SSH_KEY = process.env.VPS_SSH_KEY || '/root/.ssh/vps_key';
+
+function runVpsShell(cmd, timeoutMs = 30000) {
+  const fullCmd = `ssh -i ${VPS_SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ${VPS_USER}@${VPS_HOST} "echo 'r00ts3c' | sudo -S ${cmd.replace(/"/g, '\\"')}"`;
+  return runShell(fullCmd, timeoutMs);
+}
+
+async function runVpsShellAsync(cmd, timeoutMs = 30000) {
+  const fullCmd = `ssh -i ${VPS_SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ${VPS_USER}@${VPS_HOST} "echo 'r00ts3c' | sudo -S ${cmd.replace(/"/g, '\\"')}"`;
+  return runShellAsync(fullCmd, timeoutMs);
+}
+
+async function getVpsMixnetStatus() {
+  try {
+    // Get container status from VPS
+    const containersResult = await runVpsShellAsync(
+      `docker compose -f ${VPS_COMPOSE_DIR}/docker-compose.vps.yml ps --format json`, 30000
+    );
+    if (!containersResult.ok || !containersResult.data) {
+      return { error: 'VPS compose ps failed', stderr: containersResult.stderr };
+    }
+    const containers = containersResult.data.trim().split('\n')
+      .filter(l => l.trim())
+      .map(l => {
+        try { return JSON.parse(l); } catch { return null; }
+      })
+      .filter(Boolean);
+
+    // Get PKI consensus info from auth1
+    const authResult = await runVpsShellAsync(
+      `docker exec mix-dirauth-1 sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth1/katzenpost.log 2>/dev/null | tail -1"`, 10000
+    );
+    const consensusLine = authResult.ok ? authResult.data.trim() : '';
+
+    // Get servicenode advertised services from PKI doc
+    const pkiResult = await runVpsShellAsync(
+      `docker exec mix-dirauth-1 sh -c "grep 'ServiceNodes:' /var/lib/katzenpost/auth1/katzenpost.log 2>/dev/null | tail -1"`, 10000
+    );
+    const servicesLine = pkiResult.ok ? pkiResult.data.trim() : '';
+
+    // Parse epoch from consensus line
+    let epoch = null;
+    if (consensusLine) {
+      const m = consensusLine.match(/epoch\s+(\d+)/i);
+      if (m) epoch = parseInt(m[1], 10);
+    }
+
+    return {
+      connected: true,
+      epoch,
+      consensusRaw: consensusLine,
+      servicesRaw: servicesLine,
+      containers: containers.map(c => ({
+        name: c.Name?.replace(/^\//, ''),
+        state: c.State,
+        status: c.Status,
+        image: c.Image,
+        ports: (c.Ports || []).map(p => `${p.PublishedPort || ''}:${p.TargetPort || p.PrivatePort || ''}/${p.Protocol || ''}`) || []
+      })),
+      running: containers.filter(c => c.State === 'running').length,
+      total: containers.length
+    };
+  } catch (e) {
+    return { connected: false, error: e.message };
+  }
+}
+
+async function getVpsConsensus() {
+  try {
+    // Get epoch from auth1 log
+    const epochResult = await runVpsShellAsync(
+      `docker exec mix-dirauth-1 sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth1/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*epoch //;s/ .*//'"`, 10000
+    );
+    let epoch = 0;
+    if (epochResult.ok && epochResult.data) {
+      epoch = parseInt(epochResult.data.trim(), 10) || 0;
+    }
+
+    // Fetch consensus document from gateway
+    const docResult = await runVpsShellAsync(
+      `curl -s http://127.0.0.1:30007/consensus 2>/dev/null`, 10000
+    );
+    let doc = null;
+    if (docResult.ok && docResult.data) {
+      try { doc = JSON.parse(docResult.data); } catch {}
+    }
+
+    return { ok: true, epoch, doc };
+  } catch (e) {
+    return { ok: false, error: e.message, epoch: 0 };
+  }
+}
+
+async function getVpsServices() {
+  const status = await getVpsMixnetStatus();
+  if (!status.connected || !status.servicesRaw) return { epoch: status.epoch, services: [] };
+
+  const services = [];
+  // Find the outer services map (starts with 'map[courier:')
+  const startIdx = status.servicesRaw.indexOf('map[courier:');
+  if (startIdx >= 0) {
+    const content = status.servicesRaw.slice(startIdx + 4); // skip 'map['
+    // Parse endpoint: map[key:val ...] pairs
+    const endpointRegex = /(\w+):map\[([^\]]+)\]/g;
+    let match;
+    while ((match = endpointRegex.exec(content)) !== null) {
+      const endpoint = match[1];
+      const attrs = match[2];
+      services.push({ endpoint, attributes: attrs });
+    }
+  }
+  return { epoch: status.epoch, services };
+}
+
+// ─── end VPS ────────────────────────────────────────────────────
 
 async function getAntDaemonPort() {
   // Query the daemon via the ant CLI inside the container: the dashboard
@@ -1214,12 +1363,14 @@ app.get('/api/ant/logs', (req, res) => {
 });
 
 app.get('/api/services', async (req, res) => {
-  const [containers, mixnet, walletshield, storage, system] = await Promise.all([
+  const [containers, mixnet, walletshield, storage, system, vpsStatus, vpsHealth] = await Promise.all([
     getContainers(),
     getMixnetStatus(),
     getWalletshieldStatus(),
     getStorageStatus(),
-    getSystemStats()
+    getSystemStats(),
+    getVpsMixnetStatus(),
+    getVpsConsensus()
   ]);
   const [antNodes, antDaemon] = await Promise.all([
     getAntNodeStatus(),
@@ -1227,6 +1378,14 @@ app.get('/api/services', async (req, res) => {
   ]);
   res.json({
     system, containers, mixnet, walletshield,
+    vps: {
+      connected: vpsStatus.connected,
+      epoch: vpsStatus.epoch,
+      mixnet: vpsStatus.running + '/' + vpsStatus.total,
+      gateway: vpsStatus.containers?.find(c => c.name === 'mix-gateway')?.state || 'unknown',
+      consensus: vpsHealth.ok ? 'doc available' : 'unavailable',
+      services: vpsStatus.servicesRaw ? 'advertised' : 'none'
+    },
     ant: {
       running: antDaemon.running && antNodes.total_running > 0,
       daemon: antDaemon,
@@ -1240,34 +1399,111 @@ app.get('/api/services', async (req, res) => {
 
 
 
+// ─── VPS MIXNET ENDPOINTS ───────────────────────────────────────
+
+app.get('/api/vps/status', async (req, res) => {
+  const status = await getVpsMixnetStatus();
+  res.json(status);
+});
+
+app.get('/api/vps/consensus', async (req, res) => {
+  const consensus = await getVpsConsensus();
+  res.json(consensus);
+});
+
+app.get('/api/vps/services', async (req, res) => {
+  const services = await getVpsServices();
+  res.json(services);
+});
+
+app.post('/api/vps/deploy', async (req, res) => {
+  try {
+    const result = await runVpsShellAsync(
+      `cd ${VPS_COMPOSE_DIR} && sudo ./scripts/gen-mixnet99.sh ${process.env.IMAGE_MIXNET || 'zeros/mixnet-node:amd64'} && docker compose -f docker-compose.vps.yml up -d`,
+      300000
+    );
+    res.json({ ok: result.ok, output: result.data, error: result.error });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/vps/restart', async (req, res) => {
+  const { service } = req.body || {};
+  if (!service) return res.status(400).json({ error: 'service required' });
+  const allowed = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3', 'mix-1', 'mix-2', 'mix-3', 'mix-gateway', 'mix-servicenode', 'mix-replica-1', 'mix-replica-2', 'mix-replica-3', 'mix-replica-4', 'mix-replica-5'];
+  if (!allowed.includes(service)) return res.status(400).json({ error: 'invalid service' });
+  const result = await runVpsShellAsync(
+    `docker compose -f ${VPS_COMPOSE_DIR}/docker-compose.vps.yml restart ${service}`,
+    60000
+  );
+  res.json({ ok: result.ok, output: result.data, error: result.error });
+});
+
+app.get('/api/vps/health', async (req, res) => {
+  try {
+    const [status, consensus] = await Promise.all([
+      getVpsMixnetStatus(),
+      getVpsConsensus()
+    ]);
+    const running = status.connected ? status.running : 0;
+    const total = status.connected ? status.total : 0;
+    const epoch = status.epoch || 0;
+    const quorum = consensus.ok ? true : false;
+
+    res.json({
+      status: status.connected && running === total ? 'healthy' : 'degraded',
+      epoch,
+      quorum,
+      mixnet: `${running}/${total}`,
+      gateway: status.containers?.find(c => c.name === 'mix-gateway')?.state || 'unknown',
+      services: consensus.ok ? 'doc available' : 'unavailable',
+      nextBoundary: epoch ? `epoch ${epoch + 1}` : 'unknown'
+    });
+  } catch (e) {
+    res.status(500).json({ status: 'error', error: e.message });
+  }
+});
+
 app.get('/api/health', async (req, res) => {
   try {
     const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
       .filter(n => { try { return execSync('docker ps --format "{{.Names}}" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
     const wsOk = wsHeartbeatState.ok ? '200' : '000';
 
-    const [lastBackup, disk, dirauthConsensus] = await Promise.all([
+    const [lastBackup, disk, dirauthConsensus, vpsHealth] = await Promise.all([
       runShellAsync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', 3000).then(r => {
         if (!r.ok || !r.data) return -1;
-        // NOTE: a 0-hour-old backup is the GOOD case — `parseInt("0") || -1`
-        // would report -1 here. Guard NaN explicitly instead of falsy-or.
         return runShellAsync('echo $(( ($(date +%s) - $(stat -c %Y "' + r.data + '")) / 3600 ))', 3000).then(r2 => {
           const v = parseInt(r2.data);
           return Number.isFinite(v) && v >= 0 ? v : -1;
         }).catch(() => -1);
       }).catch(() => -1),
       runShellAsync("df / | tail -1 | awk '{print $5}' | sed 's/%//'", 3000).then(r => parseFloat(r.data) || 0).catch(() => 0),
-      runShellAsync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false)
+      runShellAsync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false),
+      getVpsConsensus().then(c => ({ ok: c.ok, epoch: c.epoch || 0 })).catch(() => ({ ok: false, epoch: 0 }))
     ]);
+
+    const vpsStatus = vpsHealth.ok ? 'healthy' : 'degraded';
+    const overallStatus = (mixOk >= 5 && wsOk === '200' && vpsHealth.ok) ? 'healthy' : 'degraded';
+
     res.json({
-      status: mixOk >= 5 && wsOk === '200' ? 'healthy' : 'degraded',
-      dirauth_consensus: dirauthConsensus,
-      mix_nodes: mixOk + '/6',
-      walletshield_http: wsOk,
-      dashboard_http: '200',
-      disk_used_percent: disk,
-      last_backup_age_hours: lastBackup,
-      kpclientd_listening: isPortListening(64332)
+      status: overallStatus,
+      local: {
+        dirauth_consensus: dirauthConsensus,
+        mix_nodes: mixOk + '/6',
+        walletshield_http: wsOk,
+        dashboard_http: '200',
+        disk_used_percent: disk,
+        last_backup_age_hours: lastBackup,
+        kpclientd_listening: isPortListening(64332)
+      },
+      vps: {
+        status: vpsStatus,
+        epoch: vpsHealth.epoch,
+        quorum: vpsHealth.ok,
+        mixnet_connected: wsHeartbeatState.ok
+      }
     });
   } catch (e) {
     res.status(500).json({ status: 'error', error: e.message });
