@@ -523,6 +523,12 @@ is loopback-only).
 | `tests/test-config-drift.sh` | Repo topology vs live node comparison (via SSH; skips gracefully when the node is unreachable) |
 | `scripts/build-usb-image.sh` | Deterministic USB image builder for P4P wiki mesh: `--size 64G` `--stack minimal\|full` `--base wolfi\|debian` `--kernel zeros\|debian` `--output img` `--compress zstd\|gzip\|none` `--device /dev/sdX` `--dry-run` (safe: never touches nvme/sda) |
 
+### VPS Mixnet Work Log
+
+| Date | Hours | Work |
+|------|-------|------|
+| 2026-09-09 | 1.5 | VPS mixnet (v0.0.99) validated end-to-end: PKI consensus (epoch 243931+ doc served error 0), remote client `+echo` ping 5/5, `+testdest` 3/3, DHT-proved deploy pushed; local walletshield `/ethereum` via mixnet HTTP 200 (fix: `-upstream` for absolute-form, port collision with `mix-client`'s 9200); retired native VPS deployment (stopped+disabled `katzenpost.target` user units, killed replicas/orphan http_proxy, opened 30007-only) |
+
 ## Operational Rules
 
 | Rule | Detail |
