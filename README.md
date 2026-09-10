@@ -86,7 +86,7 @@ testnet gateway — see [VPS Mixnet Deployment](#vps-mixnet-deployment-dev-gatew
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  Katzenpost Post-Quantum Mixnet (13-14 containers)       │   │
 │  │  dirauth1/2/3 ←→ mix1/2/3 ←→ gateway ←→ servicenode      │   │
-│  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · bridge network   │   │
+│  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · bridge network  │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
