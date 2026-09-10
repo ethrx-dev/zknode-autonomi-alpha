@@ -87,8 +87,10 @@ services:
     networks: [katzenpost-net]
     ports:
     # gateway is the ONLY service reachable from the internet; client traffic
-    # enters here and is fanned into the internal mixnet mesh.
-    - ${VPS_GATEWAY_PORT:-30007}:30007/tcp
+    # enters here and is fanned into the internal mixnet mesh. Bind to the
+    # public IP with VPS_GATEWAY_BIND (defaults to 0.0.0.0) so the published
+    # port does not shadow host-local services on the same port number.
+    - ${VPS_GATEWAY_BIND:-0.0.0.0}:${VPS_GATEWAY_PORT:-30007}:30007/tcp
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     volumes:
