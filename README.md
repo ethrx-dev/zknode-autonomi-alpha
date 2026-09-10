@@ -51,7 +51,9 @@ Tests: `cd tests && ./run-all.sh` (4 checks + device drift check).
 
 **Mixnet**: Katzenpost v0.0.99 (pinned `32c27b8`, MLKEM768 PQ wire KEM, 3-hop Sphinx) — built reproducibly for amd64 + arm64.  
 **ZK Proofs**: Merkle storage proofs (BLAKE2b), bandwidth proofs, zymkey hardware attestation.  
-**Storage**: Autonomi ant-node v0.14.4 with LMDB chunk store — managed via systemd --user.
+**Storage**: Autonomi ant-node v0.14.4 with LMDB chunk store — managed via systemd --user.  
+**Dev VPS mixnet**: a second v0.0.99 fleet (13 containers) runs on the dev VPS as a remote
+testnet gateway — see [VPS Mixnet Deployment](#vps-mixnet-deployment-dev-gateway).
 
 ---
 ## Architecture
@@ -82,9 +84,9 @@ Tests: `cd tests && ./run-all.sh` (4 checks + device drift check).
 │                            └──────────────────┘                 │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Katzenpost Post-Quantum Mixnet (15 containers)          │   │
+│  │  Katzenpost Post-Quantum Mixnet (13-14 containers)       │   │
 │  │  dirauth1/2/3 ←→ mix1/2/3 ←→ gateway ←→ servicenode      │   │
-│  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · host networking │   │
+│  │  MLKEM768 · BLAKE2b-256 · 3-hop Sphinx · bridge network   │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -149,6 +151,51 @@ docker build --build-arg TARGETARCH=arm64 -f Dockerfile.walletshield -t zeros/wa
 
 ---
 
+## VPS Mixnet Deployment (dev gateway)
+
+A second v0.0.99 Katzenpost fleet runs on the dev VPS (`185.92.181.101`, SSH
+alias `zknode-mix`) so off-SCM4 / P4P wiki mesh nodes can reach the mixnet.
+
+- **Compose**: `docker-compose.vps.yml` — 13 containers on `katzenpost-net`
+  (3 dirauth, 3 mix, gateway, servicenode, 5 storage replicas; courier is an
+  embedded CBOR plugin on the servicenode). Topology kept in sync with
+  `config/mixnet99/` via `scripts/gen-mixnet99.sh --storageNodes 5`.
+- **Public surface**: gateway only — `tcp://185.92.181.101:30007`. Compose
+  publishes `[VPS_GATEWAY_BIND]:[VPS_GATEWAY_PORT]:30007`; set
+  `VPS_GATEWAY_BIND=185.92.181.101` so the port bind cannot shadow
+  host-local services. UFW: 22, 30007 (the native deployment's 30004 was
+  retired).
+- **PKI/consensus**: descriptors accepted at epoch boundaries (:00/:20/:40
+  UTC); the auth serves the doc (`error code 0`). **Restart mixnet nodes only
+  at a boundary** — mid-epoch restarts regenerate mix keys and break the
+  current consensus document.
+- **Remote client** (another machine): run `kpclientd` with a thin
+  `[Dial]` config pointing at `tcp://185.92.181.101:30007` (+ gateway/authority
+  keys from the PKI), `-listen 127.0.0.1:64331`. Then thin clients
+  (walletshield, ping) connect there. Validated: `+echo` 5/5, `+testdest`
+  3/3, services reachable are `+echo`, `+http`, `+testdest`, `courier`.
+- **walletshield `/ethereum`** (validated HTTP 200, live block):
+  ```bash
+  docker run -d --name ws-test --network host \
+    -v config/walletshield/config.toml:/etc/ws.toml:ro zeros/walletshield:amd64 \
+    -config /etc/ws.toml -listen 127.0.0.1:9202 \
+    -upstream https://ethereum-rpc.publicnode.com
+  curl -X POST http://127.0.0.1:9202/ethereum -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+  ```
+  Gotchas:
+  - **`-upstream` is required** — without it the handler sends an origin-form
+    request line and the mixnet `http-proxy-server` fails with
+    `unsupported protocol scheme ""` (then the client times out). The
+    absolute-form `-upstream` path works unmodified.
+  - On a machine where a `mix-client`/`walletshield-kps` already owns
+    `127.0.0.1:9200`, bind the test to a free port (graceful failure).
+- **Mesh-node connectivity**: a P4P wiki mesh node joins as a client — run
+  `kpclientd` against `tcp://185.92.181.101:30007`, fetch the PKI doc, then
+  use thin clients/SOCKS. One open inbound port on the VPS.
+
+---
+
 ## Live Node (<node-hostname> SCM4)
 
 ```
@@ -172,10 +219,16 @@ Replication:  Active (/rr/autonomi.ant.replication.v2)
 | mix-1/2/3 | Mix nodes (3-hop Sphinx routing) | host | 256MB each |
 | mix-gateway | Client entry point | host | 256MB |
 | mix-servicenode | Exit node (echo, proxy-kaetzchen) | host | 256MB |
-| mix-client | Client daemon (kpclientd, thin API :64332) | host | 128MB |
+| mix-client | Client daemon (kpclientd, thin API :64331) | katzenpost-net | 128MB |
 | mixnet-proxy | SOCKS5 bridge + ZK proof API :9090 | host | 256MB |
 | walletshield | EVM RPC through mixnet :9200 | host | 128MB |
-| storage-proved | Merkle/Winterfell storage prover :9201 | bridge | 128MB |
+| storage-proved | Merkle/Winterfell storage prover :9201 | autonomi | 128MB |
+
+> **Note**: in the current deploy the mixnet containers run on the
+> `katzenpost-net` bridge network (nodes addressed by Docker hostname); the
+> client daemon is published on `127.0.0.1:64331`. The VPS fleet
+> (`docker-compose.vps.yml`) publishes only the gateway `185.92.181.101:30007`
+> and is otherwise identical.
 | antd | Autonomi CLI + node manager | bridge | 128MB |
 | ant-node | Autonomi storage node (systemd, bare metal) | host :12000 | ~20MB |
 | reticulum | Reticulum mesh networking (RNS + LXMF) | host | 128MB |
@@ -225,8 +278,9 @@ Replication:  Active (/rr/autonomi.ant.replication.v2)
 zknode-autonomi/
 ├── .env                        # Environment config
 ├── .gitignore
-├── docker-compose.yml          # 14-service stack
+├── docker-compose.yml          # 14-service stack (SCM4)
 ├── docker-compose.zymkey.yml   # Zymkey HSM override
+├── docker-compose.vps.yml      # Dev VPS mixnet fleet (gateway-only publish)
 ├── Dockerfile.mixnet            # Katzenpost mixnet node (all binaries)
 ├── Dockerfile.ant-node          # Autonomi storage node
 ├── Dockerfile.antd              # Autonomi CLI
@@ -264,9 +318,10 @@ zknode-autonomi/
 | Issue | Status | Notes |
 |-------|--------|-------|
 | **Zymkey HSM signing** | 🔌 Planned | zymkey stores wallet key in slot 23/24. ant-node code changes needed for HSM-backed EVM transaction signing. |
-| **kpclientd epoch sync** | 🔶 Workaround | Ping binary achieves 100% mixnet success. kpclientd PKI doc retrieval uses `currentDocument()` fallback — needs auth restarted at epoch start for full consensus with node descriptors. |
-| **Host networking** | 🔶 Planned | Mixnet containers share host network. Bridge networking with BindAddresses in katzenpost.toml for production multi-instance isolation. |
-| **Bridge network isolation** | 📋 Future | Each mixnet node on unique bridge network with BindAddress for production multi-tenant deployments. |
+| **kpclientd epoch sync** | ✅ Resolved | Ping achieves 100% mixnet success; remote clients fetch the PKI doc and use current-epoch docs from the dauth consensus served `error code 0`. |
+| **Host networking** | ✅ Resolved | Mixnet containers now use the `katzenpost-net` bridge with hostname-addressed PKI (`AllowHostnameAddresses`); only the VPS gateway is published (`185.92.181.101:30007`). |
+| **Remote/gateway access** | ✅ Resolved | `docker-compose.vps.yml` + `VPS_GATEWAY_BIND` connect off-SCM4 mesh nodes to the mixnet through a single public gateway port. |
+| **http-proxy URL scheme** | ✅ Workaround | katzenpost `http-proxy-server` fails on origin-form URLs (`unsupported protocol scheme`); walletshield `-upstream` sends absolute-form and bypasses it. |
 
 ---
 
