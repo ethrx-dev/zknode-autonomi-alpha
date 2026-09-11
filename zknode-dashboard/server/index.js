@@ -725,28 +725,18 @@ app.post('/api/wiki/commit', async (req, res) => {
   res.json({ ok: true });
 });
 
-const ZKCONF = "/var/lib/katzenpost/client/thinclient.toml";
-// Host root of the deployment (docker -v mounts resolve on the HOST, so the
-// dashboard must know the host path). Injected via compose NODE_HOME; the
-// default is a placeholder — set NODE_HOME in .env on a real node.
-const NODE_HOME = process.env.NODE_HOME || '/home/<node-user>/zknode-autonomi';
-
-const ZKCHAT_RUNNER = 'zkchat-poll-runner';
+// The real zkchat binary runs inside the `zkchat` container (real ELF from
+// zeros/mixnet-node:amd64), dialing the healthy kpclientd on 127.0.0.1:64331
+// (VPS gateway 30007). Its thinclient config lives at /etc/zkchat/thinclient.toml
+// and the identity at /etc/zkchat/.zkchat/identity (host: data/zkchat/identity).
+const ZKCONF = "/etc/zkchat/thinclient.toml";
+const ZKCHAT_RUNNER = 'zkchat';
 function ensureZkchatRunner() {
   const insp = spawnSync('docker', ['inspect', '-f', '{{.State.Running}}', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8' });
   if (insp.status === 0 && String(insp.stdout || '').trim() === 'true') return { ok: true };
-  if (insp.status !== 0 && !/no such container/i.test((insp.stderr || '') + (insp.stdout || ''))) {
+  // docker API says "No such object: <name>"; the CLI says "no such container".
+  if (insp.status !== 0 && !/no such (object|container)/i.test((insp.stderr || '') + (insp.stdout || ''))) {
     return { ok: false, error: 'runner inspect: ' + ((insp.stderr || insp.stdout || insp.error?.message || 'inspect failed').trim()) };
-  }
-  if (insp.status !== 0) {
-    const base = ['create', '--name', ZKCHAT_RUNNER, '--label', 'zkchat-poll-runner', '--network', 'host',
-      '-v', NODE_HOME + '/config/mixnet99:/var/lib/katzenpost',
-      '-v', NODE_HOME + '/zknode01/bin:/usr/local/bin',
-      'zeros/mixnet-node:arm64', 'tail', '-f', '/dev/null'];
-    const c = spawnSync('docker', base, { timeout: 30000, encoding: 'utf8' });
-    if (c.status !== 0 && !/already in use|already exists/i.test((c.stderr || '') + (c.stdout || ''))) {
-      return { ok: false, error: 'ensure runner: ' + ((c.stderr || c.stdout || c.error?.message || 'create failed').trim()) };
-    }
   }
   const s = spawnSync('docker', ['start', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8' });
   if (s.status !== 0) return { ok: false, error: 'runner start: ' + ((s.stderr || s.stdout || s.error?.message || 'start failed').trim()) };
@@ -797,7 +787,15 @@ app.get('/api/chat/poll', (req, res) => {
 
 });
 function getIdentityHex() {
-  try { return execSync('cat /etc/zkchat/identity 2>/dev/null', { timeout: 3000 }).toString('hex').trim(); } catch { return null; }
+  // Identity is 16 raw bytes at /etc/zkchat/.zkchat/identity inside the
+  // zkchat container; the rest of the dashboard compares hex (32 chars).
+  try {
+    const r = spawnSync('docker', ['exec', ZKCHAT_RUNNER, 'od', '-An', '-v', '-tx1',
+      '/etc/zkchat/.zkchat/identity'], { timeout: 5000, encoding: 'utf8' });
+    if (r.status !== 0) return null;
+    const hex = (r.stdout || '').replace(/\s+/g, '').trim();
+    return /^[0-9a-f]{32}$/i.test(hex) ? hex.toLowerCase() : null;
+  } catch { return null; }
 }
 
 function isGroupOwner(meta, identityHex) {
@@ -1208,17 +1206,49 @@ app.all('/ethereum', async (req, res) => {
   }
 });
 
-app.get('/api/zkchat', (req, res) => {
-  const hasBinary = existsSync('/usr/local/bin/zkchat');
-  const hasConfig = existsSync("/etc/zkchat/thinclient.toml");
-  const mixClientRunning = isPortListening(64332);
-  res.json({
-    running: hasBinary && hasConfig && mixClientRunning,
-    binary: hasBinary,
-    config: hasConfig,
-    mixClient: mixClientRunning,
-    messages: ZKCHAT_MESSAGES.slice(-5)
-  });
+app.get('/api/zkchat', async (req, res) => {
+  try {
+    console.log('[zkchat] Checking container status...');
+    // Check zkchat container
+    const cData = await dockerApi('/containers/zkchat/json');
+    console.log('[zkchat] dockerApi result:', cData ? 'OK' : 'null/error', cData?.error || '');
+    const running = cData && (cData.State?.Status === 'running' || cData.State?.Running === true);
+    console.log('[zkchat] running:', running);
+    
+    // Get identity from container
+    let identity = null;
+    if (running) {
+      try {
+        const r = await runShellAsync('docker exec zkchat od -An -v -tx1 /etc/zkchat/.zkchat/identity 2>/dev/null | tr -d " \\n\\t"', 5000);
+        if (r.ok && /^[0-9a-f]{32}$/i.test(r.data.trim())) identity = r.data.trim().toLowerCase();
+      } catch {}
+    }
+    
+    // Check thinclient config in container
+    let hasConfig = false;
+    if (running) {
+      try {
+        const r = await runShellAsync('docker exec zkchat ls /etc/zkchat/thinclient.toml 2>/dev/null', 3000);
+        hasConfig = r.ok;
+      } catch {}
+    }
+    
+    const mixClientRunning = isPortListening(64331); // kpclient-vps port
+    
+    console.log('[zkchat] Final:', { running, hasConfig, mixClientRunning });
+    
+    res.json({
+      running: running && hasConfig && mixClientRunning,
+      binary: true,
+      config: hasConfig,
+      mixClient: mixClientRunning,
+      identity,
+      messages: ZKCHAT_MESSAGES.slice(-5)
+    });
+  } catch (e) {
+    console.log('[zkchat] Error:', e.message);
+    res.json({ running: false, error: e.message });
+  }
 });
 
 
