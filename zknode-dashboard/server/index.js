@@ -757,7 +757,7 @@ function zkchatCmd(args, timeout = 60000) {
     if (!ensure.ok) return ensure;
     const dockerArgs = ['exec', ZKCHAT_RUNNER, '/usr/local/bin/zkchat', ...parsed];
     const r = spawnSync('docker', dockerArgs, { timeout, encoding: 'utf8', maxBuffer: 2097152 });
-    if (r.status === 0) return { ok: true, data: r.stdout.trim() };
+    if (r.status === 0) return { ok: true, data: (r.stdout || '').split('\n').filter(l => !/^DEBUG /.test(l)).join('\n').trim() };
     const stderr = (r.stderr || '').trim();
     const errMsg = stderr || (r.error && r.error.message) || 'command failed';
     return { ok: false, error: errMsg.includes('connect') ? 'mixnet unavailable (connect to kpclientd failed)' : errMsg };
