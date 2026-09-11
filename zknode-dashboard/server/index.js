@@ -335,7 +335,7 @@ async function getSystemStats() {
   };
 }
 
-// Core VPS mixnet service names (only these should appear in dashboard)
+// Core VPS mixnet service names
 const CORE_VPS_SERVICES = [
   'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3',
   'mix-1', 'mix-2', 'mix-3',
@@ -344,35 +344,63 @@ const CORE_VPS_SERVICES = [
   'mix-replica-1', 'mix-replica-2', 'mix-replica-3', 'mix-replica-4', 'mix-replica-5'
 ];
 
+// Local core services (SCM4 / build machine)
+const LOCAL_CORE_SERVICES = [
+  'mixnet-proxy', 'walletshield', 'kpclient-vps', 'antd',
+  'reticulum', 'llm-wiki', 'zkchat', 'storage-proved',
+  'docker-minio-1', 'docker-postgres-1', 'docker-redis-1'
+];
+
 async function getContainers() {
-  // Query VPS for core mixnet containers
+  const results = [];
+
+  // 1. Local core services
+  try {
+    const localData = await dockerApi('/containers/json?all=true');
+    if (!localData.error && Array.isArray(localData)) {
+      const local = localData
+        .filter(c => {
+          const name = c.Names?.[0]?.replace(/^\//, '');
+          return LOCAL_CORE_SERVICES.includes(name);
+        })
+        .map(c => ({
+          id: c.Id?.slice(0, 12),
+          name: c.Names?.[0]?.replace(/^\//, ''),
+          image: c.Image,
+          state: c.State,
+          status: c.Status,
+          ports: (c.Ports || []).map(p => `${p.PublicPort || ''}:${p.PrivatePort || p.TargetPort || ''}/${p.Protocol || ''}`) || [],
+          source: 'local'
+        }));
+      results.push(...local);
+    }
+  } catch (e) {}
+
+  // 2. VPS core mixnet services
   try {
     const result = await runVpsShellAsync(
       `docker compose -f ${VPS_COMPOSE_DIR}/docker-compose.vps.yml ps --format json`, 30000
     );
-    if (!result.ok || !result.data) {
-      return { error: 'VPS compose ps failed', stderr: result.stderr };
+    if (result.ok && result.data) {
+      const vps = result.data.trim().split('\n')
+        .filter(l => l.trim())
+        .map(l => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean)
+        .filter(c => CORE_VPS_SERVICES.includes(c.Name?.replace(/^\//, '')))
+        .map(c => ({
+          id: c.ID?.slice(0, 12),
+          name: c.Name?.replace(/^\//, ''),
+          image: c.Image,
+          state: c.State,
+          status: c.Status,
+          ports: (c.Ports || []).map(p => `${p.PublishedPort || ''}:${p.TargetPort || p.PrivatePort || ''}/${p.Protocol || ''}`) || [],
+          source: 'vps'
+        }));
+      results.push(...vps);
     }
-    const containers = result.data.trim().split('\n')
-      .filter(l => l.trim())
-      .map(l => {
-        try { return JSON.parse(l); } catch { return null; }
-      })
-      .filter(Boolean);
+  } catch (e) {}
 
-    return containers
-      .filter(c => CORE_VPS_SERVICES.includes(c.Name?.replace(/^\//, '')))
-      .map(c => ({
-        id: c.ID?.slice(0, 12),
-        name: c.Name?.replace(/^\//, ''),
-        image: c.Image,
-        state: c.State,
-        status: c.Status,
-        ports: (c.Ports || []).map(p => `${p.PublishedPort || ''}:${p.TargetPort || p.PrivatePort || ''}/${p.Protocol || ''}`) || []
-      }));
-  } catch (e) {
-    return { error: e.message };
-  }
+  return results;
 }
 
 async function getMixnetStatus() {
@@ -410,7 +438,7 @@ async function getMixnetStatus() {
 }
 
 async function getWalletshieldStatus() {
-  return { connected: isPortListening(9200), port: 9200 };
+  return { connected: isPortListening(9202), port: 9202 };
 }
 
 async function getStorageStatus() {
@@ -1054,7 +1082,7 @@ function wsProxy(bodyStr) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const opts = {
-      hostname: '127.0.0.1', port: 9200, path: '/ethereum',
+      hostname: '127.0.0.1', port: 9202, path: '/ethereum',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr), 'Connection': 'close' }
     };
