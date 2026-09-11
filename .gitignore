@@ -91,3 +91,4 @@ config/mixnet99/servicenode1/chatd/
 
 # Dashboard deps (installed via npm ci; lockfile IS tracked)
 zknode-dashboard/node_modules/
+zknode-dashboard/vps_key
