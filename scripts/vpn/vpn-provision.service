@@ -1,0 +1,15 @@
+[Unit]
+Description=zknode VPN overlay provisioner (WireGuard first-boot)
+Documentation=docs/VPN_OVERLAY.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/vpn-provision.sh
+# keys live on PERSIST; provisioning must not race a re-flash
+Environment=PERSIST=/persistent
+
+[Install]
+WantedBy=multi-user.target

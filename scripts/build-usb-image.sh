@@ -92,6 +92,8 @@ contents:
     - networkmanager
     - sudo
     - python3
+    - wireguard-tools
+    - wireguard-go
 archs: [x86_64, aarch64]
 entrypoint:
   command: /bin/sh
@@ -120,6 +122,16 @@ else
   echo "[rootfs] Debian path (debootstrap stub)"
   if command -v debootstrap >/dev/null 2>&1 && [[ "$DRY_RUN" == 0 ]]; then
     sudo debootstrap --arch=amd64 --variant=minbase bookworm "$ROOTFS" http://deb.debian.org/debian 2>&1 | tail -n 20
+    # wireguard-tools + wireguard-go for the VPN overlay (bookworm has both);
+    # wireguard-go covers kernels without the wg module
+    echo "[rootfs] apt install wireguard-tools wireguard-go"
+    if sudo chroot "$ROOTFS" apt-get update -qq 2>&1 | tail -n 5 &&
+       sudo chroot "$ROOTFS" apt-get install -y -qq --no-install-recommends \
+         wireguard-tools wireguard-go 2>&1 | tail -n 10; then
+      :
+    else
+      echo "[warn] wireguard apt install failed (continuing — provisioner requires wireguard-tools)"
+    fi
   else
     echo "[dry-run] skip debootstrap — creating minimal stub rootfs"
     mkdir -p "$ROOTFS/boot" "$ROOTFS/var/lib/zknode" "$ROOTFS/etc" "$ROOTFS/usr/local/bin"
@@ -165,6 +177,14 @@ if [[ -f "$PROJECT_ROOT/docker-compose.yml" ]]; then
   cp "$PROJECT_ROOT/docker-compose.yml" "$ROOTFS/var/lib/zknode/compose/" 2>/dev/null || true
   cp -r "$PROJECT_ROOT/config" "$ROOTFS/var/lib/zknode/" 2>/dev/null || true
 fi
+
+# ─── VPN overlay (docs/VPN_OVERLAY.md) ───────────────────────────
+# provisioner + unit land in the image; keys are GENERATED ON FIRST BOOT
+mkdir -p "$ROOTFS/usr/local/sbin" "$ROOTFS/etc/zknode/vpn" "$ROOTFS/persistent/vpn" "$ROOTFS/etc/systemd/system"
+cp "$SCRIPT_DIR/vpn/vpn-provision.sh" "$ROOTFS/usr/local/sbin/vpn-provision.sh"
+chmod 0755 "$ROOTFS/usr/local/sbin/vpn-provision.sh"
+cp "$SCRIPT_DIR/vpn/vpn-provision.service" "$ROOTFS/etc/systemd/system/vpn-provision.service"
+[ -f "$PROJECT_ROOT/config/vpn/peers.conf" ] && cp "$PROJECT_ROOT/config/vpn/peers.conf" "$ROOTFS/etc/zknode/vpn/peers.conf"
 
 # pin mtimes for determinism
 find "$ROOTFS" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} + 2>/dev/null || true
