@@ -193,13 +193,15 @@ find "$ROOTFS" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} + 2>/dev/null || true
 SQUASH="$WORK/live.squashfs"
 echo "[squashfs] mksquashfs $ROOTFS -> $SQUASH (comp $COMPRESS, time $SOURCE_DATE_EPOCH)"
 if command -v mksquashfs >/dev/null 2>&1; then
-  # -mkfs-time needs recent squashfs-tools; fallback to touch trick
-  if mksquashfs "$ROOTFS" "$SQUASH" -comp zstd -noappend -mkfs-time "$SOURCE_DATE_EPOCH" -all-root 2>&1 | tail -n 20; then
+  # SOURCE_DATE_EPOCH is exported above — mksquashfs honors it natively.
+  # Passing BOTH the env var and -mkfs-time is rejected by mksquashfs >= 4.7
+  # ("can't be used at the same time"), so rely on the env var alone for
+  # deterministic fs timestamps.
+  if mksquashfs "$ROOTFS" "$SQUASH" -comp zstd -noappend -all-root 2>&1 | tail -n 20; then
     :
   else
-    echo "[fallback] mksquashfs without -mkfs-time"
-    mksquashfs "$ROOTFS" "$SQUASH" -comp zstd -noappend -all-root 2>&1 | tail -n 20 || mksquashfs "$ROOTFS" "$SQUASH" -noappend -all-root 2>&1 | tail -n 20
-    touch -d "@$SOURCE_DATE_EPOCH" "$SQUASH" 2>/dev/null || true
+    echo "[fallback] mksquashfs without zstd (compression fallback)"
+    mksquashfs "$ROOTFS" "$SQUASH" -noappend -all-root 2>&1 | tail -n 20
   fi
   ls -lh "$SQUASH"
   sha256sum "$SQUASH" | tee "$WORK/live.squashfs.sha256"
