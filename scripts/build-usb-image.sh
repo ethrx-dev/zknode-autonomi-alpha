@@ -17,6 +17,12 @@ OUTPUT="/tmp/zknode-usb-test.img"
 COMPRESS="zstd"
 DEVICE=""
 DRY_RUN=0
+ARCH="$(uname -m)"
+case "$ARCH" in
+    aarch64|arm64)     IMG_ARCH="aarch64"; DEB_ARCH="arm64" ;;
+    x86_64|amd64|i?86) IMG_ARCH="x86_64"; DEB_ARCH="amd64" ;;
+    *)                 echo "FATAL: unsupported host arch $ARCH"; exit 2 ;;
+esac
 
 # ─── parse ──────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -28,10 +34,15 @@ while [[ $# -gt 0 ]]; do
     --output) OUTPUT="$2"; shift 2;;
     --compress) COMPRESS="$2"; shift 2;;
     --device) DEVICE="$2"; shift 2;;
+    --arch) IMG_ARCH="$2"; case "$2" in
+              x86_64|amd64) IMG_ARCH="x86_64"; DEB_ARCH="amd64" ;;
+              aarch64|arm64) IMG_ARCH="aarch64"; DEB_ARCH="arm64" ;;
+              *) echo "FATAL: --arch must be x86_64|amd64|aarch64|arm64 (got $2)"; exit 2;;
+            esac; shift 2;;
     --dry-run) DRY_RUN=1; shift;;
     -h|--help)
-      echo "Usage: $0 [--size 64G|128G] [--stack minimal|full] [--base wolfi|debian] [--kernel zeros|debian] [--output out.img] [--compress zstd|gzip|none] [--device /dev/sdX] [--dry-run]"
-      echo "  dry-run: build rootfs+squashfs+image file only in /tmp, no mount, no dd, no sdb"
+      echo "Usage: $0 [--size 64G|128G] [--stack minimal|full] [--base wolfi|debian] [--kernel zeros|debian] [--output out.img] [--compress zstd|gzip|none] [--device /dev/sdX] [--arch x86_64|aarch64] [--dry-run]"
+      echo "  arch defaults to the host (autodetect). dry-run: build rootfs+squashfs+image file in /tmp, no mount, no dd"
       exit 0;;
     *) echo "unknown arg $1"; exit 1;;
   esac
@@ -100,9 +111,9 @@ entrypoint:
 APKO
   echo "[rootfs] apko yaml: $APKO_YAML"
   if command -v docker >/dev/null 2>&1; then
-    echo "[rootfs] would run: docker run --rm -v $WORK:/work cgr.dev/chainguard/apko build --arch x86_64 apko.live.yaml /work/live wolfi-live.tar"
+    echo "[rootfs] would run: docker run --rm -v $WORK:/work cgr.dev/chainguard/apko build --arch $IMG_ARCH apko.live.yaml /work/live wolfi-live.tar"
     if [[ "$DRY_RUN" == 0 ]]; then
-      if docker run --rm -v "$WORK:/work" cgr.dev/chainguard/apko build --arch x86_64 "/work/$(basename "$APKO_YAML")" /work/live wolfi-live.tar 2>&1 | head -n 30; then
+      if docker run --rm -v "$WORK:/work" cgr.dev/chainguard/apko build --arch "$IMG_ARCH" "/work/$(basename "$APKO_YAML")" /work/live wolfi-live.tar 2>&1 | head -n 30; then
         echo "[rootfs] apko build ok (wolfi-live.tar)"
         mkdir -p "$ROOTFS"
         tar -tf "$WORK/wolfi-live.tar" 2>/dev/null | head -n 20 || true
@@ -121,7 +132,7 @@ APKO
 else
   echo "[rootfs] Debian path (debootstrap stub)"
   if command -v debootstrap >/dev/null 2>&1 && [[ "$DRY_RUN" == 0 ]]; then
-    sudo debootstrap --arch=amd64 --variant=minbase bookworm "$ROOTFS" http://deb.debian.org/debian 2>&1 | tail -n 20
+    sudo debootstrap --arch="$DEB_ARCH" --variant=minbase bookworm "$ROOTFS" http://deb.debian.org/debian 2>&1 | tail -n 20
     # wireguard-tools + wireguard-go for the VPN overlay (bookworm has both);
     # wireguard-go covers kernels without the wg module
     echo "[rootfs] apt install wireguard-tools wireguard-go"
@@ -143,7 +154,7 @@ VERSION="12 (bookworm)"
 OS
     cat > "$ROOTFS/boot/grub.cfg" <<'GRUB'
 set timeout=5
-menuentry "ZKNetwork P4P Node (Live, debian kernel stub)" {
+menuentry "ZKNetwork P4P Node x0x (Live, debian kernel stub)" {
   linux /boot/vmlinuz root=LABEL=PERSIST overlay=LABEL=PERSIST quiet splash
   initrd /boot/initramfs.img
 }
