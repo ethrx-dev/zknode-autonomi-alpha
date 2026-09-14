@@ -335,6 +335,10 @@ services:
     entrypoint: rnsd
     network_mode: host
     restart: unless-stopped
+    devices:
+    - /dev/ttyACM0:/dev/ttyACM0
+    group_add:
+    - dialout
     volumes:
     - ./config/reticulum/config:/etc/reticulum
     - ./data/reticulum:/var/lib/reticulum
