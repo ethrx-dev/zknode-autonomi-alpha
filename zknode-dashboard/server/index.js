@@ -404,37 +404,50 @@ async function getContainers() {
 }
 
 async function getMixnetStatus() {
+  // Remote-client architecture: the full mixnet topology (dirauths, mixes,
+  // gateway, servicenode, replicas) lives on the VPS; this box joins as a
+  // client (kpclient-vps -> tcp://VPS:30007) with a local SOCKS proxy
+  // (mixnet-proxy) and thin clients. Authorities are reported from the VPS,
+  // local nodes are the client-side components only.
   const containers = await getContainers();
   if (containers.error) return { error: containers.error };
-  const authHosts = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
-  const authorities = await Promise.all(authHosts.map(async (name, aidx) => {
-    const c = containers.find(ct => ct.name === name);
-    const running = c && c.state === 'running';
-    const da = `mix-dirauth-${aidx + 1}`;
-    const [epoch, consensus, nodeCount, gwCount] = running ? await Promise.all([
-      runShellAsync(`docker exec ${da} sh -c "grep 'Epoch:' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*Epoch: //;s/ .*//'"`, 5000),
-      runShellAsync(`docker exec ${da} sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*: //;s/ .*//'"`, 5000),
-      runShellAsync(`docker exec ${da} sh -c "grep 'ServiceNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'servicenode' | wc -l"`, 5000),
-      runShellAsync(`docker exec ${da} sh -c "grep 'GatewayNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'gateway' | wc -l"`, 5000)
-    ]) : [null, null, null, null];
+
+  const vps = await getVpsMixnetStatus();
+  const vpsContainers = vps.containers || [];
+
+  const authNames = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
+  const authorities = authNames.map((name, aidx) => {
+    const c = vpsContainers.find(ct => ct.name === name);
+    const running = !!(c && c.state === 'running');
     return {
-      host: `127.0.0.1:${30001 + aidx}`,
+      host: `${VPS_HOST}:${30001 + aidx}`,
       data: running ? {
-        Epoch: epoch?.ok ? epoch.data.trim() : null,
-        Consensus: consensus?.ok ? consensus.data.trim() : null,
-        ServiceNodes: nodeCount?.ok ? parseInt(nodeCount.data.trim()) || 0 : 0,
-        GatewayNodes: gwCount?.ok ? parseInt(gwCount.data.trim()) || 0 : 0
+        Epoch: vps.epoch || null,
+        Consensus: vps.consensusRaw ? vps.consensusRaw.trim() : null,
+        ServiceNodes: vpsContainers.filter(x => /^mix-replica-\d+$/.test(x.name) && x.state === 'running').length,
+        GatewayNodes: vpsContainers.filter(x => x.name === 'mix-gateway' && x.state === 'running').length,
+        Nodes: vpsContainers.filter(x => /^mix-\d+$/.test(x.name) && x.state === 'running').length
       } : { error: 'offline' }
     };
-  }));
-  const mixnetNames = ['mix-1', 'mix-2', 'mix-3', 'mix-gateway', 'mix-servicenode', 'mix-client',
-    'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3', 'mixnet-proxy'];
+  });
+
+  const localNames = ['kpclient-vps', 'mixnet-proxy', 'http-proxy-vps', 'zkchat', 'llm-wiki'];
   const nodes = {};
-  for (const n of mixnetNames) {
+  for (const n of localNames) {
     const c = containers.find(ct => ct.name === n);
     nodes[n] = c ? { running: c.state === 'running', status: c.status } : { running: false, status: 'not found' };
   }
-  return { authorities, nodes, listeningPorts: [30001, 30002, 30003].filter(p => isPortListening(p)).length };
+  // VPS topology containers (informational, reported read-only)
+  for (const c of vpsContainers) {
+    nodes[c.name] = { running: c.state === 'running', status: c.status, host: 'vps' };
+  }
+
+  return {
+    authorities,
+    nodes,
+    listeningPorts: [64331, 9090, 1080].filter(p => isPortListening(p)).length,
+    vps: { connected: vps.connected, running: vps.running, total: vps.total, epoch: vps.epoch }
+  };
 }
 
 async function getWalletshieldStatus() {
@@ -455,14 +468,22 @@ const VPS_HOST = process.env.VPS_HOST || 'zknode-mix';
 const VPS_USER = process.env.VPS_USER || 'ethrx-dev';
 const VPS_COMPOSE_DIR = process.env.VPS_COMPOSE_DIR || '/var/lib/katzenpost';
 const VPS_SSH_KEY = process.env.VPS_SSH_KEY || '/root/.ssh/vps_key';
+// Never hardcode the VPS sudo password — supply it via VPS_SUDO_PASS env.
+const VPS_SUDO_PASS = process.env.VPS_SUDO_PASS || '';
+
+function sudoCmd(cmd) {
+  const quoted = cmd.replace(/"/g, '\\"');
+  if (VPS_SUDO_PASS === '') return `sudo -n ${quoted}`;
+  return `echo '${VPS_SUDO_PASS}' | sudo -S ${quoted}`;
+}
 
 function runVpsShell(cmd, timeoutMs = 30000) {
-  const fullCmd = `ssh -i ${VPS_SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ${VPS_USER}@${VPS_HOST} "echo 'r00ts3c' | sudo -S ${cmd.replace(/"/g, '\\"')}"`;
+  const fullCmd = `ssh -i ${VPS_SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ${VPS_USER}@${VPS_HOST} "${sudoCmd(cmd)}"`;
   return runShell(fullCmd, timeoutMs);
 }
 
 async function runVpsShellAsync(cmd, timeoutMs = 30000) {
-  const fullCmd = `ssh -i ${VPS_SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ${VPS_USER}@${VPS_HOST} "echo 'r00ts3c' | sudo -S ${cmd.replace(/"/g, '\\"')}"`;
+  const fullCmd = `ssh -i ${VPS_SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 ${VPS_USER}@${VPS_HOST} "${sudoCmd(cmd)}"`;
   return runShellAsync(fullCmd, timeoutMs);
 }
 
@@ -805,7 +826,7 @@ function isGroupOwner(meta, identityHex) {
 
 app.get('/api/chat/groups', (req, res) => {
   const identityHex = getIdentityHex();
-  const raw = runShell(join(__dirname, "chat-groups.sh"), 10000);
+  const raw = runShell(join(__dirname, "chat-groups.sh"), 30000);
   if (!raw.ok || !raw.data.trim()) return res.json({ groups: [] });
   const groups = [];
   for (const jsonStr of (raw.data.match(/\{[^}]+\}/g) || [])) {
@@ -970,15 +991,17 @@ app.post('/api/chat/groups/delete', (req, res) => {
   if (!gid) return res.json({ error: 'invalid group_id (hex expected)' });
   const identityHex = getIdentityHex();
   if (!identityHex) return res.json({ error: 'cannot determine identity' });
-  // argv-array docker exec — hex-validated gid, no shell interpolation
-  const metaRaw = spawnSyncDocker(['exec', 'mix-servicenode', 'find', '/tmp/zkchat',
-    '/var/lib/katzenpost/servicenode1/chatd', '-path', `*/group_${group_id}/meta.json`, '-exec', 'cat', '{}', '+'], 5000);
+  // The chat servicenode runs on the VPS mixnet — query it over SSH.
+  // chatd stores groups under /tmp/zkchat (its default storeDir).
+  // gid is hex-validated above; no shell interpolation of user input.
+  const metaRaw = runVpsShell(
+    `docker exec mix-servicenode sh -c 'find /tmp/zkchat -mindepth 1 -path "*/group_${group_id}/meta.json" -exec cat {} +' && true`, 15000);
   if (!metaRaw.ok || !metaRaw.data) return res.json({ error: 'group not found' });
   try {
     const meta = JSON.parse(metaRaw.data);
     if (!isGroupOwner(meta, identityHex)) return res.json({ error: 'only the group owner can delete the group' });
-    const del = spawnSyncDocker(['exec', 'mix-servicenode', 'rm', '-rf',
-      `/var/lib/katzenpost/servicenode1/chatd/group_${group_id}`, `/tmp/zkchat/group_${group_id}`], 10000);
+    const del = runVpsShell(
+      `docker exec mix-servicenode rm -rf /tmp/zkchat/group_${group_id}`, 15000);
     res.json(del.ok ? { deleted: true } : { error: del.error || 'delete failed' });
   } catch (e) {
     res.json({ error: e.message });
@@ -1254,13 +1277,8 @@ app.get('/api/zkchat', async (req, res) => {
 
 
 app.get('/api/chat/identity', (req, res) => {
-  try {
-    const raw = execSync('cat /etc/zkchat/identity 2>/dev/null', { timeout: 3000 });
-    if (raw && raw.length > 0) {
-      const hex = raw.toString('hex').trim();
-      return res.json({ identity: hex, valid: hex.length === 32 });
-    }
-  } catch {}
+  const identity = getIdentityHex();
+  if (identity) return res.json({ identity, valid: true });
   res.json({ identity: null, valid: false });
 });
 
@@ -1525,11 +1543,14 @@ app.get('/api/vps/health', async (req, res) => {
 
 app.get('/api/health', async (req, res) => {
   try {
-    const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
+    // Remote-client architecture: local "mixnet" health = client daemon
+    // (kpclient-vps) + SOCKS proxy (mixnet-proxy). The PKI/mix topology is
+    // reported by the VPS consensus check.
+    const mixOk = ['kpclient-vps', 'mixnet-proxy']
       .filter(n => { try { return execSync('docker ps --format "{{.Names}}" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
     const wsOk = wsHeartbeatState.ok ? '200' : '000';
 
-    const [lastBackup, disk, dirauthConsensus, vpsHealth] = await Promise.all([
+    const [lastBackup, disk, vpsHealth] = await Promise.all([
       runShellAsync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', 3000).then(r => {
         if (!r.ok || !r.data) return -1;
         return runShellAsync('echo $(( ($(date +%s) - $(stat -c %Y "' + r.data + '")) / 3600 ))', 3000).then(r2 => {
@@ -1538,23 +1559,22 @@ app.get('/api/health', async (req, res) => {
         }).catch(() => -1);
       }).catch(() => -1),
       runShellAsync("df / | tail -1 | awk '{print $5}' | sed 's/%//'", 3000).then(r => parseFloat(r.data) || 0).catch(() => 0),
-      runShellAsync('docker exec mix-dirauth-1 tail -200 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false),
       getVpsConsensus().then(c => ({ ok: c.ok, epoch: c.epoch || 0 })).catch(() => ({ ok: false, epoch: 0 }))
     ]);
 
     const vpsStatus = vpsHealth.ok ? 'healthy' : 'degraded';
-    const overallStatus = (mixOk >= 5 && wsOk === '200' && vpsHealth.ok) ? 'healthy' : 'degraded';
+    const overallStatus = (mixOk >= 2 && wsOk === '200' && vpsHealth.ok) ? 'healthy' : 'degraded';
 
     res.json({
       status: overallStatus,
       local: {
-        dirauth_consensus: dirauthConsensus,
-        mix_nodes: mixOk + '/6',
+        dirauth_consensus: vpsHealth.ok,
+        mix_client_proxy: mixOk + '/2',
         walletshield_http: wsOk,
         dashboard_http: '200',
         disk_used_percent: disk,
         last_backup_age_hours: lastBackup,
-        kpclientd_listening: isPortListening(64332)
+        kpclientd_listening: isPortListening(64331)
       },
       vps: {
         status: vpsStatus,

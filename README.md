@@ -331,6 +331,7 @@ zknode-autonomi/
 - [Live Node Status](docs/LIVE_NODE_STATUS.md) — Active testnet node on SCM4
 - [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md) — Full deployment walkthrough
 - [Architecture](docs/ARCHITECTURE.md) — System layers and data flow
+- [SCM4 Architecture Options](docs/ARCHITECTURE_OPTIONS.md) — local PoC, VPS-client, or hybrid profile
 - [Hardware Setup](docs/HARDWARE_SETUP.md) — SCM4 hardware, storage, USB pool
 - [Zymbit/SCM4 Setup](docs/ZYMBIT_SETUP.md) — zymkey HSM, Bootware, LUKS
 - [Mixnet Integration](docs/MIXNET_INTEGRATION.md) — Integration design options

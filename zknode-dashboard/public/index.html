@@ -1344,7 +1344,7 @@ async function refreshAll() {
     healthBadge.style.display = 'inline-flex';
     healthBadge.className = 'status-badge ' + (ok ? 'online' : 'offline');
     healthBadge.innerHTML = '<span id="healthStatusLabel">' + (ok ? 'HEALTHY' : 'DEGRADED') + '</span>';
-    healthBadge.title = 'disk: ' + (health.disk_used_percent || '?') + '% | ws: ' + (health.walletshield_http || '?') + ' | mix: ' + (health.mix_nodes || '?');
+    healthBadge.title = 'disk: ' + (health.disk_used_percent || '?') + '% | ws: ' + (health.walletshield_http || '?') + ' | mix: ' + (health.mix_client_proxy || '?') + ' | vps: ' + (health.vps && health.vps.epoch ? 'e' + health.vps.epoch : 'offline');
   } else {
     healthBadge.style.display = 'none';
   }

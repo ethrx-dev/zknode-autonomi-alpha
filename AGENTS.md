@@ -388,19 +388,20 @@ internal-only `0.0.0.0:30007` sidecar. UFW allows 22, 30004, 30007, 5355.
 advances normally. Restart mixnet nodes only at a boundary — mid-epoch
 restarts regenerate mix keys and break the current doc.
 
-**Remote client** (on another machine, e.g. the build box):
-```toml
-# /tmp/vps-client-local.toml  (thin [Dial] only — geometry comes from the daemon)
-[Dial]
-Address = "tcp://185.92.181.101:30007"
-LinkKey = "gateway1 public link key from the PKI"
-IdentityKey = "gateway1 public identity key"
-# + [[Dial.VotingAuthority]] entries for auth1/2/3
+**Remote client** (on another machine, e.g. the build box): the canonical
+client daemon config is `config/mixnet/client/client-vps.toml` in this repo
+(Listen `127.0.0.1:64331`, dials the pinned gateway `tcp://185.92.181.101:30007`
+with current PKI keys; auth addresses are Docker-internal — the client gets
+the doc from the gateway). Run it on the remote box:
+```bash
+docker run -d --name kpclient-vps --network host \
+  -v "$(pwd)/config/mixnet/client/client-vps.toml:/etc/kpclient.toml:ro" \
+  zeros/mixnet-node:amd64 kpclientd -c /etc/kpclient.toml
 ```
-Run `kpclientd -cfg <that config> -listen 127.0.0.1:64331` (adapt
-`Listen Address` from the VPS client config — do not reuse the
-container-internal `kpclientd:64331`). Then thin clients (walletshield,
-ping) connect to `127.0.0.1:64331`.
+Then thin clients (walletshield, zkchat, ping) connect to `127.0.0.1:64331`.
+Keep config as a repo bind-mount (not a /tmp copy) so the box never drifts
+into the stale `zknet-anon-rpc-poc` deployment (`mix-client` on `:64332` was
+retired).
 
 **walletshield /ethereum** (validated HTTP 200):
 ```bash
@@ -435,6 +436,69 @@ SOCKS on the daemon port. Services reachable: `+echo`, `+http`, `+testdest`,
 `docker save ... | gzip | scp | gzip -d | docker load`. Current upstream
 `main` (214161aa) has the same `http-proxy-server` scheme bug — the
 `-upstream` path sidesteps it.
+
+## SCM4 Architecture Options (Upgrade Paths)
+
+The repo has evolved in two directions. Before upgrading an existing SCM4,
+pick the target architecture — **do not blindly deploy `main` onto a box that
+runs the local topology** (the dashboard code differs and will report a false
+degraded state).
+
+| Option | What it is | Dashboard health looks for | Best for |
+|--------|-----------|---------------------------|----------|
+| **1. Full local PoC** | Entire mixnet (3 dirauth, 3 mix, gateway, servicenode, client, proxy) self-hosted on the SCM4. Deployed state is tagged **`p4p-poc-scm4-2026-09`** | `dirauth_consensus`, `mix_nodes: "6/6"`, `walletshield_http` (local containers) | Fully decentralized / offline-capable proof of concept on the SCM4 itself |
+| **2. VPS-client** | Local mixnet retired; SCM4 is a thin client (`kpclient-vps`) dialing the VPS gateway `tcp://185.92.181.101:30007`. `main` HEAD is VPS-aware | `kpclient-vps` + `mixnet-proxy` count, `getVpsConsensus()` from VPS | Resource-constrained SCM4s; the box runs antd + mesh + wiki only |
+| **3. Hybrid (RECOMMENDED for SCM4)** | `main` compose + **local topology dashboard**. Deploy `main` code (Pigeonhole replicas, RNS 1.3.7) but **keep the SCM4's existing local dashboard image** (e.g. `6c2443ffb1f3` — checks `dirauth_consensus` / `mix_nodes`) instead of `main`'s VPS dashboard | Same as Option 1 (local containers) | Getting latest repo features on the SCM4 without the VPS dashboard mismatch |
+
+### Decision guide
+
+- Need the box to work **offline / self-contained** → Option 1 or 3.
+- Want the **lightest footprint** and don't mind a dependency on the VPS
+  gateway → Option 2.
+- Want **latest features on the SCM4 without breaking the dashboard** →
+  Option 3 (hybrid).
+
+### Hybrid upgrade (Option 3) procedure
+
+A wizard automates all three profiles (detect → menu → backup → apply → verify):
+`./scripts/upgrade-node.sh` (non-interactive: `UPGRADE_MODE=3 ./scripts/upgrade-node.sh --run`).
+
+1. **Identify the running dashboard image** first — it must be the local
+   topology build:
+   ```bash
+   docker ps --format '{{.Names}} {{.Image}} {{.ID}}'
+   docker inspect zknode-dashboard --format '{{.Image}}'
+   ```
+   `main`'s `zknode-dashboard/server/index.js` is VPS-aware (checks
+   `kpclient-vps`, `getVpsConsensus()`); the local build checks
+   `dirauth_consensus` / `mix_nodes`. Keep the local image tag / ID.
+
+2. **Clone `main`** onto the SCM4 (note: the old `.git` may be a broken symlink
+   to a USB partition — see "SCM4 .git quirk"): clone fresh into the project
+   dir, then re-copy the runtime data dirs (`data/nomadnet`, `data/reticulum`,
+   `data/zkchat`, `data/walletshield`, `data/zymbit`) back.
+
+3. **Re-pin the dashboard image config** so compose keeps the local dashboard:
+   in `docker-compose.yml` keep `IMAGE_DASHBOARD=zknode-dashboard:local-poc`
+   (or whatever tag holds the local build) — **do not** use `main`'s rebuild.
+
+4. **Transfer only the changed arm64 images** (`docker save | gzip | ssh | gunzip | docker load`)
+   — mixnet node, mixnet-proxy, antd, ant-node, storage-proved-rs, walletshield,
+   nomadnet as needed; compare image IDs between boxes to find the delta:
+   ```bash
+   # on build machine and SCM4 respectively:
+   docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | sort
+   ```
+
+5. **Generate mixnet configs** with `gen-mixnet99.sh` and deploy with
+   `deploy.sh --start` (or `docker compose up -d`).
+
+6. **Restart mixnet nodes only at epoch boundaries** (:00/:20/:40 UTC) —
+   mid-epoch restarts regenerate mix keys and invalidate the current
+   consensus document.
+
+7. **Verify**: `dirauth_consensus: true` (all 3 authorities share an epoch),
+   `mix_nodes: "6/6"`, walletshield HTTP 200, wiki pages + antd node running.
 
 ## Stack Architecture
 
@@ -502,6 +566,7 @@ is loopback-only).
 | `scripts/deploy.sh --stop` | Stop the stack (preserves volumes) |
 | `scripts/deploy.sh --clean` | Stop, remove volumes, clean all data |
 | `scripts/deploy.sh --export` | Export images to tarball for air-gapped transfer |
+| `scripts/upgrade-node.sh` | Architecture upgrade wizard: detects the running deployment, prompts for Option 1 (full local PoC) / 2 (VPS-client) / 3 (Hybrid) and applies the matching path (backup, dashboard pin, gateway rewire, deploy, verify). `UPGRADE_MODE=3 ./scripts/upgrade-node.sh --run` for non-interactive |
 | `scripts/setup-zymbit.sh --check` | SCM4 zymkey health check |
 | `scripts/setup-zymbit.sh --full` | Full Zymbit setup (check + tamper + disable upgrades) |
 | `scripts/setup-zymbit.sh --encrypt-usb /dev/sdX` | Encrypt USB drive with zymkey-bound LUKS |
@@ -528,6 +593,10 @@ is loopback-only).
 | Date | Hours | Work |
 |------|-------|------|
 | 2026-09-09 | 1.5 | VPS mixnet (v0.0.99) validated end-to-end: PKI consensus (epoch 243931+ doc served error 0), remote client `+echo` ping 5/5, `+testdest` 3/3, DHT-proved deploy pushed; local walletshield `/ethereum` via mixnet HTTP 200 (fix: `-upstream` for absolute-form, port collision with `mix-client`'s 9200); retired native VPS deployment (stopped+disabled `katzenpost.target` user units, killed replicas/orphan http_proxy, opened 30007-only) |
+| 2026-09-14 | 1.0 | P4P wiki restore on local build box: recovered all 496 p2p-foundation pages from the surviving tantivy index (Python `tantivy` bindings → `all.jsonl`), wrote as flat Markdown+frontmatter into `/home/zero-tech/wikis/wiki/` via llm-wiki container, rebuilt index (499 pages), committed (git `ad0f0a7`); dashboard `p4p` wiki now live (**`/api/wiki/stats` → pages:499**). Jeff-Emmett/p2pfoundation-wiki is raw MediaWiki (not llm-wiki Markdown) — kept as reference only |
+| 2026-09-14 | 1.0 | Dashboard mixnet health rewired for the **VPS-client architecture**: `/api/health` now counts `kpclient-vps`+`mixnet-proxy` (local) instead of retired local topology containers, dirauth consensus comes from VPS (`getVpsConsensus`), and `overallStatus = (client+proxy 2/2 && walletshield 200 && VPS quorum)` → **healthy** (was permanently degraded). `/api/mixnet` reports VPS authorities (epoch, consensus, 3 mix / 5 service nodes) + local client/proxy read-only; `kpclientd_listening` fixes 64331 (not 64332). Rebuilt image + recreated `zknode-dashboard`
+| 2026-09-16 | 4.0 | **SCM4 hybrid upgrade (Option 3)** on 192.168.9.127: fresh `main` clone (`8a0bd30`) + carried SCM4 runtime (`config/mixnet99` with Pigeonhole replicas, `.env`, `data/`, local dashboard source); deployed all 23 compose services (dirauths → full consensus, mixes, replicas, gateway, servicenode, client, proxy, walletshield, zkchat, storage-proved, nomadnet, reticulum, llm-wiki, antd, dashboard). Key fixes encoded: **servicenode http plugin naming** — genconfig's `Capability = "http"` / `Endpoint = "+http"` breaks consumers that look up `proxy`; set `Capability = "proxy"`, `Endpoint = "http_proxy"` and `config/proxy/config.json` `service_name = "proxy"` (the new descriptor registers at the NEXT epoch boundary — a mid-epoch restart misses the upload window and the visible fix lands one epoch later). **Local dashboard's `kpclientd_listening` checks 64332** (not 64331) — publish `127.0.0.1:64332:64331` on mix-client. Stale proxy thin-client sessions keep answering `service "proxy" lookup failed` against a fixed doc — restart the proxy container once. Validated end-to-end: `/ethereum` `eth_chainId` = `0x1`, `eth_blockNumber` real; `/api/health` **healthy** (`dirauth_consensus:true`, `mix_nodes:"6/6"`, `walletshield_http:"200"`, `kpclientd_listening:true`). SCM4 networking already DHCP (`dhcpcd` active, `eth1` dynamic lease — no static override)
+| 2026-09-16 | 0.5 | `scripts/upgrade-node.sh` — architecture upgrade wizard (Option 1/2/3) with runtime backup, dashboard pin, gateway rewire, deploy + verify; non-interactive via `UPGRADE_MODE` |
 
 ## Operational Rules
 
@@ -603,6 +672,7 @@ On the SCM4, the `.git` directory is a symlink to `/mnt/usb_sda3/zknode-autonomi
 - [Zymbit/SCM4 Setup Guide](docs/ZYMBIT_SETUP.md)
 - [Hardware Setup](docs/HARDWARE_SETUP.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [SCM4 Architecture Options](docs/ARCHITECTURE_OPTIONS.md)
 - [PoC Deployment Plan](docs/POC_DEPLOYMENT_PLAN.md)
 - [Mixnet Integration](docs/MIXNET_INTEGRATION.md)
 - [Demo Script](docs/DEMO_SCRIPT.md)
