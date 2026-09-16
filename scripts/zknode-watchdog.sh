@@ -41,7 +41,12 @@ fi
 if ! find /sys/fs/cgroup -maxdepth 4 -path '*docker*' -name 'io.max' 2>/dev/null | xargs grep -l 'wbps=41943040' 2>/dev/null | grep -q .; then
   CG=$(docker inspect -f '{{.CgroupPath}}' antd 2>/dev/null)
   if [ -n "$CG" ] && [ -f "/sys/fs/cgroup$CG/io.max" ]; then
-    echo "8:0 rbps=104857600 wbps=41943040" > "/sys/fs/cgroup$CG/io.max" && log "FIX: reapplied antd blkio throttle (was missing)"
+    # antd blkio throttle re-apply — ant-node writes to the USB HDD. Device can
+    # enumerate as sda/sdb/sdc depending on USB port order; derive the
+    # major:minor from the container's own cgroup io.max rather than hardcoding.
+    ANT_IO_MAX="$(cat "/sys/fs/cgroup$CG/io.max" 2>/dev/null | grep -E '^(8|23):' | head -1 | cut -d' ' -f1)"
+    [ -n "$ANT_IO_MAX" ] || ANT_IO_MAX="8:16" # fallback: this box's USB disk
+    echo "$ANT_IO_MAX rbps=104857600 wbps=41943040" > "/sys/fs/cgroup$CG/io.max" && log "FIX: reapplied antd blkio throttle (was missing)"
   else
     log "WARN: antd throttle missing and cgroup not found — verify manually"
   fi
