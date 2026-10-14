@@ -127,3 +127,11 @@
   SendDecoyTraffic = false
   DisableRateLimit = false
   GenerateOnly = false
+
+  [[ServiceNode.CBORPluginKaetzchen]]
+    Capability = "meshbridge"
+    Endpoint = "meshbridge"
+    Command = "/usr/local/bin/mesh-bridge"
+    MaxConcurrency = 1
+    Disable = false
+    Config = {log_dir = "/var/lib/katzenpost/servicenode1", log_level = "DEBUG"}

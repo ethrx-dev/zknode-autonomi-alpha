@@ -1,0 +1,295 @@
+networks:
+  katzenpost-net-b:
+    driver: bridge
+services:
+  mix-1:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/mix1/katzenpost.toml
+    container_name: mixdb-1
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: mix1
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-2:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/mix2/katzenpost.toml
+    container_name: mixdb-2
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: mix2
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-3:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/mix3/katzenpost.toml
+    container_name: mixdb-3
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: mix3
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-client:
+    command:
+    - /usr/local/bin/kpclientd
+    - -c
+    - /var/lib/katzenpost/client/client.toml
+    container_name: mixdb-client
+    depends_on:
+    - mix-gateway
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: 128m
+    networks:
+    - katzenpost-net-b
+    ports:
+    - 127.0.0.1:64332:64331
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-dirauth-1:
+    command:
+    - /usr/local/bin/dirauth
+    - -f
+    - /var/lib/katzenpost/auth1/authority.toml
+    container_name: mixdb-dirauth-1
+    hostname: auth1
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-dirauth-2:
+    command:
+    - /usr/local/bin/dirauth
+    - -f
+    - /var/lib/katzenpost/auth2/authority.toml
+    container_name: mixdb-dirauth-2
+    hostname: auth2
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-dirauth-3:
+    command:
+    - /usr/local/bin/dirauth
+    - -f
+    - /var/lib/katzenpost/auth3/authority.toml
+    container_name: mixdb-dirauth-3
+    hostname: auth3
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-gateway:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/gateway1/katzenpost.toml
+    container_name: mixdb-gateway
+    depends_on:
+    - mix-1
+    - mix-2
+    - mix-3
+    hostname: gateway1
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    ports:
+    - 0.0.0.0:31007:30007
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-replica-1:
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica1/replica.toml
+    container_name: mixdb-replica-1
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: replica1
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-replica-2:
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica2/replica.toml
+    container_name: mixdb-replica-2
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: replica2
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-replica-3:
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica3/replica.toml
+    container_name: mixdb-replica-3
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: replica3
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-replica-4:
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica4/replica.toml
+    container_name: mixdb-replica-4
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: replica4
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-replica-5:
+    command:
+    - /usr/local/bin/replica
+    - -f
+    - /var/lib/katzenpost/replica5/replica.toml
+    container_name: mixdb-replica-5
+    depends_on:
+    - mix-dirauth-1
+    - mix-dirauth-2
+    - mix-dirauth-3
+    hostname: replica5
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  mix-servicenode:
+    command:
+    - /usr/local/bin/server
+    - -f
+    - /var/lib/katzenpost/servicenode1/katzenpost.toml
+    container_name: mixdb-servicenode
+    depends_on:
+    - mix-1
+    - mix-2
+    - mix-3
+    hostname: servicenode1
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    mem_limit: ${MIXNET_MEM_LIMIT:-256m}
+    networks:
+    - katzenpost-net-b
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - ./config/mixnet99-b:/var/lib/katzenpost
+  zkchat-b:
+    cap_drop:
+    - ALL
+    command:
+    - while true; do /usr/local/bin/zkchat poll /etc/zkchat/thinclient.toml 2>&1;
+      sleep 30; done
+    container_name: zkchat-b
+    entrypoint:
+    - sh
+    - -c
+    image: ${IMAGE_MIXNET_B:-zeros/mixnet-node:amd64}
+    network_mode: host
+    read_only: true
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:true
+    tmpfs:
+    - /tmp
+    volumes:
+    - ./config/mixnet99-b/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
+    - ./data/zkchat-b:/tmp/zkchat
+    - ./data/zkchat-b/.zkchat:/etc/zkchat/.zkchat

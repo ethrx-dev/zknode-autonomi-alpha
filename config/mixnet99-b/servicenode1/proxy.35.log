@@ -1,0 +1,4 @@
+09:59:46.303 NOTI http_proxy: Katzenpost http-proxy-server version: (devel)
+09:59:46.303 NOTI http_proxy: Katzenpost is still pre-alpha.  DO NOT DEPEND ON IT FOR STRONG SECURITY OR ANONYMITY.
+09:59:46.304 DEBU http_proxy: RegisterConsumer called
+09:59:46.304 DEBU http_proxy: listening to unix domain socket file: /tmp/http_proxy860468994/35.http_proxy.socket

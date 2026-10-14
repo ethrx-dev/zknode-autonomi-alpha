@@ -1,0 +1,69 @@
+DataDir = "/var/lib/katzenpost/replica3"
+Identifier = "replica3"
+ReplicaID = 2
+WireKEMScheme = "MLKEM768"
+PKISignatureScheme = "Ed25519"
+ReplicaNIKEScheme = "CTIDH1024-X25519"
+Addresses = ["tcp://replica3:31004"]
+ConnectTimeout = 60000
+HandshakeTimeout = 3000
+ReauthInterval = 300000
+OutgoingQueueSize = 64
+IncomingQueueSize = 0
+KeepAliveInterval = 180000
+ProxyRequestTimeout = 0
+ProxyWorkerCount = 0
+MetricsAddress = "replica3:31005"
+DisableDecoyTraffic = false
+GenerateOnly = false
+MaxStorageMiB = 0
+MinFreeStorageMiB = 500
+AllowHostnameAddresses = true
+
+[PKI]
+  [PKI.Voting]
+
+    [[PKI.Voting.Authorities]]
+      Identifier = "auth1"
+      IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\nUhwM2k5kbt2ItycXN2uUIE89IWlxlh/OtjhenyecAHU=\n-----END ED25519 PUBLIC KEY-----\n"
+      PKISignatureScheme = "Ed25519"
+      LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nfAmctXhxcnqHtWFnBSYirsY3KnNNrbMummdrVtJ6xRJtDetUHsg/CWOFG7IWg0UP\nEDJgEttPnEmcK5zGjTwmw9eq0qDAyLvKVwOLGmBo3jFjWzdUJEKRsoZL4HCuD8wj\nzuwVqQo5LEbHuHFbAIxwZyqhXAii4YuE+IEDZlJHimiB5Wqq++KVQ2WURIAh4gWb\n4BmBNWBcGHWwEKR+JilxYriIMsgMifs/XLHLjNgIKsixVaAcITpMpVY7Gpyj6xWu\nIGJ78LGOHnm9cIqJ4VJb+QNqAJBquZKvVxkHVKytzoi1nVpxTzFqAutMeWkKHjWf\nrPkfTCLN8PTA1PsRq0eMuLkxzqZDhsC2mZUp+NoARYsIZOu2kXxQFwM7zlZcd9tW\nHRG0XZkHAgRvAwOa8lUvzXl5HUlD07ND7oQ7DXxlVQyUMQN0VoBbUtoeE6Yc1Ndf\nBKUgBDtEiRTGqPJ00dHDilgMGOuE5lgI+tCSLSMg+HFEGfzIFvFYYYIyybd2toJV\nQ4CaBqgX6PuOOHE/ypt0XZFAkyQpYng6S9pbSws4AthrDQCiIhdIw1g7qyivhlsL\nG0IOVzU+rHtp1CwslRsMg3iFAuthSPccZWwycpGC1mWbtsY8PGAgFGTCBjdYEpCe\nSGKigQmybIWU01EHHBOcGEeSKOJUnMGRX7YGBENqEwEE0os82LmZhSjCzoJfSvSZ\nO+ddVdyKwCJIMXhDzcCT5YypaBJk4iIXUgIjzGlBIDC1TPq1tyE2+8I7E4W5yORJ\nlSkfVveUn/IYJmaWE1rCrQsNbcJsWJojjvO8GOKY0XxBZDG7ODod4fZWfDJ7P9EB\nCIJXLEWDX/lp6+M6SlhxUGl7duEwipA1B2NiFumwkAmOcUSdcsjB/WaFpuAR/lYI\ntZtWIVm0Uxd9g4VP43a40GSwCRBS/LkZXpBWynwYPooW5Klld4W65bxLV2OFH+JP\n1KJEXhZQZFTHxTMCyBOMX7sIQ3DIZ+ABsJzGFEmwqvJh6deOBgA6slmi4ulvOYae\njIFRQelNBoF+s5OppflCTTUpMZjE2jnFPkx3IqCGywOn0Yo9dus3SjmcjRVSHbpt\n1wl2UbuW6kCoDfV6qui8SKwYVQala6qlF5ptYIeGMrEonmcZAnigtnkkHnKerOQr\nWxvHdYrNEOB0LbcLyWutePF/8LkUr6VNh5S8aKaqovO8hoct0nk8/vto0woLkkko\nJyaGxkRipymu0tEokHoOQNe0ciJVX/Og7sS/3HwxIKMMmim4bJsgZgtrm5zGDxwB\na2Eb/9lWkqaTOhBSLgYFlrm5vbh7QBTJNJVHJDSI7XkPJ8uhfwk23jBtkEYH9ipQ\nCkJ4NFt6ZrF2Mce/mKcHYLe0Uzk3JImOqOpKIWgReKnET8S8ErMdyhQc99S2ihhk\nVsqtORYCB7CmihSAjqgonmSTwmOhTtSigpNg37gTdAK6ByptrmB67ZK5IcMxyYt5\nPyMZ/MwdQpC7phJR0YViUtE6a1tty6G2WAyeoTgLW1vFYZc/XOhMpeQxgZtz0QBS\nF8ugFK1TbHlvmYCrpwH/wj9qcPBTt4W4CPikcMbB1d4=\n-----END MLKEM768 PUBLIC KEY-----\n"
+      WireKEMScheme = "MLKEM768"
+      Addresses = ["tcp://auth1:30001"]
+
+    [[PKI.Voting.Authorities]]
+      Identifier = "auth2"
+      IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\nVSq0LHYL0ua2PShr6Z5KeWgmHiuGjQXDvuXsaH58uE0=\n-----END ED25519 PUBLIC KEY-----\n"
+      PKISignatureScheme = "Ed25519"
+      LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nzNcqZdmyQqaXW1inv1e3yqxsW2AW8BtRWJd6I0oijoxpA1y3sqRuWbyUrfojtSLL\nFyBngdFe+hYdCzaTiKCbT/WkAHYQw9e6RXKyoyPPhNpAB2RNJOFqI/A0H4zHBBex\nbjkjR0bKxRFrQFxQt+lsi0SW03vNHqGwYLs6QnOy/7B7dBUhK9ts7hF1WNFNClEl\nMFgh7lVuF5avngrMERUL30yv/fuqVOgMDMCHBiJVgRcMKGe9SIu+gZC5Z5AR0oVF\nrDataiJT/mk7S0t8DwyNZPS7dcWc1wm2WfZLdsd6ljWrjlmeRnRVZekD8sWg9Ws/\n88mM4TwiYUjA+2EwckxBSxS9AiAzgoI24XcAdfSoKgZMTxt7DvF9MHNH6PR9+XVQ\n6kCmQSRRB6uPgDK//QG6RAFwg8RAPrSwuSCcXGNNQerKbCeBBdRB07bBlVpvmAOB\nepK91XO747nM7ZRBWkRpl4lwqoFmeWmvohMxdxs4iTBLEreroyhBNXoqTatx3yoM\nTODFDsinLWMUQXqR/1Mkh2MsDjIP/+m9Rbh1uclX5VhcF/e9SqG8XxKCuMGKU+YI\nocMq7XLAtSTNn/YaEoauRVkUVWlLjkak3rJ4KKG1JDARF8uWYRdOW+Fv3wARahUx\nobtyvtYxBgPGIbmzEkt6tCtee6VlxwQy3tHOlpxf7oFoUvI7GbN5FcNieqtOHvuR\nlAY8Hhwa5KWx3DtoTGwL4WBR4TYT6DlINTU4eYNc64sKFBXNozFG6UNKGsQdWRxp\nY8DMLsvPJjxOazDKAXO3q3BAilO2wJRAPildq1W7UrxP2jGNjGOXDIxeY3Bo5JOv\nQ/DIJ9wDpEO+X9qZmFZ2RyBnY0bPi3UgFdUbhzZorEvEZBIFXUZKADVLH7LPKdMo\nEjNMCkE5w8u6vhtXJqa2uuupAEQIu6ers0OcjvkxTHmW8gOINkN5G3OCHfg2Fvhm\n01KfVBlfvSJuB0ILLOOeUUs+BkliEWGRSLdsv8xI8hGT4lRiaVp9lVdT7tkf9pO4\nCsucVcJrvVjI4CzAngeYuleqQeQp6rPPWBRm2oZiElSRYSGn7Jl3wHrNWKulpHs7\npfg6aYgVNBN9O6eTe1aIjilKLEvBfybBKsR03oBuWvF2fqeCbni/reyh4RZEOXXM\nPXIMB5CG7IIp9xFk2RFPLhMMZfNHbyWlLuCgetiSv1YE1cAD5+gG1DBed9dPrAJd\nX6GGEoFElQB8yqx4rPNANADIbIeTxtMhqWJnjzortnhQzsaJzvGqUfvM36ORBAPI\nmYsZDobO4Kgbk7ypDNhKerhJ7ZOye7E/K3I8xtioEWMuGQKhv5OGCSlTILgdQGe5\n1VaMMwKgqDe7C9h/G+JuIwq3MRKhaTqygmoQQTNtjdmOj4aGcBUyHpQ3S5GQBBB3\nWCmhh5mVVVd8lAiVaDU/sZGBhdNPNQMxDbZToHyro0iH2KbP04IT1RGle9xXkly4\nXEy6ppclFxWJP9NuvAPQ8LwUARVUyMKni3qiCEazy6BH8TiFvCh2ErUELCxpNQdq\nx65IiwOwOLmCCnSgrH3d9wn7feEacNXExI4Eu5xgZqA=\n-----END MLKEM768 PUBLIC KEY-----\n"
+      WireKEMScheme = "MLKEM768"
+      Addresses = ["tcp://auth2:30003"]
+
+    [[PKI.Voting.Authorities]]
+      Identifier = "auth3"
+      IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\neXqIh9KTvKafbqlq87ija4l8PEzbRJ9cnShdGhT5o3k=\n-----END ED25519 PUBLIC KEY-----\n"
+      PKISignatureScheme = "Ed25519"
+      LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nXCk1fivFwLugNByR0yyvdIR6N+FfkHGGbvm2ees8MjNkE2miqhlXfqKwsTimRMgc\neNwfzYyJJWzJ7MMosjC/gENuP7zDGDbCwgxGrLyAtSJgBjQySGsWrNjAosE4jvYV\n0mC603SSlot/VFpMPBmFTDxNjqgBMWmcphqk8usek3sGodtEPdjFu2Qm/LZrzvGY\n/lsl+ykdP7gTDeN/bsG7BoYilSl5HRcTw6RAsCONqMOPg4O/1KukOJmcaIBIPGm8\n5yKQZjOnieqNMVYvj0u9vRB0VkoglURPupBFuiiK1FyRcIBm5bXEOjdVgrNTrLMO\nN4AUP/Y4b8aGp0N+LWhgJuOnDtskp/WM/dRVnvJPhOSTJePORPQO9aCi2DqjCYOq\noBeEiPbGGIG8Jcu082BCYwcrqRxGCZkwrYuvnHw/StIl9iuTJ5qtl4G0P0ofaiQ7\nWsGTjmxU6JQsdAk1LLEi/mKgDwM7G+t6BkmosKW0nUuDWdoeO5G1u1GvWeBnhKhe\nSJjAXBw31JhG26k+ugSrzPehHwwBpwC3lNAjfyxONSpyb1rOZVHE52UZeks4MEaR\n2lsn7iuMeJRJwWHLFTiY/RiywYaX1+quFmlFZ+POfwcDDMmIH/GVZdSmSsqIVeBy\nKow0/gSDVuQixDpcfkVjs1gCqYea60MRbKRrB7K9e7oAvGMRUMGeHxu6kCdi+cIh\nGDxiSJadrRdfnpIhT/EWCaUG47pMuzlEGwDB93hMuwgnDWVb4bUWlwXIOVdX/Wtn\nEktzIHIepCA9lTlyducHAexOMyiHELQw2qghVGWseBFjTccNzFdtX8tX9qAvrVuv\n0NNhK+ptjnEVzNGaE5Ndm9AwDnVhC6fKgzNnVQhPaQmWwJyXGthbIehjK0eXqqQz\nvlQnsGR7ZiXF+vSHsrA/4bs1Y+w2RzNm9AUFklN2XhgP8wwuNrBHvGslTyaCBABL\nxMW2+igkDkAeqNFCA1onmePGW9QR+iy2/EBEWNo6PpQgzckAT5FUphDEqhOaEHIh\naPfFOEyhTqlvubYc9lKrA5mBffpmLvTFUYI1VoS6U7yvw3wfVYWmRMBozpTFaznJ\nlKN0/kMYBEoegXcbpDvDxoh+TQCqd6x+SPRQK5MXKqyJH/lLdgUIKeC8BIKOxod/\nQAzKQ/lTejS+ptWK+Ho9hoPKawZHTUSOr4lfJKZYCdSfDQU4s9uAC0QaraF9nblJ\nHhLPS1oywyYhxcKKN+y53AEnv0aaGVNe65PLAhpalzqzWGgfGeGOTmaY1neTtzPP\nFJZegEQiujppVuB3x5TCOivJ4VZN+FcbEPlDuOlgAyNViJhG87SE9+aZdtNOARm9\nFGEzz/F10mpkr2QpKvgC96kNqFAoRpC6nDUmCGZ02lQIUrSQJlsQmhm6H9gIOlCO\noRZWsUIJnTB+FBqooSLGbDg6zcVmN8cPL6qnRueL34l+CeW/kRnLBVgjc7MiObZn\nDVM+6FfHcqeOpUiV5JB6K+tr1BaM7AIiNlVVCzNdNNIYQ7RB5/m/BcSZ5vt0Tcgu\nw1Xr/bthjJaB4Eq0LKlO3h/ioL+sBEQYycSNdq5xoo4=\n-----END MLKEM768 PUBLIC KEY-----\n"
+      WireKEMScheme = "MLKEM768"
+      Addresses = ["tcp://auth3:30005"]
+
+[Logging]
+  Disable = false
+  File = "katzenpost.log"
+  Level = "DEBUG"
+
+[SphinxGeometry]
+  PacketLength = 3082
+  NrHops = 5
+  HeaderLength = 476
+  RoutingInfoLength = 410
+  PerHopRoutingInfoLength = 82
+  SURBLength = 572
+  SphinxPlaintextHeaderLength = 2
+  PayloadTagLength = 32
+  ForwardPayloadLength = 2574
+  UserForwardPayloadLength = 2000
+  NextNodeHopLength = 65
+  SPRPKeyMaterialLength = 64
+  NIKEName = "x25519"
+  KEMName = ""

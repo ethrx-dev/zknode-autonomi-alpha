@@ -1,0 +1,417 @@
+09:59:46.298 NOTI courier server: Katzenpost courier version: (devel)
+09:59:46.298 NOTI courier server: Decoy traffic is enabled
+09:59:46.298 NOTI courier server: Katzenpost is still pre-alpha.  DO NOT DEPEND ON IT FOR STRONG SECURITY OR ANONYMITY.
+09:59:46.298 NOTI courier server: Starting prometheus metrics listener on servicenode1:30013
+09:59:46.298 DEBU courier Connector: Connector worker thread started.
+09:59:46.298 DEBU courier Connector: initialSpawnDelay is 18.75s
+09:59:46.299 DEBU courier_plugin: listening to unix domain socket file: /var/lib/katzenpost/servicenode1/courier/28.courier.socket
+09:59:48.302 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+09:59:48.303 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+09:59:48.303 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+09:59:48.303 WARN courier-pkiworker: Force fetch failed for epoch 246413: pki: requested epoch will never get a document
+09:59:48.303 WARN courier server: Failed to force fetch PKI on startup: pki: requested epoch will never get a document
+10:00:05.065 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:00:05.069 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:00:05.078 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:00:05.078 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:00:05.085 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:00:05.086 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:00:05.089 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:00:05.089 WARN courier-pkiworker: Failed to fetch PKI for epoch 246413: pki: requested epoch will never get a document
+10:00:05.101 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:00:05.102 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:00:05.102 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:00:05.102 WARN courier-pkiworker: Failed to fetch PKI for epoch 246412: pki: requested epoch will never get a document
+10:00:42.610 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:00:42.611 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:00:42.611 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:00:42.611 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:01:20.119 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:01:20.119 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:01:20.127 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:01:20.127 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:01:57.636 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:01:57.636 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:01:57.636 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:01:57.636 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:02:35.139 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:02:35.140 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:02:35.140 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:02:35.140 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:03:12.646 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:03:12.647 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:03:12.647 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:03:12.647 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:03:50.149 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:03:50.149 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:03:50.149 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:03:50.149 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:04:27.683 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:04:27.683 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:04:27.683 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:04:27.683 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:05:05.186 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:05:05.186 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:05:05.186 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:05:05.186 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:05:42.690 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:05:42.690 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:05:42.690 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:05:42.690 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:06:20.224 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:06:20.224 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:06:20.224 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:06:20.224 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:06:57.759 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:06:57.759 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:06:57.759 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:06:57.759 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:07:35.265 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:07:35.265 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:07:35.266 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:07:35.266 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:08:12.768 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:08:12.769 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:08:12.770 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:08:12.770 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:08:50.303 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:08:50.303 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:08:50.303 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:08:50.303 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:09:27.811 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:09:27.811 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:09:27.811 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:09:27.811 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:10:05.313 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:10:05.313 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:10:05.313 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:10:05.313 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:10:42.816 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:10:42.816 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:10:42.816 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:10:42.816 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:11:20.323 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:11:20.323 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:11:20.323 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:11:20.323 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:11:57.860 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:11:57.860 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:11:57.860 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:11:57.860 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:12:35.362 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:12:35.362 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:12:35.362 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:12:35.363 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:13:12.873 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:13:12.874 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:13:12.874 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:13:12.874 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:13:50.407 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:13:50.407 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:13:50.407 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:13:50.407 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:14:27.945 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:14:27.945 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:14:27.945 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:14:27.946 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:15:05.448 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:15:05.448 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:15:05.448 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:15:05.448 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:15:42.950 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:15:42.950 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:15:42.951 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:15:42.951 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:16:20.483 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:16:20.483 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:16:20.483 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:16:20.483 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:16:57.996 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:16:57.996 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:16:57.997 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:16:57.997 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:17:35.503 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:17:35.503 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:17:35.503 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:17:35.503 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:18:13.006 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:18:13.006 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:18:13.006 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:18:13.006 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:18:50.547 ERRO pki/voting/Client: Get: auth2: consensus error code 2
+10:18:50.547 ERRO pki/voting/Client: Get: auth1: consensus error code 2
+10:18:50.547 ERRO pki/voting/Client: Get: auth3: consensus error code 2
+10:18:50.547 WARN courier-pkiworker: Failed to fetch PKI for epoch 246414: pki: requested epoch will never get a document
+10:20:05.225 DEBU courier Connector: Spawning connection to: '9942aa19ce689c1c2c2e821d6b74f47eacfc048e71b4bdee7d04a6350dc9bcd8'.
+10:20:05.326 DEBU courier outgoing:1: New outgoing connection: ReplicaDescriptor:
+Name: replica4
+ReplicaID: 3
+Epoch: 246415
+IdentityKey: -----BEGIN ED25519 PUBLIC KEY-----
+beuItHjqq9BjUe9pb7p+GM0DZj2j3yaMXYeZtHuzIgI=
+-----END ED25519 PUBLIC KEY-----
+
+LinkKey: -----BEGIN MLKEM768 PUBLIC KEY-----
+/oyRCpYQE7dB2eR5NTR8s/Z2mSo8+FKw2cY8mKuPGpZuFuN0KDRq+wEnUZZfEIRg
+Mipf3szCeoUr3zs33Tu/+6M67Ie4svCA/8OAA1aQ6KJklOca4twJtXoT8Zl36iOD
+ItSJUPyoYsBEhuvPvqsrwmSSXMwLXaq3hziqAKU6eYenjvmjDYIvGLPLBtlcy3fA
+VTx4rYcY15ZHAqsYwJMlebWJp4As9DZeMJeI3AaLmGGMBuNUrmC4zgcD0EsiuRXL
+MCFgxPxUn7lFdrw8Wcd/QGUfKeds1uTEb1BvXAk2L9UulfJ5cePA9wd+mQpHt5wN
+iOt9rcU2hcxSFCFHT0q3wHSwjICQqLWITAITcMMD7MM9liKjAXEukkdID5rB/XQD
+DgtJnOaXB4Sb+EQ+gHsejqAE+Rhy0/tb+4SDxCcu/aegehCQ3bacL6WtaCNC2eRC
+/iur0iV3cHs3tLhOt9g7wXxiYncvtMwQJbY7QABi3FRjpiQ3O9oeYbRCV8YbqeDJ
+vCU9ANlLB9kwsQELFJVvWTnF8hZ6MfWVBntsosQGqXN6A3OH/BAJAGVn+xazPQNZ
+eCxaukdCu/mFVtGnQXIvQbOX1EaFw9y1hlMeRdSAYzWM4Yy/7tQdwfOTCdlOqxq9
+I5eia5lxhia/4Tqi6+SNoAcPIplL24e0ilW8iMMEWjOTKmSDYYzHW9B3QgqNzRXG
+/rMNCjZB91yMCeNjxYsG3QmP0GsvaqXNmOuduaV130Zb1sqcQXQ+oMo086TLk8yW
+z0RnCjfLYUMBGhp3FiMNqzKarliosIBN5+egRnMByJZBqrC6NochONQrhTlJElR0
+MVU9rKqRh9mNuXomR2EgieQiK4c3yfBzHaBseUYnNjooTYK97aENojmtmNC4Q9hU
+/kN0qHxllqs3hoOI/ATEFzXN/YRa3BI7GNuRQZaGw8ZdNMkwXtMar1p/fTWZgXil
+NWslN0oCs0ATmCSCuxWJhCEv7jUsipCAsVYW20tkcgVGGAtkZ2YRFRGS+7SnvHOQ
+QMohjoZ368htcNyFEzlesOS1/2B9++h16Xd9MJxkfrA4+rkOejVM0+oAgEFI0uKp
+lCi24EG3vaAP6LgQ2hN2TIBCnJpscwlQpzWWqRGipPty1rWJ+Dg+tGYZqtI7hRwS
+jXxn1MSyg7aZALVREkYgc6weddClAmF2mGI9ODN3kMYQ4Agm6GZRWTwjbQIPFsR+
+mfBJr6BH21yDoIgHTVikg4MPWMMYJ0CH06UR9XNr7diRI7IDv5YAhsWKUBgsodUg
++sy/vVVqhyq3VlUNqVt8EVFgF1DCpESfpjWO43OEz9GES3Vl53QVSTVUG7Q3rcUC
+R0cXZvW7K9xYoYQxYdU1VsEqREhVudmu+ViMZbKsZnkSahuHSOGEP2Epd3JIrBpg
+zxYVbTaqaBWqRZRzdIGwM3GxleYhg7Zd8MoWWaKcNqFx6IYAG1aRqjEKw+OTP7CW
+OVG6wLrEiHWpIVGRweK5IKGNA5EhVgk52jpURidja5afPAla+blnPpkscgNLhoA7
+AgTpQQhIY+PxzIrdwio4zUVeajPKKdRZL7LGYfoHzcI=
+-----END MLKEM768 PUBLIC KEY-----
+
+EnvelopeKeys: [epoch 488 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+Zzh3/CDLUVuKmCVzySK2bcdBLiNvfQ22nXoAnvOnYUc+awBxJW18nJdVV+JiUbHl
+MgLmZM3FLH1JPtvreW66x1Ycpz9maDExS5xCb15aXd6f5wbYGcGWiBibSlDeW7sy
+VSDFQFLRQwaF8d3Fsi7HG1GevQ2/oQUOUym6PtV5NfxQ4dsVSU4UOid1wklpe+dY
+pheHe5NKgUycjn2M89jrBw==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+ epoch 489 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+GVvyWL375SACkmasR7att7nOmSxOW6OEk2d3yANYD0pDEce6VzcejC5XIgLZgTCT
+A7xZ4BYgFfkBkS4KfbEkPONvtnMK1nrFzwafSlIdSCjBmg9o8GsXPHgB/kC4k6Ef
+yA0zpNXpmUAiwRvDOaHaNsEiR3YvqYBR30QIK+mMKRUyMdcqPGri7d4wrKJAPVlI
+Jir3Kl4G1y8+QvqzDNC9BA==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+]
+Addresses: map[tcp:[tcp://replica4:31006]]
+10:20:05.326 DEBU courier Connector: Spawning connection to: 'a73b78a389b85ad6c1da120339dd055fe6064b23671881a46b663e2d3cf1f762'.
+10:20:05.326 DEBU courier outgoing:1: Dialing: replica4:31006
+10:20:05.326 DEBU courier outgoing:1: tcp connection established.
+10:20:05.328 DEBU courier outgoing:1: Handshake completed in 1.211328ms
+10:20:05.423 DEBU courier outgoing:2: New outgoing connection: ReplicaDescriptor:
+Name: replica1
+ReplicaID: 0
+Epoch: 246415
+IdentityKey: -----BEGIN ED25519 PUBLIC KEY-----
+kFTzTArmUtZkD90ezkq4Fc1CSAMTn/B5Ru9RVbHhClo=
+-----END ED25519 PUBLIC KEY-----
+
+LinkKey: -----BEGIN MLKEM768 PUBLIC KEY-----
+zfpVrNoEOXwXkpCJEzZZhFV5wIscXcihN3GhHYVDZOoVi5luJTjCTeAXbJF5NEuL
+enYD9Qgp2jmNo7nJ7OtEUVixyMlDt2Er7QdkTOsPZWDN4kipWft+hcSJbEmeuHrM
+jZyY++GPR+xnCBdhCLBr+oG/8UBC2TE8pmyPbTydfyVjlxivQ0g7fTd5Nwov4OE8
+vWNu3bBpCoGLuJmJ14YAfqdYBHoyAbkHIwZbVUzGPyRWjFNjB+Gh9EI+/Ud7eABx
+utS+ZDJnyKC/mayCZcmmeAtwvBGRhHVsDPRJh9Gj4BNdcXUn6UVpmbJ+0sgnh9TA
+StqiUsbEWQchCYOlQro31USahJZh6hqcFFqK2qmXxvUP2lmQUGKSK9FjgisGlOoD
+xlxZpOE+0FUuZxBaAzmFsEGnG6OUpBc31zrGpKNWjpG3FxQRr7LLTJgk56WkQ2Yj
+txEECUmhuIgsAVMqsWsGoJV5nOOEmwdEUKRnV/HHiJML6GWBqFgP3bt13BCSxpqx
+KuSZ5fwXPIUsXRNRr/SqWSK0dBcLY/c3WsQ2BIRp/9hU0nAgWVOZVYewWRdcobSx
+81UZ7WuV/8yh8sVHuLsYajxHoiCLMSmFSgXPkCQ722zETGGqjzOCVVqjIGaJsOdA
+JUIw2PEQxsYqYqMauyoz/XSrjgR9WJjKIpmOm3mJ5IOIDolPb4SAR3FF2aJpneak
+90ZhUYjErcACDGASjscEcYyL74mpfxymaGbNejgT2boua3Va6TMNO2hy8oqvbumc
+aeOYbGE+rEE0PMtXxDhT9SrEyfvBCHJ7l+sIT2yRwVGH03ljBGi/QriV9xR6A3Ai
+kmdBpEwvLrqUBfMV3dpA8eu6fyYYVDwRmsPK5ToMMOFRJAdJadSjfKFzv5MP6Qkn
+x7iF+PuQInQ7g3gyVVWYxVU3QicaQZo7o2pP0wVu7lspTSxpvSrDiFM711mF8BFM
+TOLAfmSJP9FqA1vEUFBsVkoQZpEAVooFIlRgioVBloEORcE/ozqrwWbNlHxwa0Md
+AbRzwZSClBM67DgnDHl0GPcVkqxQvfW7z6ZPMGanHuOCL1GLTxHKEFURn+Fpjfe7
+fWcIzXvI2ZtXEVSp+cibWvE3rIBwNwM8lDvBzYc00StUnauLlLESGotpQMYlDDq4
+eAAVCVFEc8gQGhcZm6FZd7JbqahC5+mmUoW8I9aaELsrz6rFZSsfSDPCf0Cz+cye
+Y0RYMkO0uCEwCEKgf4k62LFlPDEbW7W3FeCD6Ldv32OEY8SRstetWQMIkgamslc7
+QflMaEQKSUmGSnRRZmPOwOeBWYAsYYioo9xgBQiQw8rLpFYbhEJpJwtbBopgepIW
+GWxBopVlowVIXuYbRxZTe0d9CTSZR8crL+ER1MqKxMl4uQUHVTmMzIvCbKJiTBzF
+6/Zx3qeuu8ugAholw3Av//txYwUmQzEqnCrI6TIkEHASiOapk7yqcBwsizyxkQQX
+62kQ8zRYuZcSetW2doN2iDaa1GdFrSA2igIy4WJktNMO5gqijje2YTkauiGWfJth
+rrc4iTrQdh8yjRn9PmFQshRwINw/aQf7XTHFlaoP/lA=
+-----END MLKEM768 PUBLIC KEY-----
+
+EnvelopeKeys: [epoch 488 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+aJw296uKIh62/e6sVO/5+HnuarQzCfBFu6hYYsJQHRv6gFJMYpV+0jA95G4Fwop0
+wMSijQWbE76T6u+yWtB+mVIiZpKfjgjpZR7U1dSNbfrYsjmuSPOY1RJUKnEo4bXq
+WGAWQ8DItSrZr/ZrdH/Q4n1zZQgEOYldBeLFZNFf50CV1VBiAZOjdvg8yQbcCHyU
+oB+MDCCdL9r4GG4qGH7iAg==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+ epoch 489 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+s9RM7Anvjwbv35qWdmwfsdtA01651kdcG/NyfI7CXm+WlrCda5KBykrOmn/xAUiE
+73lgz4Ry50tmczbazwC7cEdnL3lLcNDijjLyfXdtFwbFr+a2/YxNShf6+ny8EROK
+PrINVcJwN6fbyOKzuItujRKFE7eozl7tUvO0mOnoBO3JEJk/pemCRIdphLM+qNTA
+G4rYsZwLxDLUHJzou7x+CQ==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+]
+Addresses: map[tcp:[tcp://replica1:31000]]
+10:20:05.423 DEBU courier Connector: Spawning connection to: 'db330dd72447e19789621b5b9c721eb5673ab35e92e8cb4b20b72a3f52400c89'.
+10:20:05.424 DEBU courier outgoing:2: Dialing: replica1:31000
+10:20:05.424 DEBU courier outgoing:2: tcp connection established.
+10:20:05.425 DEBU courier outgoing:2: Handshake completed in 1.037027ms
+10:20:05.521 DEBU courier outgoing:3: New outgoing connection: ReplicaDescriptor:
+Name: replica3
+ReplicaID: 2
+Epoch: 246415
+IdentityKey: -----BEGIN ED25519 PUBLIC KEY-----
+cMlHwblTcgqpPzjPz/C2cZWOpTpQ3RJVObUvQgIQxPA=
+-----END ED25519 PUBLIC KEY-----
+
+LinkKey: -----BEGIN MLKEM768 PUBLIC KEY-----
+SeGGrUBu4rLO51AUkXalWWy6kFkxKHYg5OcnFcqInaTLD1l3OgMRUem5h6dtkute
+OtEinSOBoKmgvBxV3qOojYBLdRkNR6p3LTt5phwJE5QhzPA3J6QH+kUDVCq6CacM
+mei1zfM2lZAmrqtTgUxgJhFH9aGKWfAbMICb0pgr9xUBMIUpQmZA6LQuV6NiS3Ea
+VYq2LlwdMtYok7Y9d4a8ylyDyLIMeevMjUkp9/OaWQsdB/tOsNV7QKK8uawXu+qZ
+hcNwDVBn5qVdrxCU+fivcdgJxSSs0vwwThFr0UcxI9WeXisQZoB7LxMMRQBIJsRI
+vSdfo5VOBWTGk4NRQXnLH4cLu7e/eOtM1TZTzUAxvgx64UQTpqbDnAZC4nFJMSwI
+kDgEcKPALqp+icOUwYq/4acU7aiCvei7ibNXE0NVgea2SpW2mvkEEvK+Yqa0WISg
+HMcdb7FpvKhoHgpHZryTJ7Qw5iMx2fIHFZcjLgUvrdpNWIwg7TSEL5sQY2eBBBy5
+HOKM+DGqBmBgk5yY52V+8Jgbyfmy7lNknPke4axu+kc0A+JeD3Vwbto/UyK7kMM7
+BNLPyVK/okNi6RG8HOZmwVOjlwYWN3sXD2OHwfmM06tpH5yIUQZ55bRs/+rJo5iH
+Q2WnUCU0A+CmXmjBV5kkyvWC0hOisggiQma3DMWPLvKpbOhAyhUpA+zMHWqKJYUs
+iKYlwIcyYLFFGcse3YdGvzPC8NlE8Bm/R0ECq9uaV0dPeqF6RaNk0PE7GMEDkRMR
+8kK57nam6ZmMbXdstiQPUHa2iIuTNtuhDiRRQIgDJppwh4axl7AZmfxZxACC3ZyT
+0maL0xOsWeE4bvFvIRllmSMX8elngNN+b9ksKZHAPxLIrzGSyaplZ7tYRpwRE3oG
++fus27nEv/CeDfJPtyl1rWqKFMsEvNgtRdKyRKCexAKkaRwmg5a6sCG9F9BVIRk7
+BXobyJrDoIOIbgW+KOLMqyNS9WoB+MgIx6A3PpfJpDdoC4srs8bFPsjHSNN1GqiZ
+GVEVQZMdBRyWqiQM1XipJRxyVsQqYYNgRTt5XzpKMnA8J0ZfLGF7E/gUoMYgwftZ
+IzLJcrKBcmuBPFWN3Uo1JXZ0zgCKw6p50wYA2MGEIgY0aek+UxCugkOvWqAfLeEB
+mUO9Dpo6vxWc9talKsOLsvoYUCgHyHhzsXQgvtOtO8m9EQh7B4EWZHR5U3I6XsvL
+XkNEiabPcVdxLIm48VgueiglDHKTA7QHqhMwgstnh+AzNXQL3MGwMTuZRKQXEvNw
+TypsEeduv3GuZRFKj9lHXKWUotqBw8d1kfZ0GtO23+MmjtdfCrhq+Ep/vIKfnjwn
+fUpsjcxdHoK5HrBOjpdUs2QmkYpkW6RKAbqoKUyZshKdD7yX8Lm+5hO0cxFaRZmD
+HUOVvPIdaEoQQmlmQ1A27qQlWpxrTAGh1nxgcAAwBVOLU3hSPhWZJVidwEYGPql3
+FbI/Y+moSnpaHbe6kGR+r9W5iNwwhcGO8rjCQuZLVWoH3Wc/ppIE0JQWwJsUlfyN
+Q81p00+cjI1J0d5KSShgFFKqf2ufO/0u2mw3P6LL6iM=
+-----END MLKEM768 PUBLIC KEY-----
+
+EnvelopeKeys: [epoch 488 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+/UaX8qpSx0cSvfSDoKam7CVsakkO+X4UYLLaCJuQHUWYHKiykmeED2bcCDoSmMAD
+2Z6DyvECcUl24wc+/HxubBWH2YVlj2zyQPXpc3WXEUgnRjlkbuQI/GylPw7PyMjB
+pzlRqcrKgJ6rVwwkt29xcQriJx7lD6nBz+UvUcImDIWzzwt40mLwjq7EVLeeecnC
+c4jQ4TCKNVufA77KVtTHBQ==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+ epoch 489 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+9VjEBnsn6rvUyeznqEpHpD37BkimGXdlQ5tMQp/qsBMHUZFhSOTWdTkmPaHU+bSw
+/jm8SLSh9JeKEWBUqZs1FSVVOFRdnvSSll2lf06hzexsK/sbDw60nRy9HLLDs1MJ
+Y8dLWu5hbqHS1U4XR+f180Si8wNots0Mm7f8OwH22o7Ss/zHNTMwg3rvljeUjKG7
+++L4QD6JnkTtM4U2DoawAw==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+]
+Addresses: map[tcp:[tcp://replica3:31004]]
+10:20:05.521 DEBU courier Connector: Spawning connection to: 'e3877c82c26aa7a184573f352672595a0e0c4b32f3a8e3da6d5926f9391e34ab'.
+10:20:05.521 DEBU courier outgoing:3: Dialing: replica3:31004
+10:20:05.522 DEBU courier outgoing:3: tcp connection established.
+10:20:05.523 DEBU courier outgoing:3: Handshake completed in 1.151794ms
+10:20:05.620 DEBU courier outgoing:4: New outgoing connection: ReplicaDescriptor:
+Name: replica2
+ReplicaID: 1
+Epoch: 246415
+IdentityKey: -----BEGIN ED25519 PUBLIC KEY-----
+DJ/gLw7iCg5e5DujxQ2FiTVVHAQAIWSe0USTYjjhlHI=
+-----END ED25519 PUBLIC KEY-----
+
+LinkKey: -----BEGIN MLKEM768 PUBLIC KEY-----
+wZRY9mBInMcJljx/i5WF86VFxUEYz6NLR8XDaWqaC1s/G9JsOeuGp+El8zW7IeRA
+a7UZhKhlNOwUTXEupkkNSQEsNSAmr9B9+rYzLUoMMVY2WkKfWxg9YTjDakOmbDgW
+Vkw7qvVShZs0IkhrJjJRYhzCaOt/iLse5msr/opEkLthMuAPrOuS/FWTChYE2/tV
+SnNCWRDDPeEXW4WYfPtj1EazLKSe6LhWq+ZxrryYLthCDJSHtgJmlkQdREeUqICB
++BIInUWtbdCyyXUIekGYycaiCFIJHMRF06MDFsXEc+bNnwQHwmGh+8JIgDu0L2G/
+FjU3eVBRwtdimkNJIWhfw8HCJGF8YixUDbFQ+COkHgdt3ni0wznE3XQ5orFFX1Ri
+FSLG63PGTFEZUyOOD2CVTnmyePuwA9cX0uVlg+Vdb2B9xQCBOCTEiZc52rKw1+Sp
+iMwLWJGdnpIT1fdvIWwtiLwUu9DAl5CSBomusTDL8SmW9EY+XYdVvBOeInYpK8Wc
+svFkxBEUG4Q2j4Z1vndpmSOHwTFluYxg3raDjAp4XcRI9QGrERoZYpc62PCvUrbM
+4roL37bMDDpbDOstoWgmnCN1N4KMqph3jqgovvK/wzofbtdbsXLPZNswIiVqRQSt
+KFAQeCi8SlC3J/FEdkpu04UrHGQKKoeLbwouemw2/SFgRUy+nNGFv8pIN4lOd3vM
+VkutepsSUUPO7xSZDWcqu9Wd8KEqiew5jkTCQWBGd+taZvmjf+mf3vhaYUhKu+B8
+1LtA0MdCrmpxpEOH7WEn1nLFEvxVoHW84yAoBEcr+5atyZwWlqnNgaFG8WWO84QJ
+I5Q1BJtj3wCuRwinEqdp3ipAn4A8xrhYq7Vy6bI6IBS+g2OWJio7gjRHAjkvf4mc
+i8dHnHFEDDccsPnPqvFJy6Qrv8Ejf8BvEDGe6luuMGo669KbNcooLgxTfbIhjJYU
+5kajE1Y9YUo7PqInLgEE9tVMFAeAcwWPFKsHrrq8qFilaOYgNtbNsMAHLrW/eReF
+Qtd9E8mEkOdIfgubb6yqmJDC8OmRrDAIkJkSH8YdmFOaJQoqnPEmGrei8CQaaAg7
+QDtSshk/YDNfDts3w1ujc/hAJNB9VnJ2YlCGOJQFvlgybrmlRRdUjbxTEkHOpiYw
+GqtEMUqlGetHIBRruwhqa7ZwJJSCS8eMRKE+fdB7RIQRx8LKKJwzS+VKvXvJr1fK
+FmFyEyCOjTJKq1IytLA8XkITbGK4SCkJGerFuJR7MmqFdUkPsHF4XXUqEQB/q5YX
+9cErTWcfVdKDtpWPHwSx+FpIYXbGxWtVTIbGmsEbf7xb7yRFDotwezV08Ulu7wMl
+n4S1JYyLdQAXDktw3TQm2jAiDfIAL2W/wLeYVTZipSq+W1ZVKPYzTivHUcm0Yedy
+2Qu/rRQQLQosjZCIuvkVlwJN1XSolPVnPfqxBTS2gQM2z1vHDKa1UEm/2UGedpq8
+veDHbFk7plhSlPTH0kEWz5kB6Wyo/IUfE+h2VviTI2ZvqXLG7dfJqcFa5mRY38dg
+ooBwtIMNwTw4imFNJf+8MhL79kxJIrzqD7syJWe3vn4=
+-----END MLKEM768 PUBLIC KEY-----
+
+EnvelopeKeys: [epoch 488 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+Ktw8OD73eBKJFjRSSo8fkfCgWseXMWVBXzP3etGC/R+AAyRUI3nTsHpWrx0FX315
+ygjMBSlbwd6Doueym8VdyAbGFZs5Ks3l8Yvwp2hhAdd0J+XUzPnCU7wPwLPz586r
+lMIoJR0R8JV5XQXPtMy9TMKOqWRgsH+V0dsSYS8mAUP93+WIqGXi2nOk/ibqXRXp
++AHSU+31hhB5FxceAsV2AQ==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+ epoch 489 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+DghCqCR2ouKit50BKVYipkz2NDIzHNdqVnUKg0Fi2gqjWFLuOUlN9XJbn+4APxrJ
+iV0cv1F2k01X4AyguiKkFgBgXFgGt0EkEAWVWqLEYf6tjafNE1hsFAetwHglha6a
+tuTSU/9L+hHYKjFBagwN4GicmVNYHgIDvNPGmWEIKbXL1GcKoAB3lFco1hxFoJhY
+9R+X6LAuDitMZDjrConZAA==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+]
+Addresses: map[tcp:[tcp://replica2:31002]]
+10:20:05.620 DEBU courier Connector: Spawning connection to: '251175f8c83e90344341835110a66b1b29fb8fe54fbfa0a1966ed609b2c09aaa'.
+10:20:05.620 DEBU courier outgoing:4: Dialing: replica2:31002
+10:20:05.621 DEBU courier outgoing:4: tcp connection established.
+10:20:05.622 DEBU courier outgoing:4: Handshake completed in 1.125165ms
+10:20:05.717 DEBU courier outgoing:5: New outgoing connection: ReplicaDescriptor:
+Name: replica5
+ReplicaID: 4
+Epoch: 246415
+IdentityKey: -----BEGIN ED25519 PUBLIC KEY-----
+h5u+3+q8azMrSRiWP2eoe/hS09+KXmOa9n7D/4KtIn0=
+-----END ED25519 PUBLIC KEY-----
+
+LinkKey: -----BEGIN MLKEM768 PUBLIC KEY-----
+1rmHnwsxaYiHXxhwpZhYyjwK33J4JYV4guW9flsIfPMoe9Sy09gn3nh3jfSHpJxO
+2iQHvNtd5pwcZ7gcsBGt9nMO2gatJVpiCwRuCGJInOYa6wsGJQq6SeUzH0VUX8uR
+o/UWrgfEXjK1PneBuKZXgLej+vabKzdmLeqrrHl/xTe6xfRTHSKmFGlL4sC115jN
+x4A/mvqK9qlQSlebxTI5quhzIcCv5BpCHtxLZ6bLkbcNoyxCTPJ+AFCf4rVjC5uj
+etRuSYgcQhXMnRcY59R9c+wXl+IOwLajzVFdoVy36FRLegkafjAGtII2YOc1oEDB
+YlCT0aeb3/ep1vZohJqXG8Rqu2QHYOdDKCRpfrA5xmqBpWmh8wm4YuaVynJNxVlj
+epwpOqJNJlUsExOMz1PELwwK9+MYUamrViMYmvw4+XoiLcNb5yNExGYa9DWQsLib
+E0ZOKegHIGRf6fEAE/aodDLD5ut/dkeoPygigug+YldQkyNmJYJ+7UuMdcvEakxd
+/OUiS+FL4QSQPhMCNdojfUKdFJPPnwpuzcvIdRWG9bl6GluvTsCeq/m6MAOlKgZl
+pCaI7WR+xlGrSmVRQFBsAazPR9uJ6coIa0qcGvEWN0tvygZ4HedihXVCy7QJBdhB
+twXOBiOKcfYDj7y4/Sss2ddRUzVIyOsfM6JekjApDAG/XEiItwObq9aPUngF08w4
+nZYzgSswmhugedVTgBUPCVxUJUXL21Ms6YqP/du9OGqOc4irO9GVI0C57/KFsFMV
+ibMQwbom7SCXtNgb20MVB3kT7GIDzSkF6hMzJQuLcYpaUgs/Y0W5J4GOBKUFFrvD
+EgRTJQmkA1iSADwhc+YiUbg8P9RpJqUbcLJmiMCeknpCazuF55m44cuDK3oGg1pV
+0NUdQMXA+SWRHJVXfaRZ+MYY/RBvUYY7/SMRnbpKYOrMy1sCFKM13hIkaaw0gqKJ
+1rMB8uDDRvGC79y4ecWeBvaTQBpWKIKZcUKSjAzAI0uVLQSwVzICKXGra2QF1pMc
++EBmaKgeWxhJiUJDW6K9f1XKTaSBNOOD1wa1X6mpoFkO9BLLL1IFeqZ8inpCY0UY
+Nrdw1TYgkudMhYw6ZPpe8FtjdGnJQrMKUiJFrvEzO6oe1mu7jtUk2TYmGKq9qVSR
+oiRjHBiW0KAd5JzLwNik97ZhYAlZJSKcZoZrfCI3ONIIzGMBy6hgiJGWuTfJ2aIx
+jJGrRspkXnadBIAhuJqBdnNeIQg1D/J/6jybnRdxTqc3+CklJTjM4yw2HtAn6+ic
+aec1/TC1Vxlfy8wncWUw/0xaMuZndLjBmVQqTQPF5aOSEINF3wJGCGu2TqW0xjot
+vcymcFm0dzo611g+tKgydQbDwNd7SHg6YFiPjxZl3hZhQ2ua7KqEDqI9W2xE8ggA
+DyN8U4vK4ac5yLGLBpJj9vBo06ksMrK8C7hetUHPzDW14lA+UpdOqYSJtaBz8RSV
+PHyg24WxgZujqGBoWbBjvOISLoYvcmciChBxayk8pNYnowKi4SlekwajD5zB7KBP
+UNRlGuiOQ9U8g7dZuYrEUIX4/yUtebiHJimBR4NjeJY=
+-----END MLKEM768 PUBLIC KEY-----
+
+EnvelopeKeys: [epoch 488 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+b9v7OpJNRb29vn1o9WTsjNeEEiX0x768ATSfG0496GtiZKbQBjy8BsfVoTGppfHa
+6yFHq7WHi784frLeUdvDCrJaZuJCgZXE8xVMgwlGEnXQsddp264/1TrzcdR3f63P
+5n56ERjjWcj+e+Hn8pxypO7eMnh7rqp8okc5YF5gHtbb5HCKwFHhKghPdNpk1IHw
+V8LY2RfPX35IJpyWmM3UDA==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+ epoch 489 -> -----BEGIN CTIDH1024-X25519 PUBLIC KEY-----
+mb+M5BfIf+gNCCqmwcxNsdETntFiUtojiMUN9kWwdxnizAUMdn2nRD9MvZ57H5zd
+uqjv00Vlz2mI7jzJhNKOFKUNZbuj5SDfZH5NBmUEmmHryyZ8W+nhWmBM2t14lDOw
+TCIE+QUbAA1Tfw3OHzHKoFSpClyizSiWhZzaewYcaVxcOLX2hMsJZ/isxjA9QAvI
+ID1Mw8+k92Vf/sSURYqSAA==
+-----END CTIDH1024-X25519 PUBLIC KEY-----
+]
+Addresses: map[tcp:[tcp://replica5:31008]]
+10:20:05.717 DEBU courier outgoing:5: Dialing: replica5:31008
+10:20:05.717 DEBU courier outgoing:5: tcp connection established.
+10:20:05.718 DEBU courier outgoing:5: Handshake completed in 1.0227ms
+12:18:45.018 WARN pki/voting/client/connector: authority auth2: attempt 1 failed: peer auth2 (tcp://auth2:30003): handshake failed via tcp://auth2:30003 local=172.25.0.14:39668 remote=172.25.0.4:30003 after 5.829472ms timeout=3s: wire/session: peer auth2: handshake failed at message_4_receive (initiator): failed to receive message 4 (underlying error: read tcp 172.25.0.14:39668->172.25.0.4:30003: use of closed network connection)
+12:58:45.010 WARN pki/voting/client/connector: authority auth3: attempt 1 failed: peer auth3 (tcp://auth3:30005): handshake failed via tcp://auth3:30005 local=172.25.0.14:55652 remote=172.25.0.2:30005 after 696.962µs timeout=3s: wire/session: peer auth3: handshake failed at message_4_receive (initiator): failed to receive message 4 (underlying error: read tcp 172.25.0.14:55652->172.25.0.2:30005: use of closed network connection)
+12:58:45.010 WARN pki/voting/client/connector: authority auth2: attempt 1 failed: peer auth2 (tcp://auth2:30003): handshake failed via tcp://auth2:30003 local=172.25.0.14:59814 remote=172.25.0.4:30003 after 285.314µs timeout=3s: wire/session: peer auth2: handshake failed at message_2_receive (initiator): failed to receive message 2 (underlying error: read tcp 172.25.0.14:59814->172.25.0.4:30003: use of closed network connection)

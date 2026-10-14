@@ -135,6 +135,22 @@ if [ -f "$OUTDIR/servicenode1/katzenpost.toml" ] && \
 EOF
 fi
 
+step "adding meshbridge capability (fix 8, bridge relay plugin)"
+if [ -f "$OUTDIR/servicenode1/katzenpost.toml" ] && \
+   ! grep -q 'Capability = "meshbridge"' "$OUTDIR/servicenode1/katzenpost.toml"; then
+  mkdir -p "$OUTDIR/bridge/peers"
+  cat >> "$OUTDIR/servicenode1/katzenpost.toml" <<'EOF'
+
+  [[ServiceNode.CBORPluginKaetzchen]]
+    Capability = "meshbridge"
+    Endpoint = "meshbridge"
+    Command = "/usr/local/bin/mesh-bridge"
+    MaxConcurrency = 1
+    Disable = false
+    Config = {log_dir = "/var/lib/katzenpost/servicenode1", log_level = "DEBUG"}
+EOF
+fi
+
 step "permissions: node dirs 700, tree traversable (fix 4)"
 chmod 755 "$OUTDIR"
 find "$OUTDIR" -mindepth 1 -type d -exec chmod 700 {} \;

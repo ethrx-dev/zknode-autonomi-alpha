@@ -1,0 +1,2 @@
+net_id = "domainB"
+config = "/var/lib/katzenpost/bridge/peers/domainB-client.toml"

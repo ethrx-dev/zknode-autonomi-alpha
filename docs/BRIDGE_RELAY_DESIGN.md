@@ -1,7 +1,8 @@
 # Bridge Relay Design — Cross-Mixnet Messaging between Sovereign ZKnodes
 
-> **Status:** sketch v1 — message path recon **complete** (§3.5); flow and
-> phases revised accordingly. Design only, no code yet.
+> **Status:** v1.2 — sketch + recon complete + **Phase 0b spike PROVEN
+> end-to-end** (2026-10-14, this build box: two sovereign domains, bridge
+> transit to the peer's `+chat`, message displayed by the peer's zkchat).
 > Companion to `docs/ARCHITECTURE_OPTIONS.md`. `§9` positions this against
 > shared-domain options (A/B).
 
@@ -179,6 +180,44 @@ central registry.** Key rotation then becomes a re-issued DomainCard
 | Mix hops | Preserved within each domain (same 3-hop Sphinx, each domain's own PKI). Cross-domain pays one extra trust boundary at each bridge. |
 | Key rotation on remote path | Same problem as `client-vps.toml` rotation: if B's gateway/identity keys rotate, bridge A's pinned config breaks until re-deployed. Operational. |
 | Autonomi (`useAnt`) interaction | Inbound bridged messages must be forced to **local file** storage (or a per-bridge ant path) — the remote `Addr` would otherwise point someone else's fetch into Autonomi ambiguity. |
+
+## 5.5 Phase 0b spike — RESULT (2026-10-14)
+
+Validated on this build box (amd64) with **two sovereign local topologies**
+(domain A = `docker-compose.yml`/`config/mixnet99`, domain B =
+`docker-compose.domainB.yml`/`config/mixnet99-b`):
+
+1. Domain A's `mix-servicenode` spawned `cmd/mesh-bridge` as an external CBOR
+   plugin (same mechanics as `chatd`/`courier`/`proxy`); the `meshbridge`
+   capability published in A's PKI descriptor at the epoch boundary.
+2. The plugin loaded a per-peer session config
+   (`config/mixnet99/bridge/peers/domainB.toml` → pinned-gateway client config
+   `domainB-client.toml`, address rewritten to the B gateway's host-published
+   bind) and lazily dialled domain B as an **ordinary client**.
+3. Operator-driven envelope: `mesh-bridge -send -c <A thin.toml> -net-id
+   domainB -to <B identity hex> -msg 'hello-from-A'` → thin client → +meshbridge
+   (3-hop in A) → plugin `relay()` → peer session (pinned gw :31007, PKI doc
+   through the gateway) → peer `+chat`.
+4. Domain B's `zkchat` displayed the message with sender hex
+   `6d6573682d6272696467652d76312e305d` ("mesh-bridge-v1.0") — **the receive
+   side needed zero new capability**. Echo pings in B from the same embedded
+   session: 2/3 (one start-up-ramp loss).
+
+Ops gotchas encoded during the spike:
+
+- `docker compose up` with a second `-f` file in the same project *prunes*
+  unrelated services — run each domain with its own `-p <project>`; the same
+  applies to the SCM4 pair.
+- `[::]:port`-published binds are invisible to **container-originated**
+  dials (docker-proxy doesn't bind the container bridge gateway IP) —
+  publish `0.0.0.0:port`.
+- Mid-epoch nodes restarted cost a **descriptor conflict window** (~2 epochs,
+  `MAC mismatch` on every arriving packet) — boundary restarts are law.
+- The thin client panics (`pki doc is nil`) if `PKIDocument()` runs before the
+  session state exists — bridge wraps these with recover and replies an error
+  instead of dying (the plugin unregistering itself on a crash is how the
+  first transit attempt was lost).
+- thin-client image version must pair with the daemon image version.
 
 ## 6. Implementation phases
 
