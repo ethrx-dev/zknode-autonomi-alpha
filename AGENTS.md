@@ -12,6 +12,13 @@ zknode-autonomi is a self-contained private Autonomi storage node with traffic r
 
 ## Backup Policy (standing rule)
 
+### Cross-filesystem file moves (SCM4 ops)
+
+NEVER `mv` across filesystems (e.g. `/home/dmax` -> `/mnt/autonomi`). Use
+`cp` (or dd/rsync), `sync`, verify checksums match at the destination, and
+*only then* remove the source. A 2026-10-14 session lost a 982MB tarball by
+doing the opposite. Requires a snapshot first.
+
 **Always make a backup and restore point before modifying anything.**
 1. `git tag -a backup/<milestone-desc>-<date> -m "..."` and push the tag.
 2. Snapshot the working tree + runtime state to `/mnt/trinity/backup/zk-autonomi/`
