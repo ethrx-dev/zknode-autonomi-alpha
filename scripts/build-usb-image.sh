@@ -75,14 +75,14 @@ trap 'rm -rf "$WORK" 2>/dev/null || true' EXIT
 echo "[work] $WORK"
 
 # ─── 1) rootfs ──────────────────────────────────────────────────
-ROOTFS="$WORK/rootfs"
-mkdir -p "$ROOTFS"
+  ROOTFS="$WORK/rootfs"
+  mkdir -p "$ROOTFS"
 
-if [[ "$BASE" == "wolfi" ]]; then
-  echo "[rootfs] Wolfi/apko path"
-  # apko declarative rootfs — runs via docker, no host root needed
-  APKO_YAML="$WORK/apko.live.yaml"
-  cat > "$APKO_YAML" <<'APKO'
+  if [[ "$BASE" == "wolfi" ]]; then
+    echo "[rootfs] Wolfi/apko path"
+    # apko declarative rootfs — runs via docker, no host root needed
+    APKO_YAML="$WORK/apko.live.yaml"
+    cat > "$APKO_YAML" <<'APKO'
 contents:
   repositories:
     - https://packages.wolfi.dev/os
@@ -109,58 +109,74 @@ archs: [x86_64, aarch64]
 entrypoint:
   command: /bin/sh
 APKO
-  echo "[rootfs] apko yaml: $APKO_YAML"
-  if command -v docker >/dev/null 2>&1; then
-    echo "[rootfs] would run: docker run --rm -v $WORK:/work cgr.dev/chainguard/apko build --arch $IMG_ARCH apko.live.yaml /work/live wolfi-live.tar"
-    if [[ "$DRY_RUN" == 0 ]]; then
-      if docker run --rm -v "$WORK:/work" cgr.dev/chainguard/apko build --arch "$IMG_ARCH" "/work/$(basename "$APKO_YAML")" /work/live wolfi-live.tar 2>&1 | head -n 30; then
-        echo "[rootfs] apko build ok (wolfi-live.tar)"
-        mkdir -p "$ROOTFS"
-        tar -tf "$WORK/wolfi-live.tar" 2>/dev/null | head -n 20 || true
+    echo "[rootfs] apko yaml: $APKO_YAML"
+    if command -v docker >/dev/null 2>&1; then
+      echo "[rootfs] would run: docker run --rm -v $WORK:/work cgr.dev/chainguard/apko build --arch $IMG_ARCH apko.live.yaml /work/live wolfi-live.tar"
+      if [[ "$DRY_RUN" == 0 ]]; then
+        if docker run --rm -v "$WORK:/work" cgr.dev/chainguard/apko build --arch "$IMG_ARCH" "/work/$(basename "$APKO_YAML")" /work/live wolfi-live.tar 2>&1 | head -n 30; then
+          echo "[rootfs] apko build ok (wolfi-live.tar)"
+          mkdir -p "$ROOTFS"
+          tar -tf "$WORK/wolfi-live.tar" 2>/dev/null | head -n 20 || true
+        else
+          echo "[warn] apko build failed or not needed in dry-run — continuing with empty rootfs stub"
+        fi
       else
-        echo "[warn] apko build failed or not needed in dry-run — continuing with empty rootfs stub"
+        echo "[dry-run] skip apko docker run"
       fi
     else
-      echo "[dry-run] skip apko docker run"
+      echo "[warn] docker not found, skip apko"
     fi
+    # stub content for dry-run
+    mkdir -p "$ROOTFS/var/lib/zknode" "$ROOTFS/boot" "$ROOTFS/usr/local/bin"
+    echo "wolfi stub $(date -u -d @$SOURCE_DATE_EPOCH +%Y-%m-%d)" > "$ROOTFS/etc-os-release"
   else
-    echo "[warn] docker not found, skip apko"
-  fi
-  # stub content for dry-run
-  mkdir -p "$ROOTFS/var/lib/zknode" "$ROOTFS/boot" "$ROOTFS/usr/local/bin"
-  echo "wolfi stub $(date -u -d @$SOURCE_DATE_EPOCH +%Y-%m-%d)" > "$ROOTFS/etc-os-release"
-else
-  echo "[rootfs] Debian path (debootstrap stub)"
-  if command -v debootstrap >/dev/null 2>&1 && [[ "$DRY_RUN" == 0 ]]; then
-    sudo debootstrap --arch="$DEB_ARCH" --variant=minbase bookworm "$ROOTFS" http://deb.debian.org/debian 2>&1 | tail -n 20
-    # wireguard-tools + wireguard-go for the VPN overlay (bookworm has both);
-    # wireguard-go covers kernels without the wg module
-    echo "[rootfs] apt install wireguard-tools wireguard-go"
-    if sudo chroot "$ROOTFS" apt-get update -qq 2>&1 | tail -n 5 &&
-       sudo chroot "$ROOTFS" apt-get install -y -qq --no-install-recommends \
-         wireguard-tools wireguard-go 2>&1 | tail -n 10; then
-      :
+    echo "[rootfs] Debian path (debootstrap)"
+    if command -v debootstrap >/dev/null 2>&1 && [[ "$DRY_RUN" == 0 ]]; then
+      # Ensure gpgv is available for package verification
+      if ! command -v gpgv >/dev/null 2>&1; then
+        echo "[rootfs] Installing gpgv for package verification..."
+        sudo apt-get update -qq && sudo apt-get install -y -qq gpgv gnupg2 2>&1 | tail -n 5
+      fi
+      
+      sudo debootstrap --arch="$DEB_ARCH" --variant=minbase bookworm "$ROOTFS" http://deb.debian.org/debian 2>&1 | tail -n 20
+      
+      # Mount necessary filesystems for chroot to work properly
+      echo "[rootfs] Mounting virtual filesystems for chroot..."
+      sudo mount -o bind /dev "$ROOTFS/dev"
+      sudo mount -o bind /dev/pts "$ROOTFS/dev/pts"
+      sudo mount -t proc proc "$ROOTFS/proc"
+      sudo mount -t sysfs sys "$ROOTFS/sys"
+      
+      # wireguard-tools + wireguard-go for the VPN overlay (bookworm has both);
+      # wireguard-go covers kernels without the wg module
+      echo "[rootfs] apt install wireguard-tools wireguard-go"
+      if sudo chroot "$ROOTFS" apt-get update -qq 2>&1 | tail -n 5 &&
+         sudo chroot "$ROOTFS" apt-get install -y -qq --no-install-recommends \
+           wireguard-tools wireguard-go 2>&1 | tail -n 10; then
+        :
+      else
+        echo "[warn] wireguard apt install failed (continuing — provisioner requires wireguard-tools)"
+      fi
+      
+      # Keep virtual filesystems mounted for boot section
     else
-      echo "[warn] wireguard apt install failed (continuing — provisioner requires wireguard-tools)"
-    fi
-  else
-    echo "[dry-run] skip debootstrap — creating minimal stub rootfs"
-    mkdir -p "$ROOTFS/boot" "$ROOTFS/var/lib/zknode" "$ROOTFS/etc" "$ROOTFS/usr/local/bin"
-    cat > "$ROOTFS/etc/os-release" <<'OS'
+      echo "[dry-run] skip debootstrap — creating minimal stub rootfs"
+      mkdir -p "$ROOTFS/boot" "$ROOTFS/var/lib/zknode" "$ROOTFS/etc" "$ROOTFS/usr/local/bin"
+      cat > "$ROOTFS/etc/os-release" <<'OS'
 PRETTY_NAME="Debian GNU/Linux 12 (bookworm) — zknode live stub"
 ID=debian
 VERSION_ID="12"
 VERSION="12 (bookworm)"
 OS
-    cat > "$ROOTFS/boot/grub.cfg" <<'GRUB'
+      cat > "$ROOTFS/boot/grub.cfg" <<'GRUB'
 set timeout=5
 menuentry "ZKNetwork P4P Node x0x (Live, debian kernel stub)" {
   linux /boot/vmlinuz root=LABEL=PERSIST overlay=LABEL=PERSIST quiet splash
   initrd /boot/initramfs.img
 }
 GRUB
+    fi
   fi
-fi
 
 # common stub files (deterministic mtime)
 mkdir -p "$ROOTFS/var/lib/zknode" "$ROOTFS/persistent"
@@ -256,22 +272,169 @@ fi
 
 sha256sum "$OUTPUT" | tee "$OUTPUT.sha256" 2>&1 | head
 
-# ─── 4) artifacts ───────────────────────────────────────────────
-echo ""
-echo "=== artifacts ==="
-ls -lh "$WORK/live.squashfs"* 2>/dev/null | head
-ls -lh "$OUTPUT"* 2>/dev/null | head
-echo ""
-echo "[info] Rootfs entries: $(find "$ROOTFS" -type f | wc -l) files"
-echo "[info] Squashfs sha256: $(cut -d' ' -f1 "$WORK/live.squashfs.sha256" 2>/dev/null || echo "?")"
-echo "[info] Image sha256:  $(cut -d' ' -f1 "$OUTPUT.sha256" 2>/dev/null || echo "?")"
-echo ""
-if [[ -n "$DEVICE" ]]; then
-  echo "NOTE: --device $DEVICE was given but DRY-RUN prevents dd. Real flash would be:"
-  echo "  sudo dd if=$OUTPUT of=$DEVICE bs=4M status=progress conv=fsync; sync; sudo cmp -n \$(stat -c%s $OUTPUT) $OUTPUT $DEVICE"
+# ─── 4) make bootable when --device given ───────────────────────
+if [[ -n "$DEVICE" && "$DRY_RUN" == 0 ]]; then
+  echo "[boot] Making $DEVICE bootable (requires root)..."
+  
+  # 4a) Install kernel, initramfs-tools, grub-efi in rootfs
+  echo "[boot] Installing kernel, initramfs-tools, grub-efi in rootfs..."
+  if [[ "$BASE" == "debian" ]]; then
+    sudo chroot "$ROOTFS" apt-get update -qq 2>&1 | tail -n 5
+    sudo chroot "$ROOTFS" apt-get install -y -qq --no-install-recommends \
+      linux-image-amd64 initramfs-tools grub-efi-amd64 dosfstools 2>&1 | tail -n 10
+  elif [[ "$BASE" == "wolfi" ]]; then
+    echo "[warn] Wolfi base: kernel/initramfs install not yet implemented, skipping boot setup"
+  fi
+  
+  # 4b) Generate initramfs
+  echo "[boot] Generating initramfs..."
+  
+  # Mount virtual filesystems for chroot
+  sudo mount -o bind /dev "$ROOTFS/dev"
+  sudo mount -o bind /dev/pts "$ROOTFS/dev/pts"
+  sudo mount -t proc proc "$ROOTFS/proc"
+  sudo mount -t sysfs sys "$ROOTFS/sys"
+  
+  VMLINUZ=$(sudo find "$ROOTFS/boot" -name 'vmlinuz-*' | head -1 | xargs basename 2>/dev/null || echo "vmlinuz")
+  INITRD="initramfs.img"
+  if [[ -n "$VMLINUZ" && -f "$ROOTFS/boot/$VMLINUZ" ]]; then
+    sudo chroot "$ROOTFS" update-initramfs -c -k all 2>&1 | tail -n 5
+    sudo cp "$ROOTFS/boot/initrd.img-"* "$ROOTFS/boot/initramfs.img" 2>/dev/null || true
+  fi
+  
+  # Unmount virtual filesystems
+  sudo umount "$ROOTFS/dev/pts" "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" 2>/dev/null || true
+  
+  # 4c) Write partition table to device
+  echo "[boot] Writing GPT partition table to $DEVICE..."
+  sudo sfdisk "$DEVICE" <<'EOF'
+label: gpt
+unit: sectors
+1 : start=2048, size=1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI"
+2 : start=1050624, size=16777216, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="LIVE"
+3 : start=17827840, size=*, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="PERSIST"
+4 : type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, name="SWAP"
+EOF
+  sync
+  sleep 2
+  
+  # 4d) Format partitions
+  echo "[boot] Formatting partitions..."
+  sudo mkfs.fat -F32 -n EFI "${DEVICE}1" 2>&1 | tail -3
+  sudo mkfs.ext4 -F -L LIVE "${DEVICE}2" 2>&1 | tail -3
+  sudo mkfs.ext4 -F -L PERSIST "${DEVICE}3" 2>&1 | tail -3
+  sudo mkswap -L SWAP "${DEVICE}4" 2>&1 | tail -3
+  sync
+  
+  # 4e) Mount partitions and copy squashfs to LIVE
+  echo "[boot] Mounting partitions and copying squashfs..."
+  EFI_MNT=$(mktemp -d)
+  LIVE_MNT=$(mktemp -d)
+  PERSIST_MNT=$(mktemp -d)
+  
+  sudo mount "${DEVICE}1" "$EFI_MNT"
+  sudo mount "${DEVICE}2" "$LIVE_MNT"
+  sudo mount "${DEVICE}3" "$PERSIST_MNT"
+  
+  # Copy squashfs to LIVE partition
+  sudo mkdir -p "$LIVE_MNT/live"
+  sudo cp "$SQUASH" "$LIVE_MNT/live/rootfs.squashfs"
+  
+  # Copy kernel and initramfs to LIVE partition
+  if [[ -f "$ROOTFS/boot/$VMLINUZ" ]]; then
+    sudo cp "$ROOTFS/boot/$VMLINUZ" "$LIVE_MNT/live/vmlinuz"
+  fi
+  if [[ -f "$ROOTFS/boot/initramfs.img" ]]; then
+    sudo cp "$ROOTFS/boot/initramfs.img" "$LIVE_MNT/live/initramfs.img"
+  fi
+  
+  # 4f) Install GRUB to EFI partition
+  echo "[boot] Installing GRUB to EFI partition..."
+  sudo grub-install --target=x86_64-efi --efi-directory="$EFI_MNT" --bootloader-id=zknode --no-nvram --removable 2>&1 | tail -5
+  
+  # 4g) Write grub.cfg to EFI partition
+  sudo mkdir -p "$EFI_MNT/boot/grub"
+  cat > /tmp/grub.cfg <<'GRUB'
+set timeout=5
+menuentry "ZKNetwork P4P Node (Live)" {
+  linux /live/vmlinuz root=LABEL=PERSIST overlay=LABEL=PERSIST quiet splash
+  initrd /live/initramfs.img
+}
+GRUB
+  sudo cp /tmp/grub.cfg "$EFI_MNT/boot/grub/grub.cfg"
+  
+  # 4h) Copy kernel/initramfs to EFI partition as fallback
+  if [[ -f "$ROOTFS/boot/$VMLINUZ" ]]; then
+    sudo cp "$ROOTFS/boot/$VMLINUZ" "$EFI_MNT/vmlinuz"
+  fi
+  if [[ -f "$ROOTFS/boot/initramfs.img" ]]; then
+    sudo cp "$ROOTFS/boot/initramfs.img" "$EFI_MNT/initramfs.img"
+  fi
+  
+  # 4i) Create persist directory structure
+  sudo mkdir -p "$PERSIST_MNT/upper" "$PERSIST_MNT/work"
+  
+  # 4f) Unmount
+  sync
+  sudo umount "$EFI_MNT" "$LIVE_MNT" "$PERSIST_MNT"
+  rmdir "$EFI_MNT" "$LIVE_MNT" "$PERSIST_MNT"
+  
+  echo "[boot] $DEVICE is now bootable!"
+  
 else
-  echo "No --device given — no sdb touched. File image at $OUTPUT is VM-bootable:"
-  echo "  qemu-system-x86_64 -m 8192 -enable-kvm -drive file=$OUTPUT,format=raw -bios /usr/share/OVMF/OVMF.fd"
+  # ─── 3) disk image file (truncate, no loop, no root) ────────────
+  # Translate SIZE like 16G/64G/128G to bytes via truncate
+  echo "[image] truncate -s $SIZE $OUTPUT"
+  truncate -s "$SIZE" "$OUTPUT" 2>&1
+  ls -lh "$OUTPUT"
+
+  # Try GPT with sfdisk/parted if available (file-only, no root for sfdisk on file)
+  if command -v sfdisk >/dev/null 2>&1; then
+    echo "[image] sfdisk layout dry-run (EFI 512M, LIVE 8G, PERSIST remainder-4G, SWAP 4G) on file — no write to sdb"
+    # sfdisk can operate on file without root for --no-act? actual write needs no loop but file is ok.
+    # We do dry-run: dump layout, don't actually partition if DRY_RUN
+    if [[ "$DRY_RUN" == 1 ]]; then
+      cat <<'LAYOUT'
+label: gpt
+unit: sectors
+1 : start=2048, size=1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI"
+2 : start=1050624, size=16777216, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="LIVE"
+3 : start=17827840, size=*, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="PERSIST"
+4 : type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, name="SWAP"
+LAYOUT
+      echo "[dry-run] skip sfdisk write"
+    else
+      # Minimal actually writeable layout via sfdisk on file (requires no mount)
+      # Use 16G test layout scaled down for CI
+      if [[ "$SIZE" == "16G" ]]; then
+        printf 'label: gpt\n1 : size=512M, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B\n2 : size=8G, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4\n3 : size=4G, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4\n4 : type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F\n' | sfdisk "$OUTPUT" 2>&1 | head -n 20 || echo "[warn] sfdisk on file failed (expected without losetup on some parted versions)"
+      else
+        echo "[image] skip sfdisk file write for $SIZE in test mode — layout above is spec"
+      fi
+    fi
+  else
+    echo "[warn] sfdisk not found"
+  fi
+
+  sha256sum "$OUTPUT" | tee "$OUTPUT.sha256" 2>&1 | head
+
+  # ─── 4) artifacts ───────────────────────────────────────────────
+  echo ""
+  echo "=== artifacts ==="
+  ls -lh "$WORK/live.squashfs"* 2>/dev/null | head
+  ls -lh "$OUTPUT"* 2>/dev/null | head
+  echo ""
+  echo "[info] Rootfs entries: $(find "$ROOTFS" -type f | wc -l) files"
+  echo "[info] Squashfs sha256: $(cut -d' ' -f1 "$WORK/live.squashfs.sha256" 2>/dev/null || echo "?")"
+  echo "[info] Image sha256:  $(cut -d' ' -f1 "$OUTPUT.sha256" 2>/dev/null || echo "?")"
+  echo ""
+  if [[ -n "$DEVICE" ]]; then
+    echo "NOTE: --device $DEVICE was given but DRY-RUN prevents dd. Real flash would be:"
+    echo "  sudo dd if=$OUTPUT of=$DEVICE bs=4M status=progress conv=fsync; sync; sudo cmp -n \$(stat -c%s $OUTPUT) $OUTPUT $DEVICE"
+  else
+    echo "No --device given — no sdb touched. File image at $OUTPUT is VM-bootable:"
+    echo "  qemu-system-x86_64 -m 8192 -enable-kvm -drive file=$OUTPUT,format=raw -bios /usr/share/OVMF/OVMF.fd"
+  fi
+  echo ""
+  echo "DONE — safe, no /dev/nvme* or /dev/sda or /dev/sdb written."
 fi
-echo ""
-echo "DONE — safe, no /dev/nvme* or /dev/sda or /dev/sdb written."

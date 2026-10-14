@@ -1,0 +1,140 @@
+[Server]
+  Identifier = "auth3"
+  WireKEMScheme = "MLKEM768"
+  PKISignatureScheme = "Ed25519"
+  Addresses = ["tcp://auth3:30005"]
+  DataDir = "/var/lib/katzenpost/auth3"
+  DialTimeoutSec = 0
+  HandshakeTimeoutSec = 0
+  ResponseTimeoutSec = 0
+  CloseDelaySec = 0
+  PeerRetryMaxAttempts = 0
+  PeerRetryBaseDelay = "0s"
+  PeerRetryMaxDelay = "0s"
+  PeerRetryJitter = 0.0
+  DisableIPv4 = false
+  DisableIPv6 = false
+  MetricsAddress = "auth3:30006"
+  AllowHostnameAddresses = true
+
+[[Authorities]]
+  Identifier = "auth1"
+  IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\n2EOx4tL7lI2DELTUZhzh/P+fCA5Dz7Z80SXUYYda1VU=\n-----END ED25519 PUBLIC KEY-----\n"
+  PKISignatureScheme = "Ed25519"
+  LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nGgMwhtTM6/gSEkFSkIpXTdedqvrGSuwCUBcz7saSYsIFb/qmfTKYUVUftQaLpuhr\nEocUCKgRG2Qmv7EH+xiepRAu7Bl3nMoTIMG5s8KhP6AN1DNna2i6d2NtRcc/5nAm\nc4yu28JsWukRScV6mtsX7bOf+0rEyCWa2KUnpveUWdYDQld9gkYBS8VFmjYby6Zv\nzyljSCxdxnawTlh3kpq6qDCWErFTUvFU6SKRzIhFqbJIkSGtqINzVyTM2jJHjkdS\nEOC1L5ktyqBTc1zJqEOwj7teitMVQhmYcoSSvnRjNbvGssQ69wh9TgqBgrwpxsDC\njzk8heWCUGbGNKayeeFghWIzNvh5jGA25ppJlalBYqCWM4IPThl/1rRIVZA0fVxF\nERU642qOMIutB1x+V/nK7xdmW3Qg6ySx8sM8uDmEtOeFe9m+bOEHeqPPkubLsvoX\njyiJlOE1fmx+dSNl+RHK9BLHAIAUd8LPSGg3qHArrTZqH7NWY0lK3QVJmOJgKJcS\nuQDJJ/ioGARWYLqSeSQJ4YXEfHKp+mVLbdK0Myw0rsYX5FXLBZmPcZi2AWRFVfFC\n0BWZB/aJIadxyuSvKYwekkZY94sGRdiYJ9EznOKbQ8qsAZU/NDcVU2dIMBxiHUt4\nAMGBuVyCDmtEoge77SkRpopbRIAjvKlj/nqL9itUvQtg4ns2eDmoQAAEjgEYhbd0\nAgc/RmBuoJG4SgFhkQa5oEcpJ0wPOGUO+mSqYZULioZwhbZskkPN9pWUegsYR/xg\nfGV/vdFSF1keGUk/ISYNpRMXdsijEQAWjERO52pJxmQfmmE3IdINCzp/1vi1mGY3\nIAl08ChLWhsOiBt0qixquUQZngd4ssla2sxiBhaeqgMOo0inw2KbqEVUgvqRrizC\n7WhWUoyQiXmTpzoOKxZ/ksx/5ziBeSelplDFXOwzsDhFQfayeJgGY4mFJWmDC7JH\nM/ki8CY1hflqOGmO5XFa08FO+Ss3y0EoYoQj6XZPuDONnUBOXyhOa9CGm1q1DEGx\nd/y/sZNrCjJoHHPOk/qmfLufeqJC3UOiiIHN8tqeuANBV+sNLruh6qUW9LZJgHRK\n7McA2oeT/kahnLgwp5R5oUg/HgxWrch/AoOw4KQ+KrQZJSuQ/vK5/3SX5BwnHje1\nYnsksOQcxvJ8L2FuxcYlePhg2EY+gMG9sjkdvGlb68K/A4hx7eesJDYo0ch0p8yh\nZMfBDssvIMjET7qj0sknTSshwgQrhKVYx2TFdvEgk9MmvKW/A1Ga4+dSSQNTFjkt\nb7jN8id7WYS9UERJZzys1QAvtqJwTMNHKrM73vhEFfAu/6GILMofhxs7TWhl4Rs4\nE3BbxMSPpkPG57evdDwT2JQ7RMyNWNJzxlGsw0J83BkNlOs3Z3tMCwo77ViN1yoS\n7GPEBaFOxBA/KBKBQ4k75QOAQXll+Ztk1etjdGwA2wc5wcqHpdWgzcAR1ot1IaZq\nvRkaADLK/tS4x+xRK5ZxY7grWOSkO+YlN3tBn4Ov4ShyWiyx09x8uJNtWxU4wGut\ngAwZUMIiNrKgxdcoFdv0K2yg7wo8BQ0fF0zg0rNfiAc=\n-----END MLKEM768 PUBLIC KEY-----\n"
+  WireKEMScheme = "MLKEM768"
+  Addresses = ["tcp://auth1:30001"]
+
+[[Authorities]]
+  Identifier = "auth2"
+  IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\nsTIJnK+anGoYMKpiqaL+hlXAAZF3nQDd3l0e7ZPvATE=\n-----END ED25519 PUBLIC KEY-----\n"
+  PKISignatureScheme = "Ed25519"
+  LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\nibOYJwBeTGgZTdMkMTtPLRCNiosIgNxmU5ScC1aAIUkBCxCkm/d3wBaWckoCVZEZ\nTsvPhyFf34lxfQU0RYhrk0w81bCc58PH7fyATuaQWsEsWcBqsWC44TsDOISLEnxy\nXAWeBTRJ72CXvbW4hRhsN9EYq5AeAkeiftNgTOwiX1IdislsRJoKzgAC9fB1SeJP\nlJY4a+VI6Mub7+yNQfwGXTyq7uaiLMWihrKqYpdOure10uJcJrCNxJtKMQYCIMwT\nyQFv8+INAvkR6hc5DQGvLrdUmoG98qc7CPyI6xMo3sO1rsSBkQko3XlYTzcxu0HN\nxjwkTuhLGSYuXLBRIgiAR8iI1XSC7AwYTjCZlCVNiMI3QcxIXko9yccYO/ZZMCHF\n94S/2DAVXIWsmXsE0xdqKNxd0aSjA0heyme1Oghi1iYenikKeJtS/vmYJYyIyFpO\n0Fy3kZuQSzahXDsrkYRl/GCfd2UezESDYDhMJpkLV1A+HsjCGsTDcvK5LxVtyRlC\nSSMIk1Gixee66EjC+4EN7aR0zoSPfnNA8OtjwgZwvkICPAYyWidCpXYmCSeRciAM\nySFtD8o5o3mcaMYs8nKkh7iL9TJnmrWcnUEAvKZObZeZUwKCOjAeg4q8ZzqERhFv\nxpVauaBSUdtL49QCQaCQr/EQlTIDIzG9faHF5AgkpOBOPIcYjAaWrkjNaEOjhzOb\nLQw5E0KaZCqrmTB0k4N9gCfAJAqy57mwc+tPrLSq07tVnaOtynix2TaTkASKwxgE\nOUU5UmrAdFQZH9iPZRV6FkeFNhyrLTUYfwS5/tmPxetbFiCe5ny4wuQBnNkzs1oW\nEmOz0rnMquF2PzxNc1xh+yUNF0HOLAF+y8MfjWAwlgMcQ8ddL2JBQiqZ5rVvLnwp\nQnahO3y/BtPC4oxnciuBGLaNZrOncVuwC9G0c1xrQ6E5xcmc7VE+ETtoSzBbixJk\n6tEHUPat48ObWuK/hpNUslCDaxe0QiNnS8R6WjKEKhSwyPCCm8ejaDa9I9I0agpe\nX/BfRzAEhhtl/XugohEnVguj3SN385up1HWe2nU6+SFE6aYSSIdYUCUKTRVIRiWw\nIwDNcHdwe/dTGUU1QRS431LJJ9Ie2gF8iJsasssim+ySZtA0bzudfJcdbYbPOdae\nLjxUFQgDlBIwQCWqZlTAPDmY/OzMD/ldlOo6TdNTVVuRRntrBmmB44h+E/VS6ipv\nclmatUqprlMt2ciXyPJQpcuUaowEudU1bNuO2mjKFzg6IOgqS3mKhYYlwTmg9sFy\n/Se8D+l+3lbPT3OhPRAY4yqu3rq2Bux3W0REVTjFkPwSrXBVDxOZexWnTrgz7PIL\nCCUL7yGJctCerwVWPaevRpumZqt5wNEet2gnt8RDDjacN9WTn6QXvddZCteqL4Vh\ngWlywkBUvng0mAhpkfoLE1tXsfIqB3pwDwRKQQMiLMFJlgFD8KmR8Mom3/YtpvUv\nWggSSagmVfyIzQm8qnS7chJiSebNWiqfDHGF5tBokcxuXjLJbYgWxIp3UMwRzOu4\nExWPnvf3KT/f3dIy3mZFWqshhpZdbKoq6NWVQZLkKH4=\n-----END MLKEM768 PUBLIC KEY-----\n"
+  WireKEMScheme = "MLKEM768"
+  Addresses = ["tcp://auth2:30003"]
+
+[[Authorities]]
+  Identifier = "auth3"
+  IdentityPublicKey = "-----BEGIN ED25519 PUBLIC KEY-----\nBuvzK/+joR0WPy3QA9w5m2m/Cj8q1986tE4m87f3m8g=\n-----END ED25519 PUBLIC KEY-----\n"
+  PKISignatureScheme = "Ed25519"
+  LinkPublicKey = "-----BEGIN MLKEM768 PUBLIC KEY-----\n5lWQhZqSi7dkS5GnyIlRz9AL/PI0sRouZQM2DMd9gHDFrmhPBeOdQAyODUxXfcI6\n8wUqd9ihCZBzqnM9a5p7sFqGHUrNOjwWIKWCtLEdeenEKMFR/VM+w9afGBtx+hhZ\nOducRDGRS/x0goCW/PBYdrGnrfw5lrCrrhOCnKtM4neXZWA4kIbNZSSUHdRKoyOA\nMWwiaRghaaQpfut6EZiuEJQLkiiloZG3WYRaYwc3fsmtillfMZGJeCpeMMK3/us2\nHrFasHmBAuMXGKkgQQa7pug860w9x/NqpKCCzucdbHO6W+zBX3sHy1u+R9QUfzts\nGcYhobk5i3B0GzY7wHKa12C6KvqLJ5eZV1GjK9d8JSx0Rrprf7AZcuu11eodKWIM\nfocGYxxpN1s3VKotVTFNZJFvAcsM2BgdTQAhNwB0sVM+VeBPFHWoPyDEp5mS1mwj\nlKM2IPF+Veo0cyok8qPIs9Rgnxd+6iPNqPuHbJg1LOgYo6EdWEaRL3O8UCo+CbO8\n8RhlNqSf6ae2lSAEFvjCXudt2CYf28vOWjwY3qF/kSqRvIip0VSeiaYHSkdGIcFV\nwII9OER96EieJ9Jsw6ZaUPSN/wNhq7sgoCkPwjGG+bitiMWTDka/2orOS0IKMgKc\nz+SYXFmXbxhIaZk4TiqD6bUsbvBkw4WDPfR/z4zEBysRSAVY8iSm6Udo01w8vVq7\nmtw4zVyiaKmEciySYNCNPunNI8B+ZZsW68M6uju9gGk6PEW63vlaSGUCymXP64wE\nQ1GiSqU2fyq5C4lXUgCFXFRNbCl2zRwFItuzJYe4lLRrt9XODCFRS5Ki3ZxVMCw+\nqRJR6WGnueJY4atCU/FGnbZaa4oDB0NQSeyKQQisfdCrTsGn23RL+HkY77Epf1Ks\neuVOVASzf8WUsTSKgKAumJVbJugyObtfS+g1pIrJiicVVZEjxsUcagWFJBVPXIK6\nFWZwG3l4HLu3bEYqK1eQP/CECQVM4wIVtgqdBmx2KxtZuRwdFBVHIeV81NqeTPFl\n6pA2GNGU47NntoGlcAOWSxWExpAY9oFM5Vh41+UroxMj2sVQL8lZaJNSScIhrakq\n0hxnvTkdJVtUupdYUTYOIumyOVsUL6Y6tkgVoDEPSpRdl5FRnhdmBHZY/kuyNwNl\nl/mxW/K/LrNA1QRIXAKcBZwmtVjJ8HGDtbgO9/mPXgxH45ZAjeaK00NcdPdWKUwB\nhTsE3LGUAlSVOQKW82U7xeqbWAo0VFJlHZYJmRagV3aY+SUb9oO+gecLtHFApbg5\n51EtGdcg8qLJQRmKisVs6MVZaUIuaIQVQcec0RooHDkjJ2RdpBwMUieA3Lw0fYIH\nCMfPLUmWm3PF/RLJ5XQPhyRTc5ea9qB9LdPODYCxGBwVAxUWE5J5ZtBTASZF+hsj\nvHCsK8wIu9aczsCwJWIfiAkMagVAnNtYXVs3TFGTRvEJ8btczDKF5LmfvANwijhd\nwgiX3QRdG7tHROFWd4BdFllATkY1w/RAbOSWkPp+kMU3C6UKGfOBPSqePBsRzvM0\nuYyRxnJ0d+GDkcOoUhTgS6T4BvK5PBOyQWQ+it7Xl0g=\n-----END MLKEM768 PUBLIC KEY-----\n"
+  WireKEMScheme = "MLKEM768"
+  Addresses = ["tcp://auth3:30005"]
+
+[Logging]
+  Disable = false
+  File = "katzenpost.log"
+  Level = "DEBUG"
+
+[Parameters]
+  Mu = 0.005
+  LambdaP = 0.001
+  LambdaL = 0.0005
+  LambdaM = 0.2
+  LambdaR = 0.0005
+
+[Debug]
+  Layers = 3
+  MinNodesPerLayer = 1
+  GenerateOnly = false
+
+[[Mixes]]
+  Identifier = "mix1"
+  IdentityPublicKeyPem = "../mix1/identity.public.pem"
+
+[[Mixes]]
+  Identifier = "mix2"
+  IdentityPublicKeyPem = "../mix2/identity.public.pem"
+
+[[Mixes]]
+  Identifier = "mix3"
+  IdentityPublicKeyPem = "../mix3/identity.public.pem"
+
+[[GatewayNodes]]
+  Identifier = "gateway1"
+  IdentityPublicKeyPem = "../gateway1/identity.public.pem"
+
+[[ServiceNodes]]
+  Identifier = "servicenode1"
+  IdentityPublicKeyPem = "../servicenode1/identity.public.pem"
+
+[[StorageReplicas]]
+  Identifier = "replica1"
+  IdentityPublicKeyPem = "../replica1/identity.public.pem"
+  ReplicaID = 0
+
+[[StorageReplicas]]
+  Identifier = "replica2"
+  IdentityPublicKeyPem = "../replica2/identity.public.pem"
+  ReplicaID = 1
+
+[[StorageReplicas]]
+  Identifier = "replica3"
+  IdentityPublicKeyPem = "../replica3/identity.public.pem"
+  ReplicaID = 2
+
+[[StorageReplicas]]
+  Identifier = "replica4"
+  IdentityPublicKeyPem = "../replica4/identity.public.pem"
+  ReplicaID = 3
+
+[[StorageReplicas]]
+  Identifier = "replica5"
+  IdentityPublicKeyPem = "../replica5/identity.public.pem"
+  ReplicaID = 4
+
+[Topology]
+
+  [[Topology.Layers]]
+
+    [[Topology.Layers.Nodes]]
+      Identifier = "mix1"
+      IdentityPublicKeyPem = "../mix1/identity.public.pem"
+
+  [[Topology.Layers]]
+
+    [[Topology.Layers.Nodes]]
+      Identifier = "mix2"
+      IdentityPublicKeyPem = "../mix2/identity.public.pem"
+
+  [[Topology.Layers]]
+
+    [[Topology.Layers.Nodes]]
+      Identifier = "mix3"
+      IdentityPublicKeyPem = "../mix3/identity.public.pem"
+
+[SphinxGeometry]
+  PacketLength = 3082
+  NrHops = 5
+  HeaderLength = 476
+  RoutingInfoLength = 410
+  PerHopRoutingInfoLength = 82
+  SURBLength = 572
+  SphinxPlaintextHeaderLength = 2
+  PayloadTagLength = 32
+  ForwardPayloadLength = 2574
+  UserForwardPayloadLength = 2000
+  NextNodeHopLength = 65
+  SPRPKeyMaterialLength = 64
+  NIKEName = "x25519"
+  KEMName = ""

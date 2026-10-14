@@ -120,6 +120,21 @@ if [ -f "$OUTDIR/docker-compose.yml" ]; then
     "$OUTDIR/docker-compose.yml"
 fi
 
+step "adding chatd capability (fix 7)"
+if [ -f "$OUTDIR/servicenode1/katzenpost.toml" ] && \
+   ! grep -q 'Capability = "chat"' "$OUTDIR/servicenode1/katzenpost.toml"; then
+  cat >> "$OUTDIR/servicenode1/katzenpost.toml" <<'EOF'
+
+  [[ServiceNode.CBORPluginKaetzchen]]
+    Capability = "chat"
+    Endpoint = "chat"
+    Command = "/usr/local/bin/chatd"
+    MaxConcurrency = 1
+    Disable = false
+    Config = {log_dir = "/var/lib/katzenpost/servicenode1", log_level = "DEBUG"}
+EOF
+fi
+
 step "permissions: node dirs 700, tree traversable (fix 4)"
 chmod 755 "$OUTDIR"
 find "$OUTDIR" -mindepth 1 -type d -exec chmod 700 {} \;

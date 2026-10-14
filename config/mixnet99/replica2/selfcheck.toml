@@ -1,0 +1,6 @@
+Hostname = "replica2"
+MeasuredAt = 2026-10-14T07:57:38.979783969Z
+NumCPU = 16
+OpsPerSecPerCore = 1.4899905659608326
+OpsPerSecSaturated = 2.188214897328946
+IterationTime = "671.145189ms"

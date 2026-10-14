@@ -12,6 +12,8 @@
 | **1. Full local PoC** | On the SCM4 (3 dirauth + 3 mix + gateway + servicenode + client + proxy) | `dirauth_consensus`, `mix_nodes: "6/6"`, `walletshield_http` (local) | ✅ Yes — works offline | Fully decentralized proof of concept on the SCM4 |
 | **2. VPS-client** | VPS 185.92.181.101 (full topology); SCM4 runs `kpclient-vps` thin client only | `kpclient-vps` + `mixnet-proxy` count, `getVpsConsensus()` from VPS | ❌ Requires VPS gateway | Resource-constrained SCM4s; box runs antd + mesh + wiki only |
 | **3. Hybrid** | On the SCM4 (like Option 1) | **Local dashboard** (`dirauth_consensus` / `mix_nodes`) despite `main` code | ✅ Yes | Latest repo features on the SCM4 without the VPS dashboard mismatch — **the recommended SCM4 profile** |
+| **4. Sovereign + bridge (sketched)** | Each island own topology; `mesh-bridge` plugin crosses domains | per-bridge sessions in `/api/mixnet` | ✅ Yes (islands) | Zero-engineering when orgs must stay sovereign — design only, see `BRIDGE_RELAY_DESIGN.md` |
+| **5. Local gateway appliance (sketched)** | On a dedicated LAN appliance (Pi/mini-PC) — full domain (Form 1) or extra gw in one shared PKI (Form 2); sites joined over Tailscale; optional public 30007 entry | VPS-client logic re-pointed at the appliance | ❌ Requires the appliance (per site) | Homes/workshops hosting their own entry point; outward federation without the VPS. See `LOCAL_GATEWAY_TOPOLOGY.md` |
 
 ## Why this matters
 

@@ -45,7 +45,7 @@
     enabled = yes
     port = /dev/ttyACM0
     speed = 115200
-    frequency = 915000000
+    frequency = 868000000
     bandwidth = 125000
     txpower = 22
     spreadingfactor = 7

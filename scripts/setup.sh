@@ -44,7 +44,7 @@ echo "[3/4] Generating mixnet configs (genconfig)..."
 mkdir -p config/mixnet config/proxy config/autonomi config/walletshield
 
 # Use genconfig to generate proper Katzenpost configs
-docker run --rm --platform linux/arm64 \
+docker run --rm --platform ${GENCONFIG_PLATFORM:-linux/arm64} \
     -v "$(pwd)/config/mixnet:/out" \
     "${IMAGE_MIXNET}" \
     /usr/local/bin/genconfig \
@@ -55,7 +55,7 @@ docker run --rm --platform linux/arm64 \
 
 # Fix ownership to current user
 OWNER=$(stat -c "%u:%g" .env 2>/dev/null || echo "1000:1000")
-docker run --rm --platform linux/arm64 \
+docker run --rm --platform ${GENCONFIG_PLATFORM:-linux/arm64} \
     -v "$(pwd)/config/mixnet:/out" \
     "${IMAGE_MIXNET}" \
     sh -c "chown -R $OWNER /out/"

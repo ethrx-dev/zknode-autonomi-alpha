@@ -1,0 +1,4 @@
+[Dial]
+  [Dial.Tcp]
+    Address = "127.0.0.1:64331"
+    Network = "tcp"
