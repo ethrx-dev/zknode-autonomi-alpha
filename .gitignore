@@ -100,3 +100,5 @@ config/mixnet99-b/*/spool.db
 config/mixnet99-b/*/selfcheck.toml
 config/mixnet99-b/bridge/peers/*.toml
 data/
+config/mixnet99/bridge/identity
+config/mixnet99/bridge/peers/*.toml
