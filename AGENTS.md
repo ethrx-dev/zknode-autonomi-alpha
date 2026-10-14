@@ -10,6 +10,14 @@ zknode-autonomi is a self-contained private Autonomi storage node with traffic r
 **Hardware**: Zymbit SCM4 (CM4 + zymkey HSM, 8GB RAM, 32GB eMMC, Debian Bookworm 64-bit)
 **Stack**: 14 Docker containers (Katzenpost mixnet + Autonomi node + proxy + storage prover)
 
+## Backup Policy (standing rule)
+
+**Always make a backup and restore point before modifying anything.**
+1. `git tag -a backup/<milestone-desc>-<date> -m "..."` and push the tag.
+2. Snapshot the working tree + runtime state to `/mnt/trinity/backup/zk-autonomi/`
+   (`repo-*.tar.gz` without `.git`/logs, and a separate runtime archive containing
+   `.env`, `data/`, and PKI private keys). Verify the archive lists the key files.
+
 ## Critical Safety Rules
 
 ### NEVER DO (will brick the SCM4)

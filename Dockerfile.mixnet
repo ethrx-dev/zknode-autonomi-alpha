@@ -76,6 +76,7 @@ RUN curl -fsSL "https://github.com/katzenpost/katzenpost/archive/${KP_COMMIT}.ta
     | tar xz -C /src/katzenpost --strip-components=1
 COPY katzenpost/cmd/chatd/main.go /src/katzenpost/cmd/chatd/main.go
 COPY katzenpost/cmd/zkchat/main.go /src/katzenpost/cmd/zkchat/main.go
+COPY katzenpost/cmd/mesh-bridge/main.go /src/katzenpost/cmd/mesh-bridge/main.go
 COPY patches/ /src/patches/
 
 # katzenpost core/log exports Backend but some code expects Logger; alias
@@ -105,7 +106,7 @@ RUN set -eux; cd /src/katzenpost; \
            CGO_CFLAGS="-I/usr/local/include -I/usr/include"; \
     mkdir -p /dest; \
     for cmd in dirauth server courier replica kpclientd ping fetch echo-plugin \
-               genconfig http-proxy-server http-proxy-client chatd zkchat; do \
+               genconfig http-proxy-server http-proxy-client chatd zkchat mesh-bridge; do \
       ( cd "cmd/$cmd" && go build -trimpath -ldflags="-buildid=" -o "/dest/$cmd" . ); \
       echo "  built $cmd ($TARGETARCH)"; \
     done

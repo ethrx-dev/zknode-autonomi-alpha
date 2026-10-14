@@ -4,6 +4,8 @@ katzenpost/**
 !katzenpost/cmd/chatd/main.go
 !katzenpost/cmd/zkchat/
 !katzenpost/cmd/zkchat/main.go
+!katzenpost/cmd/mesh-bridge/
+!katzenpost/cmd/mesh-bridge/main.go
 .git/
 data/
 config/

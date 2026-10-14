@@ -18,7 +18,7 @@ set -euo pipefail
 #   dashboard       <- Dockerfile in zknode-dashboard/ (if present)
 
 cd "$(cd "$(dirname "$0")/.." && pwd)"
-HOST_ARCH="$(docker version --format '{{.Architecture}}' | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+HOST_ARCH="$(docker info --format '{{.Architecture}}' | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
 MODE="host"; PUSH=false; REGISTRY="${REGISTRY:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
