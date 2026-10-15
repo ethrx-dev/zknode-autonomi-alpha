@@ -35,7 +35,7 @@ services:
     - /var/lib/ant-node:/var/lib/ant-node
     - /mnt/usb_sda3/antd-data/node-1:/var/lib/antd/node-1
     command:
-    - "mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs\nrm -f /var/lib/antd/.local/share/ant/daemon.pid /var/lib/antd/.local/share/ant/daemon.port\nant node daemon start 2>/dev/null || true\nB1=/var/lib/antd/.local/share/ant/bin/ant-node-0.14.4; if [ ! -x $$B1 ]; then B1=$(ls -1 /var/lib/antd/.local/share/ant/bin/ant-node-* 2>/dev/null | while read b; do [ -x "$b" ] && echo "$b"; done | sort -V | tail -1); fi\n\
+    - "mkdir -p /var/lib/ant-node/chunks /var/lib/antd/logs\nrm -f /var/lib/antd/.local/share/ant/daemon.pid /var/lib/antd/.local/share/ant/daemon.port\nant node daemon start 2>/dev/null || true\nB1=/var/lib/antd/.local/share/ant/bin/ant-node-0.14.4; if [ ! -x $$B1 ]; then B1=$(ls -1 /var/lib/antd/.local/share/ant/bin/ant-node-* 2>/dev/null | while read b; do [ -x \'$b\' ] && echo \'$b\'; done | sort -V | tail -1); fi\n\
       if [ ! -x \"$$B1\" ]; then\n  echo \"antd: ERROR: node binary not found at $$B1\"\
       \n  exit 1\nfi\necho \"antd: starting ant-node...\"\n$$B1 \\\n  --rewards-address\
       \ ${ANT_REWARDS_ADDRESS:-0xf21CEFD6773491323B05162f62bE5106B27893aa} \\\n  --root-dir /var/lib/antd/node-1\
@@ -192,6 +192,8 @@ services:
     mem_limit: ${MIXNET_MEM_LIMIT:-256m}
     networks:
     - katzenpost-net
+    ports:
+    - "${LOCAL_GATEWAY_PUBLISH:-0.0.0.0}:${LOCAL_GATEWAY_PORT:-31007}:30007"
     restart: unless-stopped
     volumes:
     - ./config/mixnet99:/var/lib/katzenpost

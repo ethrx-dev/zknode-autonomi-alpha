@@ -219,6 +219,39 @@ Ops gotchas encoded during the spike:
   first transit attempt was lost).
 - thin-client image version must pair with the daemon image version.
 
+## 5.6 Phase 1 acceptance — LIVE PAIR (2026-10-15)
+
+Bidirectional sovereign-bridge relay is operational between:
+
+- **zknode-01** (build box, amd64, domain `mixnet99`, bridge id `mesh-bridge-01::`,
+  gateway published `0.0.0.0:31008`)
+- **0kn / SCM4-192.168.9.151** (aarch64 native topology, bridge id
+  `mesh-bridge-01::` — per-node identity differs in prod, gateway published
+  `0.0.0.0:31007`)
+
+Proof of transit ('mesh-bridge -send' operator CLI):
+
+| Direction | Result | Recipient display |
+|-----------|--------|-------------------|
+| build box → 0kn | `{"Success":true,"Peer":"scm4-0kn"}` | `[00:0x] from 6d65…3a3a (mesh-e2e): cross-box hello: build box -> 0kn (attempt 3)` |
+| 0kn → build box | bridge relayed 21 B into peer's gateway session | `[00:22:40] from 6d65…3a3a (mesh-e2e): reverse-post-boundary` |
+
+Each message crossed: local 3-hop mix → `+meshbridge` (sending node) →
+embedded pinned-gateway client session → peer gateway → peer 3-hop mix →
+peer `+chat` (chatd) → peer zkchat poll. Receive side needed zero new code.
+
+Ops encodings landed during the pair bring-up:
+- **Peer client.toml hygiene**: the peer's *Listen* block must not carry
+  Docker-internal daemon names (`kpclientd:64331`) — rewrite to
+  `0.0.0.0:64331` for the bridge-side embedded daemon (config lazily reloaded
+  per relay attempt, no restart needed for Listen edits).
+- **Peer `.toml` *name* must match its own `config=` path** (a
+  `zknode01-client.toml`/`zknode-01-client.toml` divergence cost a cycle).
+- Gateway publishes must be **v4** (`0.0.0.0`), not `[::]`, to be reachable
+  from container-originated dials across the LAN.
+- Mid-boundary restarts remain costly (see §5.5): the *reverse* leg required
+  waiting out the 00:00 doc before the freshly-restarted bridge keys settled.
+
 ## 6. Implementation phases
 
 - **Phase 0 — recon ✅ DONE:** message path verified (§3.5).
