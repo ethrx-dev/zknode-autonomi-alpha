@@ -322,6 +322,19 @@ mDNS `.local` / Tailscale MagicDNS / DomainCard netID all derive from one
 tag). Cross-site pairs use Tailscale MagicDNS in the pinned-gateway address
 (`tcp://<peer>.tailnet.ts.net:31007`), never a raw WAN IP.
 
+## 8.6 Tailscale tailmesh — current state (2026-10-15)
+
+- Fleet tailnet: `tail7ae7e4.ts.net` (ethrx-dev account).
+- `zknode-01` member ✅ (MagicDNS live, key valid to 2027-04-12).
+- `0kn` migrated off the stale `jeffemmett`/`tail30c456` tailnet on
+  2026-10-15 — re-authed into the fleet account as `zknode-0kn-a`
+  (operator clicked the login URL). **Confirmed**: tailmesh live —
+  `100.75.15.108 zknode-0kn-a` + `100.66.60.127 zknode-01` on
+  `tail7ae7e4.ts.net`; `tailscale ping` both directions OK.
+- Cross-site pairing rule (doc §4.3): pinned-gateway addresses use
+  MagicDNS (`tcp://<peer>.tail7ae7e4.ts.net:31007`), never a WAN IP;
+  gateway listens on the tailnet interface only.
+
 ## 9. Why keep this on the shelf — and why it may be *the most* self-sovereign option
 
 The devnet path of least resistance today is **Option A** (VPS gateway; both
