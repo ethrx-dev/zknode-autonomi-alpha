@@ -418,6 +418,8 @@ cmd_full() {
 
 case "${1:-}" in
     --check)       cmd_check ;;
+    --name)        bash "$SCRIPT_DIR/zkiname.sh" "${2:-}" ;;
+    --show-name)   bash "$SCRIPT_DIR/zkiname.sh" --show ;;
     --full)        cmd_full ;;
     --tamper)      cmd_tamper ;;
     --encrypt-usb) cmd_encrypt_usb "${2:-}" ;;
@@ -428,6 +430,8 @@ case "${1:-}" in
         echo ""
         echo "Commands:"
         echo "  --check               Health check (zymkey status, firmware, tamper)"
+        echo "  --name TAG            Lock in fleet hostname zknode-<TAG> (all surfaces + record)"
+        echo "  --show-name           Show the current node identity record"
         echo "  --full                Full setup (check + tamper + disable upgrades)"
         echo "  --tamper              Configure tamper detection"
         echo "  --encrypt-usb DEV     Encrypt USB drive for chunk storage (e.g. /dev/sda)"

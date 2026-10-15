@@ -86,6 +86,16 @@ The build machine (where Docker images are cross-compiled) is an amd64 Linux mac
 
 **Note**: The katzenpost hpqc module requires Go >= 1.26.2. If the build machine has an older Go, use Docker builds (`golang:latest` includes the required version).
 
+### Node identity (mandatory at first setup, any medium)
+
+Before joining the fleet, each node MUST lock in its name:
+`sudo scripts/zkiname.sh <tag>`  (or `scripts/setup-zymbit.sh --name <tag>` on the SCM4).
+The tag is *permanent* for the node's life — never rename arbitrarily: the
+identity record (/var/lib/zknode/node-id.json) drives DomainCards, the
+dashboard banner and bridge-peer exchanges. Rename requires re-issuing the
+node's card to every federated peer. Full naming rules:
+`/home/alchemical1/ZKNetwork/zknode-usb/docs/ZKNODE_NAMING_FEDERATION.md` §1.
+
 ## Deployment Phases
 
 ### Phase 1: SCM4 Zymbit Setup
