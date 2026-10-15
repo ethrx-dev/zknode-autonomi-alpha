@@ -88,6 +88,10 @@ The build machine (where Docker images are cross-compiled) is an amd64 Linux mac
 
 ### Node identity (mandatory at first setup, any medium)
 
+> Full scope: `~/ZKNetwork/zknode-usb/docs/ZKNODE_NAMING_FEDERATION.md` §0 —
+> identity → sovereign mixnet → island bridge. Six-step boot-to-federated
+> checklist lives there. This section covers only the identity step.
+
 Before joining the fleet, each node MUST lock in its name:
 `sudo scripts/zkiname.sh <tag>`  (or `scripts/setup-zymbit.sh --name <tag>` on the SCM4).
 The tag is *permanent* for the node's life — never rename arbitrarily: the

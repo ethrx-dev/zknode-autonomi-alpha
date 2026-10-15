@@ -26,7 +26,15 @@ cd "$PROJECT_ROOT"
 NETCONF="${NETCONF:-config/mixnet99}"   # domain tree to operate on
 
 export_card() {
-  local net_id="${1:?net_id required}" peer_addr="${2:-}"
+  # default netID from the node identity record (zkiname.sh), else require arg
+  if [ -z "${1:-}" ] && [ -f /var/lib/zknode/node-id.json ]; then
+    NET_JSON=/var/lib/zknode/node-id.json
+    FIRST_ARG=$(python3 -c 'import json;print(json.load(open("'$NET_JSON'")).get("name",""))' 2>/dev/null)
+  fi
+  local net_id="${1:-${FIRST_ARG:-}}" peer_addr="${2:-}"
+  if [ -z "$net_id" ]; then
+    echo "netID: 'export <netID> <peer_addr>' (or run zkiname.sh first)" >&2; exit 2
+  fi
   local client_toml="$NETCONF/client/client.toml"
   local out="$PROJECT_ROOT/bridge-card-${net_id}.tar.gz"
   local id_hex
