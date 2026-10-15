@@ -313,6 +313,15 @@ one servicenode per domain, which sidesteps it, but the doc must note it.
    Option 5) is simpler ops at the cost of that box observing all cross-domain
    patterns. Acceptable for devnet; revisit for federation.
 
+## 8.5 Fleet naming & cross-site onboarding
+
+Naming and the cross-country peer provision are documented in
+`/home/alchemical1/ZKNetwork/zknode-usb/docs/ZKNODE_NAMING_FEDERATION.md` as
+the canonical guide (`zknode-<tag>` → hostname / `zknode-<tag>.lan` /
+mDNS `.local` / Tailscale MagicDNS / DomainCard netID all derive from one
+tag). Cross-site pairs use Tailscale MagicDNS in the pinned-gateway address
+(`tcp://<peer>.tailnet.ts.net:31007`), never a raw WAN IP.
+
 ## 9. Why keep this on the shelf — and why it may be *the most* self-sovereign option
 
 The devnet path of least resistance today is **Option A** (VPS gateway; both

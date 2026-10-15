@@ -226,8 +226,17 @@ func sendViaBridge(client *thin.ThinClient, netID, recipHex, content string) (Me
 // ---- E2E content keys (crypto in the client; chatd and any bridge see ciphertext) ----
 
 // cfgDirFor returns the identity directory the CLI derives from the thin config.
+// cfgDirFor is the read-write identity dir: <config dir>/.zkchat (same place
+// the identity file lives; mounts land there on zknet deployments).
+// cfgDirFor returns the per-identity writable dir. The thin client config is
+// often a read-only bind (e.g. /etc/zkchat/thinclient.toml); its sibling
+// .zkchat dir may be read-only too (identity only). So the keypair lives in
+// $ZKCFG_DIR when set, else alongside the config.
 func cfgDirFor(configPath string) string {
-	return filepath.Dir(configPath)
+	if custom := os.Getenv("ZKCFG_DIR"); custom != "" {
+		return custom
+	}
+	return filepath.Join(filepath.Dir(configPath), ".zkchat")
 }
 
 // loadOrCreateE2EKeypair generates a per-identity file (X25519 scalar + pub) if absent
@@ -283,8 +292,8 @@ func e2eSeal(pub []byte, plaintext []byte) (string, error) {
 		return "", err
 	}
 	key := sha256.Sum256(shared)
-	aead, _ := chacha20poly1305.New(key[:])
-	nonce := make([]byte, 24)
+	aead, _ := chacha20poly1305.NewX(key[:])
+	nonce := make([]byte, chacha20poly1305.NonceSizeX)
 	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
@@ -299,18 +308,19 @@ func e2eOpen(scalar []byte, payloadBase64 string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(payload) < 24+32+16 {
+	ns := chacha20poly1305.NonceSizeX
+	if len(payload) < ns+32+16 {
 		return nil, fmt.Errorf("e2e payload too short")
 	}
-	nonce := payload[:24]
-	ephPub := payload[24 : 24+32]
-	ct := payload[24+32:]
+	nonce := payload[:ns]
+	ephPub := payload[ns : ns+32]
+	ct := payload[ns+32:]
 	shared, err := curve25519.X25519(scalar, ephPub)
 	if err != nil {
 		return nil, err
 	}
 	key := sha256.Sum256(shared)
-	aead, _ := chacha20poly1305.New(key[:])
+	aead, _ := chacha20poly1305.NewX(key[:])
 	pt, err := aead.Open(nil, nonce, ct, ephPub)
 	if err != nil {
 		return nil, err

@@ -348,7 +348,10 @@ const CORE_VPS_SERVICES = [
 const LOCAL_CORE_SERVICES = [
   'mixnet-proxy', 'walletshield', 'kpclient-vps', 'antd',
   'reticulum', 'llm-wiki', 'zkchat', 'storage-proved',
-  'docker-minio-1', 'docker-postgres-1', 'docker-redis-1'
+  'docker-minio-1', 'docker-postgres-1', 'docker-redis-1',
+  'mix-servicenode', 'mix-gateway', 'mix-client',
+  'mix-1', 'mix-2', 'mix-3',
+  'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'
 ];
 
 async function getContainers() {
@@ -406,24 +409,18 @@ async function getContainers() {
 
 // ─── SOVEREIGN BRIDGE MONITORING (meshbridge plugin on the local servicenode) ─
 async function getBridgeStatus() {
+  // reads the servicenode log dir bind-mounted read-only into this container
   const probe = async (cmd) => {
     try {
       const r = await runShellAsync(cmd, 6000);
       return r && r.data ? String(r.data).trim() : '';
     } catch { return ''; }
   };
-  // one shell pass: newest mesh-bridge log + peer count + last relay line
-  const out = await probe(
-    'docker exec mix-servicenode sh -c \'L=$(ls -t /var/lib/katzenpost/servicenode1/mesh-bridge.*.log 2>/dev/null | head -1); ' +
-    'if [ -n "$L" ]; then echo "RUNNING"; grep -h "\'loaded peer\'" "$L" | wc -l; ' +
-    'grep -hE "\'relay(ed)?: |relay request: \'" "$L" | tail -1; else echo ABSENT; fi\''
-  );
-  if (!out || out.indexOf('ABSENT') !== -1) {
-    return { running: false, peers: 0, last_relay: null };
-  }
-  const lines = out.split('\n');
-  const peers = parseInt(lines[1]) || 0;
-  return { running: true, peers, last_relay: lines[2] || null };
+  const logf = await probe('ls -t /var/lib/katzenpost/servicenode1/mesh-bridge.*.log 2>/dev/null | head -1');
+  if (!logf) return { running: false, peers: 0, last_relay: null };
+  const pcount = parseInt(await probe('grep "loaded peer" ' + logf + ' | grep -oE "[^ ]+" | awk \'/string=/{print $4}\' | sort -u | wc -l')) || parseInt(await probe('grep -c "loaded peer" ' + logf)) || 0;
+  const last = await probe('grep -E "relayed|relay request" ' + logf + ' 2>/dev/null | tail -1');
+  return { running: true, peers: pcount, last_relay: last || null };
 }
 
 async function getMixnetStatus() {

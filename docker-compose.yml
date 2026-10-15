@@ -215,6 +215,7 @@ services:
     - katzenpost-net
     restart: unless-stopped
     volumes:
+    - ./data/chatd:/tmp/zkchat
     - ./config/mixnet99:/var/lib/katzenpost
   mix-replica-1:
     security_opt: ["no-new-privileges:true"]
@@ -426,6 +427,8 @@ services:
     entrypoint:
     - sh
     - -c
+    environment:
+    - ZKCFG_DIR=/tmp/zkchat
     image: ${IMAGE_MIXNET:-zeros/mixnet-node:arm64}
     network_mode: host
     restart: unless-stopped
@@ -433,8 +436,10 @@ services:
     - ./config/mixnet99/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
     - ./data/zkchat:/tmp/zkchat
     - ./data/zkchat/identity:/etc/zkchat/.zkchat
+    - ${NODE_HOME}/zknode01/bin/zkchat/zkchat:/usr/local/bin/zkchat:ro
   zknode-dashboard:
     cap_drop: [ALL]
+    group_add: ["132"]
     security_opt: ["no-new-privileges:true"]
     build:
       context: ./zknode-dashboard
@@ -453,11 +458,11 @@ services:
     restart: unless-stopped
     volumes:
     - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./config/mixnet99/servicenode1:/var/lib/katzenpost/servicenode1:ro
     - ${NODE_HOME}/.local/bin/llm-wiki:/usr/local/bin/llm-wiki:ro
     - ${NODE_HOME}/wikis:/wikis:ro
     - ${NODE_HOME}/.llm-wiki:/root/.llm-wiki:rw
     - ./config/nomadnet/pages:/var/nomadnet/pages:rw
-    - ${NODE_HOME}/zknode01/bin/zkchat:/usr/local/bin/zkchat:ro
     - ./data/zkchat:/tmp/zkchat
     - ${NODE_HOME}/zknode-autonom./config/mixnet99/client/thinclient.toml:/etc/zkchat/thinclient.toml:ro
     - ${NODE_HOME}/zknode-autonomi/config/mixnet99/client/.zkchat/identity:/etc/zkchat/identity:ro
@@ -468,9 +473,6 @@ services:
     - ${NODE_HOME}/.local/share/ant:/root/.local/share/ant:rw
     - /mnt/autonomi:/mnt/autonomi:rw
     - /mnt/usb_sda3/backup:/mnt/backup:ro
-    group_add:
-    - '995'
-    user: 100:100
   llm-wiki:
     security_opt: ["no-new-privileges:true"]
     command:
