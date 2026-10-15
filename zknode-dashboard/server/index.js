@@ -403,6 +403,29 @@ async function getContainers() {
   return results;
 }
 
+
+// ─── SOVEREIGN BRIDGE MONITORING (meshbridge plugin on the local servicenode) ─
+async function getBridgeStatus() {
+  const probe = async (cmd) => {
+    try {
+      const r = await runShellAsync(cmd, 6000);
+      return r && r.data ? String(r.data).trim() : '';
+    } catch { return ''; }
+  };
+  // one shell pass: newest mesh-bridge log + peer count + last relay line
+  const out = await probe(
+    'docker exec mix-servicenode sh -c \'L=$(ls -t /var/lib/katzenpost/servicenode1/mesh-bridge.*.log 2>/dev/null | head -1); ' +
+    'if [ -n "$L" ]; then echo "RUNNING"; grep -h "\'loaded peer\'" "$L" | wc -l; ' +
+    'grep -hE "\'relay(ed)?: |relay request: \'" "$L" | tail -1; else echo ABSENT; fi\''
+  );
+  if (!out || out.indexOf('ABSENT') !== -1) {
+    return { running: false, peers: 0, last_relay: null };
+  }
+  const lines = out.split('\n');
+  const peers = parseInt(lines[1]) || 0;
+  return { running: true, peers, last_relay: lines[2] || null };
+}
+
 async function getMixnetStatus() {
   // Remote-client architecture: the full mixnet topology (dirauths, mixes,
   // gateway, servicenode, replicas) lives on the VPS; this box joins as a
@@ -442,9 +465,11 @@ async function getMixnetStatus() {
     nodes[c.name] = { running: c.state === 'running', status: c.status, host: 'vps' };
   }
 
+  const bridge = await getBridgeStatus();
   return {
     authorities,
     nodes,
+    bridge,
     listeningPorts: [64331, 9090, 1080].filter(p => isPortListening(p)).length,
     vps: { connected: vps.connected, running: vps.running, total: vps.total, epoch: vps.epoch }
   };
@@ -1574,7 +1599,8 @@ app.get('/api/health', async (req, res) => {
         dashboard_http: '200',
         disk_used_percent: disk,
         last_backup_age_hours: lastBackup,
-        kpclientd_listening: isPortListening(64331)
+        kpclientd_listening: isPortListening(64331),
+        bridge: await getBridgeStatus()
       },
       vps: {
         status: vpsStatus,

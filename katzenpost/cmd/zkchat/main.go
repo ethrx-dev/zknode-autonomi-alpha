@@ -13,7 +13,11 @@ import (
 	"time"
 
 	cbor "github.com/fxamacker/cbor/v2"
+	"crypto/sha256"
+	"encoding/base64"
 	"golang.org/x/crypto/blake2b"
+	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/crypto/curve25519"
 
 	"github.com/katzenpost/katzenpost/client/thin"
 	"github.com/katzenpost/katzenpost/client/config"
@@ -79,8 +83,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, `Usage: zkchat [flags] <command> [args]
 
 Commands:
-  send <config.toml> <recipient_hex> <message>
-    Send a chat message to recipient.
+  send [-via <netID>] [--e2e] <recipient_hex> <message>
+    Send via +chat; --via <netID> routes an opaque envelope through the
+    local +meshbridge (cross-domain); --e2e seals the body to the peer key.
 
   poll <config.toml>
     Poll for new messages addressed to you.
@@ -128,6 +133,10 @@ Flags:
 		cmdAI(args[1:])
 	case "group":
 		cmdGroup(args[1:])
+	case "e2e-export":
+		cmdE2EExport(args[1:])
+	case "e2e-import":
+		cmdE2EImport(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", cmd)
 		flag.Usage()
@@ -161,7 +170,160 @@ func cmdGroup(args []string) {
 	}
 }
 
+// MeshRequest is the +meshbridge capability wire request (mirrors cmd/mesh-bridge).
+type MeshRequest struct {
+	Op        string `cbor:"op"`                  // "relay"
+	NetID     string `cbor:"net_id"`              // peer domain alias from the bridge address book
+	Recipient string `cbor:"recipient,omitempty"` // hex of the 16-byte peer identity
+	Content   string `cbor:"content,omitempty"`   // opaque body (E2E-sealed when --e2e)
+}
+
+// MeshResponse is the +meshbridge reply.
+type MeshResponse struct {
+	Success bool   `cbor:"success"`
+	Error   string `cbor:"error,omitempty"`
+	Peer    string `cbor:"peer,omitempty"`
+}
+
+// findMeshBridgeService resolves the local domain's +meshbridge capability.
+func findMeshBridgeService(client *thin.ThinClient) (*[32]byte, []byte, error) {
+	for i := 0; i < 100; i++ {
+		if client.PKIDocument() != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	var lastErr error
+	for i := 0; i < 10; i++ {
+		s, err := client.GetService("meshbridge")
+		if err == nil {
+			h := blake2b.Sum256(s.MixDescriptor.IdentityKey)
+			return &h, s.RecipientQueueID, nil
+		}
+		lastErr = err
+		time.Sleep(1 * time.Second)
+	}
+	return nil, nil, lastErr
+}
+
+func sendViaBridge(client *thin.ThinClient, netID, recipHex, content string) (MeshResponse, error) {
+	destHash, queue, err := findMeshBridgeService(client)
+	if err != nil {
+		return MeshResponse{}, fmt.Errorf("meshbridge service: %w", err)
+	}
+	req, _ := cbor.Marshal(MeshRequest{Op: "relay", NetID: netID, Recipient: recipHex, Content: content})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	reply, err := client.BlockingSendMessage(ctx, req, destHash, queue)
+	if err != nil {
+		return MeshResponse{}, fmt.Errorf("send: %w", err)
+	}
+	var resp MeshResponse
+	cbor.UnmarshalFirst(reply, &resp)
+	return resp, nil
+}
+
+// ---- E2E content keys (crypto in the client; chatd and any bridge see ciphertext) ----
+
+// cfgDirFor returns the identity directory the CLI derives from the thin config.
+func cfgDirFor(configPath string) string {
+	return filepath.Dir(configPath)
+}
+
+// loadOrCreateE2EKeypair generates a per-identity file (X25519 scalar + pub) if absent
+// and returns the *private* scalar.
+func loadOrCreateE2EKeypair(dir string) ([]byte, []byte) {
+	privPath := filepath.Join(dir, "e2e.keypair")
+	if raw, err := os.ReadFile(privPath); err == nil && len(raw) == 64 {
+		// 32B scalar || 32B pub
+		scalar := make([]byte, 32)
+		copy(scalar, raw[:32])
+		pub := make([]byte, 32)
+		copy(pub, raw[32:])
+		return scalar, pub
+	}
+	priv := make([]byte, 32)
+	if _, err := rand.Read(priv); err != nil {
+		fmt.Fprintln(os.Stderr, "e2e keygen: rand:", err)
+		os.Exit(1)
+	}
+	pub, err := curve25519.X25519(priv, curve25519.Basepoint)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "e2e keygen:", err)
+		os.Exit(1)
+	}
+	os.WriteFile(privPath, append(append([]byte{}, priv...), pub...), 0600)
+	return priv, pub
+}
+
+func loadE2EPub(dir string, peerHex string) ([]byte, bool) {
+	pubPath := filepath.Join(dir, "e2e-pubs", peerHex+".pub")
+	raw, err := os.ReadFile(pubPath)
+	if err != nil || len(raw) < 32 {
+		return nil, false
+	}
+	return raw[:32], true
+}
+
+// e2eSeal: ephemeral X25519 for each message; cha-20poly1305 keyed by SHA256(shared);
+// payload = nonce(24) || ephPub(32) || ct
+func e2eSeal(pub []byte, plaintext []byte) (string, error) {
+	var recvPub [32]byte
+	copy(recvPub[:], pub)
+	var ephPriv [32]byte
+	if _, err := rand.Read(ephPriv[:]); err != nil {
+		return "", err
+	}
+	ephPub, err := curve25519.X25519(ephPriv[:], curve25519.Basepoint)
+	if err != nil {
+		return "", err
+	}
+	shared, err := curve25519.X25519(ephPriv[:], recvPub[:])
+	if err != nil {
+		return "", err
+	}
+	key := sha256.Sum256(shared)
+	aead, _ := chacha20poly1305.New(key[:])
+	nonce := make([]byte, 24)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	ct := aead.Seal(nil, nonce, plaintext, ephPub)
+	payload := append(append(append([]byte{}, nonce...), ephPub...), ct...)
+	return base64.StdEncoding.EncodeToString(payload), nil
+}
+
+// e2eOpen is the inverse of e2eSeal using the receiver's scalar.
+func e2eOpen(scalar []byte, payloadBase64 string) ([]byte, error) {
+	payload, err := base64.StdEncoding.DecodeString(payloadBase64)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) < 24+32+16 {
+		return nil, fmt.Errorf("e2e payload too short")
+	}
+	nonce := payload[:24]
+	ephPub := payload[24 : 24+32]
+	ct := payload[24+32:]
+	shared, err := curve25519.X25519(scalar, ephPub)
+	if err != nil {
+		return nil, err
+	}
+	key := sha256.Sum256(shared)
+	aead, _ := chacha20poly1305.New(key[:])
+	pt, err := aead.Open(nil, nonce, ct, ephPub)
+	if err != nil {
+		return nil, err
+	}
+	return pt, nil
+}
+
+
 func dial(configPath string) (*thin.ThinClient, error) {
+
+// ---- end E2E helpers ----
+
+
 	cfg, err := thin.LoadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
@@ -234,14 +396,48 @@ func decodeResponse(reply []byte) ChatResponse {
 	return resp
 }
 
+// parseSendFlags pulls --via <netid> and --e2e out of args, leaving positionals.
+func parseSendFlags(args []string) (rest []string, via string, e2e bool) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--via" && i+1 < len(args):
+			via = args[i+1]
+			i++
+		case a == "--e2e":
+			e2e = true
+		default:
+			rest = append(rest, a)
+		}
+	}
+	return rest, via, e2e
+}
+
 func cmdSend(args []string) {
-	if len(args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: zkchat send <config.toml> <recipient_hex> <message>")
+	rest, via, e2e := parseSendFlags(args)
+	if len(rest) < 3 {
+		fmt.Fprintln(os.Stderr, "Usage: zkchat send <config.toml> [--via <netID>] [--e2e] <recipient_hex> <message>")
 		os.Exit(1)
 	}
-	configPath, recipHex, message := args[0], args[1], args[2]
+	configPath, recipHex, message := rest[0], rest[1], rest[2]
 	userID := getOrCreateID(configPath)
 	recipBytes := parseRecipient(recipHex, userID)
+	dir := cfgDirFor(configPath)
+
+	// E2E sealing happens here (client-side), chatd + any bridge see ciphertext.
+	if e2e {
+		pub, ok := loadE2EPub(dir, recipHex)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "no E2E key for %s — run: zkchat e2e-import %s %s <peerpub>\n", recipHex, configPath, recipHex)
+			os.Exit(1)
+		}
+		sealed, err := e2eSeal(pub, []byte(message))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "e2e seal: %v\n", err)
+			os.Exit(1)
+		}
+		message = sealed
+	}
 
 	client, err := dial(configPath)
 	if err != nil {
@@ -250,12 +446,28 @@ func cmdSend(args []string) {
 	}
 	defer client.Close()
 
+	if via != "" {
+		// cross-domain: hand an opaque relay envelope to the local +meshbridge
+		resp, err := sendViaBridge(client, via, recipHex, message)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "bridge send failed: %v\n", err)
+			os.Exit(1)
+		}
+		if resp.Success {
+			fmt.Printf("Sent via bridge %s to %s (%s)\n", resp.Peer, recipHex, map[bool]string{true: "e2e", false: "cleartext"}[e2e])
+		} else {
+			fmt.Fprintf(os.Stderr, "bridge error: %s\n", resp.Error)
+			os.Exit(1)
+		}
+		return
+	}
+
 	chatReq := ChatRequest{
 		Op:        "send",
 		UserID:    userID,
 		Recipient: recipBytes,
 		Content:   message,
-		MsgType:   "text",
+		MsgType:   map[bool]string{true: "mesh-e2e", false: "text"}[e2e],
 	}
 
 	resp, err := sendRequest(client, chatReq)
@@ -266,6 +478,9 @@ func cmdSend(args []string) {
 
 	if resp.Success {
 		fmt.Printf("Sent to %x", recipBytes)
+		if e2e {
+			fmt.Printf(" [e2e]")
+		}
 		if resp.Addr != "" {
 			fmt.Printf(" [Autonomi: %s]", resp.Addr)
 		}
@@ -314,11 +529,30 @@ func cmdPoll(args []string) {
 
 	for _, msg := range resp.Messages {
 		ts := time.UnixMilli(msg.Timestamp)
+		content, tag := msg.Content, msg.Type
+		if msg.Type == "mesh-e2e" {
+			dir := cfgDirFor(configPath)
+			_, myPub := loadOrCreateE2EKeypair(dir)
+			_ = myPub
+			privPath := filepath.Join(dir, "e2e.keypair")
+			raw, err := os.ReadFile(privPath)
+			if err == nil && len(raw) >= 32 {
+				if pt, derr := e2eOpen(raw[:32], msg.Content); derr == nil {
+					content = string(pt)
+				} else {
+					content = "🔒 [unable to decrypt] " + msg.Content
+				}
+				tag = "e2e"
+			} else {
+				content = "🔒 [no e2e key on this client] " + msg.Content
+				tag = "e2e-locked"
+			}
+		}
 		fmt.Printf("[%s] from %x (%s):\n  %s\n",
 			ts.Format("15:04:05"),
 			msg.Sender,
-			msg.Type,
-			msg.Content)
+			tag,
+			content)
 	}
 }
 
@@ -369,6 +603,40 @@ func cmdAI(args []string) {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", resp.Error)
 		os.Exit(1)
 	}
+}
+
+// cmdE2EExport prints this client's identity + E2E public key for peers to import.
+func cmdE2EExport(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: zkchat e2e-export <config.toml>")
+		os.Exit(1)
+	}
+	configPath := args[0]
+	dir := cfgDirFor(configPath)
+	userID := getOrCreateID(configPath)
+	_, pub := loadOrCreateE2EKeypair(dir)
+	fmt.Printf("identity=%x pubkey=%x\n", userID, pub)
+}
+
+// cmdE2EImport stores a peer's E2E public key: zkchat e2e-import <cfg> <peerIdHex> <peerPubHex>
+func cmdE2EImport(args []string) {
+	if len(args) < 3 {
+		fmt.Fprintln(os.Stderr, "Usage: zkchat e2e-import <config.toml> <peer_identity_hex> <peer_pub_hex>")
+		os.Exit(1)
+	}
+	configPath, peerHex, pubHex := args[0], args[1], args[2]
+	pub, err := hex.DecodeString(pubHex)
+	if err != nil || len(pub) != 32 {
+		fmt.Fprintln(os.Stderr, "peer pubkey must be 32-byte hex")
+		os.Exit(1)
+	}
+	dir := cfgDirFor(configPath)
+	if err := os.MkdirAll(filepath.Join(dir, "e2e-pubs"), 0700); err != nil {
+		fmt.Fprintln(os.Stderr, "mkdir e2e-pubs:", err)
+		os.Exit(1)
+	}
+	os.WriteFile(filepath.Join(dir, "e2e-pubs", peerHex+".pub"), pub, 0600)
+	fmt.Printf("E2E key for %x stored\n", peerHex)
 }
 
 func groupCreate(args []string) {
