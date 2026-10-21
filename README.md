@@ -15,6 +15,29 @@ A self-contained private Autonomi storage node with traffic routed through an em
 
 ---
 
+## Connect to a zknode (5 minutes) — end users
+
+Join the private Tailscale network, open a dashboard, and chat. No account, no cloud.
+
+```
+  You (phone/laptop)              Tailscale (private WireGuard mesh)
+  ┌──────────────┐          ┌────────────────────────────────────────────┐
+  │ browser      │          │  box 100.66.60.127    SCM4 100.75.15.108   │
+  │  dashboard   │◄────────►│  :8080 dashboard      :8080 dashboard      │
+  │  zkchat      │          │  :31008 gateway  ◄──► :31007 gateway       │
+  │  /ai ZeroAI  │          │  mixnet + ZeroAI      mixnet + wiki        │
+  └──────────────┘          └────────────────────────────────────────────┘
+```
+
+1. Install **Tailscale** and join with the operator's invite link.
+2. Open **http://100.66.60.127:8080** (box) or **http://100.75.15.108:8080** (SCM4).
+3. In zkchat create or join a group and send a message (allow ~20-40 s).
+4. Ask the local AI: `/ai explain a mixnet in one sentence`.
+
+Full walkthrough: **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** · Operators: **[docs/OPERATOR_QUICKSTART.md](docs/OPERATOR_QUICKSTART.md)**
+
+---
+
 ## Quickstart (v0.2 — any amd64/arm64 Linux host)
 
 ```bash
