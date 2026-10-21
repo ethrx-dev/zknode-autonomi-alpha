@@ -437,6 +437,7 @@ async function getContainers() {
 async function getMixnetStatus() {
   const containers = await getContainers();
   if (containers.error) return { error: containers.error };
+  const mixRunning = containers.filter(c => /^mix-\d+$/.test(c.name || '') && c.state === 'running').length;
   const authHosts = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
   const authorities = await Promise.all(authHosts.map(async (name, aidx) => {
     const c = containers.find(ct => ct.name === name);
@@ -453,6 +454,7 @@ async function getMixnetStatus() {
       data: running ? {
         Epoch: epoch?.ok ? epoch.data.trim() : null,
         Consensus: consensus?.ok ? consensus.data.trim() : null,
+        Nodes: mixRunning,
         ServiceNodes: nodeCount?.ok ? parseInt(nodeCount.data.trim()) || 0 : 0,
         GatewayNodes: gwCount?.ok ? parseInt(gwCount.data.trim()) || 0 : 0
       } : { error: 'offline' }
@@ -1364,7 +1366,7 @@ app.get('/api/services', async (req, res) => {
 
 app.get('/api/health', async (req, res) => {
   try {
-    const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
+    const mixOk = ['mix-1','mix-2','mix-3']
       .filter(n => { try { return execSync('docker ps --format "{{.Names}}" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
     const wsOk = wsHeartbeatState.ok ? '200' : '000';
 
@@ -1382,9 +1384,9 @@ app.get('/api/health', async (req, res) => {
       runShellAsync('docker exec mix-dirauth-1 tail -5000 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false)
     ]);
     res.json({
-      status: mixOk >= 5 && wsOk === '200' ? 'healthy' : 'degraded',
+      status: dirauthConsensus && mixOk >= 3 ? 'healthy' : 'degraded',
       dirauth_consensus: dirauthConsensus,
-      mix_nodes: mixOk + '/6',
+      mix_nodes: mixOk + '/3',
       walletshield_http: wsOk,
       dashboard_http: '200',
       disk_used_percent: disk,
