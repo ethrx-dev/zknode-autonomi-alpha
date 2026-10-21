@@ -1,0 +1,1448 @@
+import { request as httpRequest, Agent as HttpAgent } from 'http';
+import { existsSync, writeFileSync } from "fs";
+import { execSync, spawnSync, exec as execAsync } from 'child_process';
+import { hostname, networkInterfaces, totalmem, freemem, cpus, uptime, loadavg } from 'os';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { createHmac, randomBytes } from 'crypto';
+import express from 'express';
+import zkid from './zkid.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PORT = process.env.PORT || 8080;
+const WS_PORT = process.env.WS_PORT || 9200;
+const DOCKER_SOCK = '/var/run/docker.sock';
+
+let cachedChainId = null;
+let cachedNetVersion = null;
+let wsHeartbeatState = { ok: false, lastOk: null, lastError: null, error: null };
+let ZKCHAT_MESSAGES = [];
+const CHAT_HISTORY_FILE = "/app/public/chat-history.json";
+let ZKCHAT_GROUP_HISTORY = {};
+try { ZKCHAT_GROUP_HISTORY = JSON.parse(execSync('cat "' + CHAT_HISTORY_FILE + '" 2>/dev/null || echo "{}"', { timeout: 3000 }).toString()); } catch {}
+
+const app = express();
+app.use(express.json());
+// --- Security layer (v0.2 lockdown) ---
+// DASHBOARD_AUTH controls enforcement:
+//   "required" (DEFAULT when DASHBOARD_TOKEN is set) -> all /api endpoints
+//       require the token (Bearer header, x-zk-token header, or HttpOnly
+//       SameSite=Strict cookie obtained via /api/auth?token=...); binds 0.0.0.0.
+//   "optional" -> binds 0.0.0.0 for LAN access but does NOT require the token
+//       (accepted if supplied); no 401 against unauthenticated clients.
+//   "off" (DEFAULT when DASHBOARD_TOKEN is unset) -> fail-safe: binds
+//       127.0.0.1 only, no auth.
+const DASHBOARD_TOKEN = process.env.DASHBOARD_TOKEN || "";
+const DASHBOARD_AUTH = (process.env.DASHBOARD_AUTH || (DASHBOARD_TOKEN ? "required" : "off")).toLowerCase();
+const AUTH_REQUIRED = DASHBOARD_AUTH === "required";
+const DASHBOARD_BIND = process.env.DASHBOARD_BIND || (AUTH_REQUIRED || DASHBOARD_AUTH === "optional" ? "0.0.0.0" : "127.0.0.1");
+
+function safeInt(v, min, max, dflt) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt;
+}
+function safeHexId(v) {
+  return typeof v === "string" && /^[a-fA-F0-9]{8,64}$/.test(v) ? v.toLowerCase() : null;
+}
+function safeName(v) {
+  return typeof v === "string" && /^[a-zA-Z0-9_.-]{1,64}$/.test(v) ? v : null;
+}
+
+// naive per-IP rate limit for /api (240 req/min)
+const RATE = { max: 240, windowMs: 60000 };
+const rateMap = new Map();
+function rateLimit(req, res, next) {
+  const now = Date.now();
+  const ip = req.socket.remoteAddress || "unknown";
+  let e = rateMap.get(ip);
+  if (!e || now - e.start > RATE.windowMs) { e = { start: now, n: 0 }; rateMap.set(ip, e); }
+  e.n++;
+  if (e.n > RATE.max) return res.status(429).json({ error: "rate limited" });
+  next();
+}
+
+function tokenFromReq(req) {
+  const h = req.headers || {};
+  const bearer = (h.authorization || "").replace(/^Bearer\s+/i, "");
+  const hdr = h["x-zk-token"];
+  const cookie = (h.cookie || "").match(/(?:^|;\s*)zk_token=([A-Za-z0-9_-]+)/);
+  return bearer || (typeof hdr === "string" ? hdr : "") || (cookie ? cookie[1] : "");
+}
+
+function authMiddleware(req, res, next) {
+  if (!AUTH_REQUIRED) return next();
+  if (req.path === "/api/auth") return next();
+  if (tokenFromReq(req) === DASHBOARD_TOKEN) return next();
+  return res.status(401).json({ error: "unauthorized" });
+}
+
+app.get("/api/auth", async (req, res) => {
+  if (!AUTH_REQUIRED) return res.json({ ok: true, mode: DASHBOARD_AUTH });
+  if ((req.query.token || "").toString() !== DASHBOARD_TOKEN) return res.status(401).json({ error: "invalid token" });
+  res.setHeader("Set-Cookie", "zk_token=" + encodeURIComponent(DASHBOARD_TOKEN) + "; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400");
+  res.json({ ok: true, mode: DASHBOARD_AUTH });
+});
+
+app.use("/api", rateLimit, authMiddleware);
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+// --- end security layer ---
+
+app.use(express.static(join(__dirname, '..', 'public')));
+try{ zkid(app); }catch(e){ console.log('zkid init failed', e.message); }
+
+function runShell(cmd, timeoutMs = 15000) {
+  try {
+    const out = execSync(cmd, { timeout: timeoutMs, encoding: 'utf8', maxBuffer: 1024 * 1024, shell: '/bin/sh' });
+    return { ok: true, data: out.trim() };
+  } catch (e) {
+    const stderr = e.stderr ? e.stderr.toString().trim() : '';
+    return { ok: false, error: e.message, stderr };
+  }
+}
+
+function runShellAsync(cmd, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    execAsync(cmd, { timeout: timeoutMs, encoding: 'utf8', maxBuffer: 1024 * 1024, shell: '/bin/sh' }, (err, stdout, stderr) => {
+      if (err) return resolve({ ok: false, error: err.message, stderr: stderr?.trim() || '' });
+      resolve({ ok: true, data: stdout.trim() });
+    });
+  });
+}
+
+function dockerApi(path) {
+  return new Promise((resolve) => {
+    if (!existsSync(DOCKER_SOCK)) return resolve({ error: 'docker socket not found' });
+    const req = httpRequest({ socketPath: DOCKER_SOCK, path, method: 'GET' }, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { resolve({ error: 'parse error', raw: body }); }
+      });
+    });
+    req.on('error', () => resolve({ error: 'docker api error' }));
+    req.end();
+  });
+}
+
+function fetchUrl(url, timeout = 5000, opts = {}) {
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeout);
+    const options = { signal: controller.signal, method: opts.method || 'GET' };
+    if (opts.body) options.body = opts.body;
+    fetch(url, options)
+      .then(r => r.text().then(txt => {
+        try { return JSON.parse(txt); }
+        catch { return { raw: txt }; }
+      }))
+      .then(d => { clearTimeout(t); resolve(d); })
+      .catch(e => { clearTimeout(t); resolve({ error: e.message }); });
+  });
+}
+
+function isPortListening(port) {
+  port = safeInt(port, 1, 65535, 0);
+  if (!port) return false;
+  return runShell(`netstat -tln 2>/dev/null | grep -qE ":${port} " && echo ok`).ok;
+}
+
+function isProcessAlive(pid) {
+  if (!/^\d+$/.test(String(pid))) return false;
+  return runShell(`docker run --rm --pid host alpine kill -0 ${pid} 2>&1`, 5000).ok;
+}
+
+function pgrep(name) {
+  name = safeName(name);
+  if (!name) return null;
+  const r = runShell(`pgrep -f "${name}" 2>/dev/null | head -1`, 5000);
+  return r.ok && r.data ? parseInt(r.data, 10) : null;
+}
+
+// ─── MCP Client for llm-wiki ─────────────────────────────────
+
+let mcpSessionId = null;
+let mcpSseReq = null;
+let mcpReady = false;
+const mcpPending = new Map();
+
+function mcpHttp(method, path, headers, body, timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    const opts = {
+      hostname: '127.0.0.1', port: 18765, path, method,
+      headers: { ...headers }
+    };
+    const req = httpRequest(opts, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve({
+        status: res.statusCode,
+        headers: res.headers,
+        body: data
+      }));
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+function parseSseJson(sseBody) {
+  const dataLines = [];
+  for (const line of sseBody.split('\n')) {
+    if (line.startsWith('data: ')) {
+      const payload = line.slice(6).trim();
+      if (payload) dataLines.push(payload);
+    }
+  }
+  for (const jsonStr of dataLines) {
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.jsonrpc === '2.0') return parsed;
+    } catch {}
+  }
+  try { return JSON.parse(sseBody); }
+  catch { return null; }
+}
+
+async function mcpInitialize() {
+  const msg = JSON.stringify({
+    jsonrpc: '2.0', id: 1, method: 'initialize',
+    params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'zknode-dashboard', version: '1.0' } }
+  });
+  const resp = await mcpHttp('POST', '/mcp', {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json, text/event-stream'
+  }, msg);
+  if (!resp.headers['mcp-session-id']) {
+    throw new Error('No mcp-session-id in response');
+  }
+  mcpSessionId = resp.headers['mcp-session-id'];
+}
+
+function mcpOpenSse() {
+  if (mcpSseReq) {
+    mcpSseReq.destroy();
+    mcpSseReq = null;
+  }
+  const opts = {
+    hostname: '127.0.0.1', port: 18765, path: '/mcp', method: 'GET',
+    headers: { 'Accept': 'text/event-stream', 'mcp-session-id': mcpSessionId }
+  };
+  const req = httpRequest(opts, (res) => {
+    let sseBuf = '';
+    const parseSse = () => {
+      const parts = sseBuf.split('\n\n');
+      sseBuf = parts.pop() || '';
+      for (const block of parts) {
+        const m = block.match(/^data: (.+)$/m);
+        if (!m) continue;
+        try {
+          const parsed = JSON.parse(m[1]);
+          if (parsed.jsonrpc === '2.0' && parsed.id && mcpPending.has(parsed.id)) {
+            mcpPending.get(parsed.id)(parsed);
+            mcpPending.delete(parsed.id);
+          }
+        } catch {}
+      }
+    };
+    res.on('data', (c) => { sseBuf += c; parseSse(); });
+    res.on('end', () => {
+      mcpSseReq = null;
+      mcpReady = false;
+      setTimeout(connectMcp, 1000);
+    });
+    res.on('error', () => {
+      mcpSseReq = null;
+      mcpReady = false;
+      setTimeout(connectMcp, 2000);
+    });
+  });
+  req.on('error', () => {
+    mcpSseReq = null;
+    mcpReady = false;
+    setTimeout(connectMcp, 2000);
+  });
+  req.end();
+  mcpSseReq = req;
+}
+
+async function connectMcp() {
+  try {
+    await mcpInitialize();
+    mcpOpenSse();
+    mcpReady = true;
+    console.log('MCP session established:', mcpSessionId?.slice(0, 8) + '...');
+  } catch (e) {
+    console.log('MCP init failed:', e.message, '- retrying in 5s');
+    mcpReady = false;
+    setTimeout(connectMcp, 5000);
+  }
+}
+
+async function mcpCall(method, params = {}) {
+  if (!mcpReady) return { error: 'MCP not ready' };
+  const id = Date.now() + Math.floor(Math.random() * 1000);
+  const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params });
+  try {
+    const resp = await mcpHttp('POST', '/mcp', {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'mcp-session-id': mcpSessionId
+    }, msg);
+    if (resp.status === 400 || resp.body.includes('Session not found') || resp.body.includes('expired')) {
+      mcpReady = false;
+      connectMcp();
+      return { error: 'Session expired, reconnecting' };
+    }
+    if (resp.status !== 200) return { error: `HTTP ${resp.status}`, raw: resp.body };
+    const parsed = parseSseJson(resp.body);
+    if (!parsed) return { error: 'failed to parse response', raw: resp.body };
+    if (parsed.error) return { error: parsed.error.message || JSON.stringify(parsed.error) };
+    if (parsed.result && parsed.result.content) {
+      const textContent = parsed.result.content.find(c => c.type === 'text');
+      if (parsed.result.isError) {
+        return { error: textContent ? textContent.text : 'MCP tool error' };
+      }
+      if (textContent) {
+        try { return JSON.parse(textContent.text); }
+        catch { return textContent.text; }
+      }
+      return parsed.result.content;
+    }
+    return parsed.result;
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// ─── LOCAL LLM (Ollama) + wiki-context for AI chat ───────────
+
+const OLLAMA_BASE = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3:1.7b';
+
+function ollamaGenerate(prompt, opts = {}) {
+  return fetch(`${OLLAMA_BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      prompt,
+      think: false,
+      stream: true,
+      options: { num_ctx: opts.numCtx || 8192, temperature: opts.temperature ?? 0.5, num_predict: opts.maxTokens || 320 }
+    })
+  }).then(async r => {
+    if (!r.ok) throw new Error('ollama HTTP ' + r.status);
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', text = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (!line) continue;
+        try { const j = JSON.parse(line); if (j.error) return { ok: false, error: String(j.error) }; if (j.response) text += j.response; } catch {}
+      }
+    }
+    return { ok: true, text: text.trim() };
+  }).catch(e => ({ ok: false, error: e.message }));
+}
+
+function stripWikiMarkup(s) { return String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); }
+
+async function wikiContextFor(query, topK = 4) {
+  if (!mcpReady) return null;
+  const r = await mcpCall('tools/call', { name: 'wiki_search', arguments: { wiki: 'p4p', query, top_k: topK } });
+  const results = r && r.results ? r.results : null;
+  if (!Array.isArray(results) || !results.length) return null;
+  return results.slice(0, topK).map(res =>
+    'WIKI PAGE "' + (res.slug || res.uri || '') + '"\n' + stripWikiMarkup(res.excerpt || '')
+  ).join('\n\n');
+}
+
+function buildAiPrompt(userQuery, wikiCtx) {
+  const ctx = wikiCtx
+    ? 'Relevant pages from the P2P Foundation wiki archive:\n\n' + wikiCtx + '\n\nPrefer these when relevant.'
+    : 'The wiki search returned no matches — answer from your own knowledge, and say so if unsure.';
+  return 'You are ZeroAI on a private zknode. You answer inside anonymous, metadata-private zkchat groups. '
+    + 'Keep answers concise (aim under 300 words).\n\n' + ctx + '\n\nUser: ' + userQuery + '\n/no_think';
+}
+
+async function runAiReply(group_id, query) {
+  await zkchatCmdAsync(`group send ${ZKCONF} ${group_id} "[ai] thinking..."`);
+  const wikiCtx = await wikiContextFor(query, 4);
+  const gen = await ollamaGenerate(buildAiPrompt(query, wikiCtx));
+  if (!gen.ok) {
+    await zkchatCmdAsync(`group send ${ZKCONF} ${group_id} "[ai] error: ${stripWikiMarkup(gen.error).slice(0, 200)}"`);
+    return;
+  }
+  const reply = '[ai] ' + gen.text;
+  await zkchatCmdAsync(`group send ${ZKCONF} ${group_id} "${reply.slice(0, 1500)}"`);
+}
+
+app.get('/api/llm/status', async (req, res) => {
+  let ollama;
+  try {
+    const r = await fetch(`${OLLAMA_BASE}/api/tags`);
+    const j = await r.json();
+    ollama = { ok: true, models: (j.models || []).map(m => m.name) };
+  } catch (e) {
+    ollama = { ok: false, error: e.message };
+  }
+  res.json({ ollama, model: OLLAMA_MODEL, mcp: { ok: mcpReady, port: 18765 } });
+});
+
+// ─── SYSTEM DATA FUNCTIONS ────────────────────────────────────
+
+async function getSystemStats() {
+  const mem = { total: totalmem(), free: freemem(), used: totalmem() - freemem() };
+  const diskResult = await runShellAsync('df -B1 / /mnt/autonomi 2>/dev/null || df -B1 /', 3000);
+  const disk = diskResult.ok ? diskResult.data.trim().split('\n').slice(1).map(l => {
+    const [, fs, sz, u, av, use, mp] = l.match(/(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+(\S+)/) || [];
+    return fs ? { filesystem: fs, size: +sz, used: +u, available: +av, usePercent: +use, mount: mp } : null;
+  }).filter(Boolean) : [];
+  return {
+    hostname: hostname(), platform: process.platform, arch: process.arch,
+    uptime: uptime(), loadavg: loadavg(), cpuCount: cpus().length, memory: mem,
+    disks: disk,
+    network: Object.entries(networkInterfaces()).flatMap(([name, addrs]) =>
+      addrs.filter(a => a.family === 'IPv4').map(a => ({ name, address: a.address }))
+    )
+  };
+}
+
+async function getContainers() {
+  const data = await dockerApi('/containers/json?all=true');
+  if (data.error) return data;
+  if (!Array.isArray(data)) return { error: 'unexpected response' };
+  return data.map(c => ({
+    id: c.Id?.slice(0, 12), name: c.Names?.[0]?.replace(/^\//, ''),
+    image: c.Image, state: c.State, status: c.Status,
+    ports: c.Ports?.map(p => `${p.PublicPort || ''}:${p.PrivatePort}/${p.Type}`) || [],
+    created: c.Created, networkMode: c.HostConfig?.NetworkMode
+  }));
+}
+
+async function getMixnetStatus() {
+  const containers = await getContainers();
+  if (containers.error) return { error: containers.error };
+  const authHosts = ['mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3'];
+  const authorities = await Promise.all(authHosts.map(async (name, aidx) => {
+    const c = containers.find(ct => ct.name === name);
+    const running = c && c.state === 'running';
+    const da = `mix-dirauth-${aidx + 1}`;
+    const [epoch, consensus, nodeCount, gwCount] = running ? await Promise.all([
+      runShellAsync(`docker exec ${da} sh -c "grep 'Epoch:' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*Epoch: //;s/ .*//'"`, 5000),
+      runShellAsync(`docker exec ${da} sh -c "grep 'consensus for epoch' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | sed 's/.*: //;s/ .*//'"`, 5000),
+      runShellAsync(`docker exec ${da} sh -c "grep 'ServiceNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'servicenode' | wc -l"`, 5000),
+      runShellAsync(`docker exec ${da} sh -c "grep 'GatewayNodes' /var/lib/katzenpost/auth${aidx + 1}/katzenpost.log 2>/dev/null | tail -1 | grep -o 'gateway' | wc -l"`, 5000)
+    ]) : [null, null, null, null];
+    return {
+      host: `127.0.0.1:${30001 + aidx}`,
+      data: running ? {
+        Epoch: epoch?.ok ? epoch.data.trim() : null,
+        Consensus: consensus?.ok ? consensus.data.trim() : null,
+        ServiceNodes: nodeCount?.ok ? parseInt(nodeCount.data.trim()) || 0 : 0,
+        GatewayNodes: gwCount?.ok ? parseInt(gwCount.data.trim()) || 0 : 0
+      } : { error: 'offline' }
+    };
+  }));
+  const mixnetNames = ['mix-1', 'mix-2', 'mix-3', 'mix-gateway', 'mix-servicenode', 'mix-client',
+    'mix-dirauth-1', 'mix-dirauth-2', 'mix-dirauth-3', 'mixnet-proxy'];
+  const nodes = {};
+  for (const n of mixnetNames) {
+    const c = containers.find(ct => ct.name === n);
+    nodes[n] = c ? { running: c.state === 'running', status: c.status } : { running: false, status: 'not found' };
+  }
+  return { authorities, nodes, listeningPorts: [30001, 30002, 30003].filter(p => isPortListening(p)).length };
+}
+
+async function getWalletshieldStatus() {
+  return { connected: isPortListening(9200), port: 9200 };
+}
+
+async function getStorageStatus() {
+  const data = await fetchUrl('http://127.0.0.1:9201/status');
+  if (data && !data.error && data.total_chunks !== undefined) {
+    return { running: true, totalChunks: data.total_chunks, chunkSize: data.chunk_size, merkleRoot: data.merkle_root };
+  }
+  return { running: false, error: data?.error || 'no response' };
+}
+
+async function getAntDaemonPort() {
+  // Query the daemon via the ant CLI inside the container: the dashboard
+  // runs on a bridge network, so it cannot reach the daemon's host-loopback
+  // HTTP port directly, and the port file alone can be stale.
+  const r = await runShellAsync('docker exec antd ant node daemon info --json 2>/dev/null', 5000);
+  if (r.ok && r.data) {
+    try {
+      const info = JSON.parse(r.data.trim().split('\n').filter(l => l.trim().startsWith('{')).length ? r.data.substring(r.data.indexOf('{')) : '{}');
+      if (info.running && info.port) return info.port;
+    } catch {}
+  }
+  // Fall back to the port file (HOME=/var/lib/antd in the container).
+  const f = await runShellAsync('docker exec antd cat /var/lib/antd/.local/share/ant/daemon.port 2>/dev/null', 3000);
+  return f.ok && f.data ? parseInt(f.data, 10) : null;
+}
+
+async function getAntDaemonStatus() {
+  // Primary: CLI info (works from a bridge-network dashboard).
+  const r = await runShellAsync('docker exec antd ant node daemon info --json 2>/dev/null', 5000);
+  if (r.ok && r.data && r.data.includes('"running"')) {
+    try {
+      const info = JSON.parse(r.data.substring(r.data.indexOf('{')));
+      return { running: !!info.running, pid: info.pid, port: info.port, uptime_secs: 0, nodes_total: 0, nodes_running: 0, nodes_stopped: 0, nodes_errored: 0 };
+    } catch {}
+  }
+  const port = await getAntDaemonPort();
+  if (!port) return { running: false, error: 'no daemon port file' };
+  const data = await fetchUrl(`http://127.0.0.1:${port}/api/v1/status`);
+  if (data && !data.error) return data;
+  const pid = pgrep('ant-node');
+  if (pid) return { running: true, pid, mode: 'direct-binary', error: data?.error || 'daemon api unreachable, node binary detected directly' };
+  return { running: false, error: data?.error || 'no response' };
+}
+
+async function getAntNodeStatus() {
+  const nodes = [];
+  let totalRunning = 0, totalStopped = 0;
+  // Daemon-managed nodes via CLI --json (bridge-network safe).
+  const fleet = await runShellAsync('docker exec antd ant node status --json 2>/dev/null', 8000);
+  if (fleet.ok && fleet.data) {
+    try {
+      const f = JSON.parse(fleet.data.substring(fleet.data.indexOf('{')));
+      for (const n of (f.nodes || [])) {
+        nodes.push({ node_id: n.node_id, name: n.name, version: n.version, status: n.status, pid: null, uptime_secs: 0 });
+        if (n.status === 'running') totalRunning++; else if (n.status === 'stopped') totalStopped++;
+      }
+    } catch {}
+  }
+  // Direct-binary node (the stable antd entrypoint runs ant-node directly).
+  const pid = pgrep('ant-node');
+  if (pid) {
+    nodes.push({ node_id: 0, name: 'node1', version: 'direct', status: 'running', pid, uptime_secs: 0 });
+    totalRunning++;
+  }
+  return { nodes, total_running: totalRunning, total_stopped: totalStopped };
+}
+
+// ─── WIKI ENDPOINTS (via MCP) ────────────────────────────────
+
+app.post('/api/wiki/search', async (req, res) => {
+  const { query, topK } = req.body || {};
+  if (!query) return res.json({ error: 'query required', results: [] });
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_search',
+    arguments: { wiki: 'p4p', query, top_k: topK || 10 }
+  });
+  res.json(result);
+});
+
+app.get('/api/wiki/list', async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 20;
+  const type = req.query.type || '';
+  const status = req.query.status || '';
+  const args = { wiki: 'p4p', page, page_size: pageSize };
+  if (type) args.type = type;
+  if (status) args.status = status;
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_list',
+    arguments: args
+  });
+  res.json(result);
+});
+
+app.get('/api/wiki/page/:slug', async (req, res) => {
+  const { wiki } = req.query;
+  let uri = req.params.slug;
+  if (uri.startsWith('wiki/')) uri = uri.slice(5);
+  if (uri.startsWith('wiki://')) uri = uri.split('/').pop();
+  const args = { uri, wiki: wiki || 'p4p' };
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_content_read',
+    arguments: args
+  });
+  res.json(result);
+});
+
+app.get('/api/wiki/stats', async (req, res) => {
+  const result = await mcpCall('tools/call', { name: 'wiki_stats', arguments: { wiki: 'p4p' } });
+  res.json(result || {});
+});
+
+app.get('/api/wiki/suggest/:slug', async (req, res) => {
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_suggest',
+    arguments: { wiki: 'p4p', slug: req.params.slug, limit: 10 }
+  });
+  res.json(result);
+});
+
+app.post('/api/wiki/export/:slug', async (req, res) => {
+  let uri = req.params.slug;
+  if (!uri.startsWith('wiki/')) uri = 'wiki/' + uri;
+  const result = await mcpCall('tools/call', { name: 'wiki_content_read', arguments: { wiki: 'p4p', uri } });
+  if (!result || result.error) return res.json({ ok: false, error: result?.error || 'fetch failed' });
+  const content = result.text || result.content || (typeof result === 'string' ? result : '');
+  const slug = uri.split('/').pop().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const title = slug.replace(/[-_]/g, ' ');
+  const exportDir = '/var/nomadnet/pages/wiki';
+  const mu = `# ${title}\n\n${content}\n\n[Wiki Home|/wiki/index.mu]\n`;
+  try {
+    if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true });
+    writeFileSync(`${exportDir}/${slug}.mu`, mu);
+    res.json({ ok: true, path: `wiki/${slug}.mu` });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// ─── ZKCHAT ENDPOINTS ─────────────────────────────────────────
+
+app.post('/api/wiki/page/write', async (req, res) => {
+  const { slug, content, message } = req.body || {};
+  if (!slug) return res.json({ error: 'slug required' });
+  const bare = slug.replace(/^wiki\//, '');
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_content_write',
+    arguments: { wiki: 'p4p', uri: bare, content }
+  });
+  if (!result || result.error) return res.json({ error: result?.error || 'write failed' });
+  res.json({ ok: true, slug, uri: bare });
+});
+
+app.post('/api/wiki/commit', async (req, res) => {
+  const { message, slugs } = req.body || {};
+  const args = { wiki: 'p4p', message: message || 'Dashboard edit' };
+  if (slugs) { const list = Array.isArray(slugs) ? slugs : String(slugs).split(","); args.slugs = list.map(s => s.trim().replace(/^wiki\//, "")).join(","); }
+  const result = await mcpCall('tools/call', {
+    name: 'wiki_content_commit',
+    arguments: args
+  });
+  if (!result || result.error) return res.json({ error: result?.error || 'commit failed' });
+  res.json({ ok: true });
+});
+
+const ZKCONF = "/etc/zkchat/thinclient.toml";
+// Host root of the deployment (docker -v mounts resolve on the HOST, so the
+// dashboard must know the host path). Injected via compose NODE_HOME; the
+// default is a placeholder — set NODE_HOME in .env on a real node.
+const NODE_HOME = process.env.NODE_HOME || '/home/<node-user>/zknode-autonomi';
+
+const ZKCHAT_RUNNER = process.env.ZKCHAT_RUNNER || 'zkchat';
+function ensureZkchatRunner() {
+  const insp = spawnSync('docker', ['inspect', '-f', '{{.State.Running}}', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8', killSignal: 'SIGKILL' });
+  if (insp.status === 0 && String(insp.stdout || '').trim() === 'true') return { ok: true };
+  if (insp.status !== 0 && !/no such (container|object)/i.test((insp.stderr || '') + (insp.stdout || ''))) {
+    return { ok: false, error: 'runner inspect: ' + ((insp.stderr || insp.stdout || insp.error?.message || 'inspect failed').trim()) };
+  }
+  if (insp.status !== 0) return { ok: false, error: 'zkchat container not present — recreate via docker compose' };
+  const s = spawnSync('docker', ['start', ZKCHAT_RUNNER], { timeout: 30000, encoding: 'utf8', killSignal: 'SIGKILL' });
+  if (s.status !== 0) return { ok: false, error: 'runner start: ' + ((s.stderr || s.stdout || s.error?.message || 'start failed').trim()) };
+  return { ok: true };
+}
+function zkchatCmd(args, timeout = 60000) {
+  try {
+    const parsed = [];
+    let cur = '';
+    let inQ = false;
+    for (const ch of args) {
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === ' ' && !inQ) { if (cur) { parsed.push(cur); cur = ''; } continue; }
+      cur += ch;
+    }
+    if (cur) parsed.push(cur);
+    const ensure = ensureZkchatRunner();
+    if (!ensure.ok) return ensure;
+    const dockerArgs = ['exec', ZKCHAT_RUNNER, '/usr/local/bin/zkchat', ...parsed];
+    const r = spawnSync('docker', dockerArgs, { timeout, encoding: 'utf8', maxBuffer: 2097152, killSignal: 'SIGKILL' });
+    if (r.status === 0) return { ok: true, data: r.stdout.trim() };
+    const stderr = (r.stderr || '').trim();
+    const errMsg = stderr || (r.error && r.error.message) || 'command failed';
+    return { ok: false, error: errMsg.includes('connect') ? 'mixnet unavailable (connect to kpclientd failed)' : errMsg };
+  } catch (e) {
+    return { ok: false, error: e.message || 'unknown error' };
+  }
+}
+
+
+function zkchatCmdAsync(args, timeout = 120000) {
+  return new Promise((resolve) => {
+    const cmd = 'docker exec ' + ZKCHAT_RUNNER + ' /usr/local/bin/zkchat ' + args;
+    execAsync(cmd, { timeout, killSignal: 'SIGKILL', maxBuffer: 2097152, encoding: 'utf8' }, (err, stdout, stderr) => {
+      if (!err) return resolve({ ok: true, data: (stdout || '').trim() });
+      const msg = (stderr || '').trim() || err.message || 'command failed';
+      resolve({ ok: false, error: msg.includes('connect') ? 'mixnet unavailable (connect to kpclientd failed)' : msg });
+    });
+  });
+}
+
+app.get('/api/chat/poll', async (req, res) => {
+  const r = await zkchatCmdAsync(`poll ${ZKCONF}`, 120000);
+  if (!r.ok) return res.json({ messages: [], error: r.error });
+  const raw = r.data.split('\n').filter(l => l.trim());
+  const messages = [];
+  let current = null;
+  for (const line of raw) {
+    const m = line.match(/^\[(\d{2}:\d{2}:\d{2})\]\s+from\s+([0-9a-fA-F]+)\s+\(([^)]+)\):/);
+    if (m) {
+      if (current) messages.push(current);
+      current = { timestamp: m[1], sender: m[2], text: '', type: m[3] };
+    } else if (current) {
+      current.text += (current.text ? '\n' : '') + line;
+    }
+  }
+  if (current) messages.push(current);
+  if (messages.length) ZKCHAT_MESSAGES.push(...messages);
+  res.json({ messages, history: ZKCHAT_MESSAGES.slice(-100) });
+
+});
+function getIdentityHex() {
+  try { return execSync('docker exec ' + ZKCHAT_RUNNER + ' cat /etc/zkchat/.zkchat/identity 2>/dev/null', { timeout: 5000 }).toString('hex').trim(); } catch { return null; }
+}
+
+function isGroupOwner(meta, identityHex) {
+  if (!identityHex || !meta.Owner) return false;
+  try { return Buffer.from(meta.Owner, 'base64').toString('hex') === identityHex; } catch { return false; }
+}
+
+app.get('/api/chat/groups', (req, res) => {
+  const identityHex = getIdentityHex();
+  const raw = runShell(join(__dirname, "chat-groups.sh"), 10000);
+  if (!raw.ok || !raw.data.trim()) return res.json({ groups: [] });
+  const groups = [];
+  for (const jsonStr of (raw.data.match(/\{[^}]+\}/g) || [])) {
+    try {
+      const meta = JSON.parse(jsonStr);
+      if (identityHex) {
+        const isMember = meta.Members && meta.Members.some(m => {
+          try { return Buffer.from(m, 'base64').toString('hex') === identityHex; } catch { return false; }
+        });
+        if (!isMember) continue;
+      }
+      groups.push({
+        id: meta.ID, name: meta.Name || 'unnamed',
+        members: (meta.Members || []).length,
+        owner: meta.Owner || null,
+        isOwner: isGroupOwner(meta, identityHex)
+      });
+    } catch {}
+  }
+  res.json({ groups });
+});
+app.post('/api/chat/groups/create', async (req, res) => {
+  const { name, members } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'group name required' });
+  const membersStr = members && members.length ? members.join(' ') : '';
+  const r = await zkchatCmdAsync(`group create ${ZKCONF} "${name}" ${membersStr}`);
+  res.json(r.ok ? { created: true, output: r.data } : { error: r.error, stderr: r.stderr });
+});
+
+app.post('/api/chat/groups/send', async (req, res) => {
+  const { group_id, message } = req.body || {};
+  if (!group_id || !message) return res.status(400).json({ error: 'group_id and message required' });
+  const text = String(message).trim();
+  if (/^\/ai\b/i.test(text)) {
+    const query = text.replace(/^\/ai\b/i, '').trim() || 'introduce yourself and what you can help with';
+    const r = await zkchatCmdAsync(`group send ${ZKCONF} ${group_id} "${message}"`);
+    if (!r.ok) return res.json({ sent: false, error: r.error });
+    res.json({ sent: true, ai: true, thinking: true });
+    runAiReply(group_id, query);
+    return;
+  }
+  const r = await zkchatCmdAsync(`group send ${ZKCONF} ${group_id} "${message}"`);
+  res.json(r.ok ? { sent: true, output: r.data } : { sent: false, error: r.error });
+});
+
+app.post('/api/chat/send', async (req, res) => {
+  const { recipient, message } = req.body || {};
+  if (!recipient || !message) return res.status(400).json({ error: 'recipient and message required' });
+  const r = await zkchatCmdAsync(`send ${ZKCONF} ${recipient} "${message}"`);
+  res.json(r.ok ? { sent: true, output: r.data } : { sent: false, error: r.error });
+});
+
+app.get('/api/chat/groups/poll', async (req, res) => {
+  const groupId = /^[a-f0-9]{32}$/.test(String(req.query.group_id || '')) ? String(req.query.group_id) : '';
+  const key = groupId || '__all__';
+  if (!ZKCHAT_GROUP_HISTORY[key]) ZKCHAT_GROUP_HISTORY[key] = [];
+  const cmd = `group poll ${ZKCONF}${groupId ? ' ' + groupId : ''}`;
+  const r = await zkchatCmdAsync(cmd, 120000);
+  if (!r.ok) return res.json({ messages: ZKCHAT_GROUP_HISTORY[key], error: r.error });
+  const lines = r.data.split('\n');
+  let current = null;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const m = trimmed.match(/^\[(\d{2}:\d{2}:\d{2})\]\s+\[([^\]]+)\]\s+from\s+([0-9a-fA-F]+)\s+\(([^)]+)\):/);
+    if (m) {
+      if (current) ZKCHAT_GROUP_HISTORY[key].push(current);
+      current = { timestamp: m[1], sender: m[3], text: '', type: m[4], gid: groupId || m[2], group: groupId || 'all' };
+    } else if (current) {
+      current.text += (current.text ? '\n' : '') + trimmed;
+    }
+  }
+  if (current) ZKCHAT_GROUP_HISTORY[key].push(current);
+  try { writeFileSync(CHAT_HISTORY_FILE, JSON.stringify(ZKCHAT_GROUP_HISTORY)); } catch {}
+  for (const msg of (ZKCHAT_GROUP_HISTORY[key] || [])) {
+    if (msg.gid && msg.gid !== key) {
+      const arr = ZKCHAT_GROUP_HISTORY[msg.gid] || (ZKCHAT_GROUP_HISTORY[msg.gid] = []);
+      if (!arr.some(x => x.timestamp === msg.timestamp && x.sender === msg.sender && x.text === msg.text)) arr.push(msg);
+    }
+  }
+  let outMsgs = ZKCHAT_GROUP_HISTORY[key] || [];
+  if (groupId && Array.isArray(ZKCHAT_GROUP_HISTORY['__all__'])) {
+    const seen = new Set(outMsgs.map(x => x.timestamp + '|' + x.sender + '|' + x.text));
+    for (const m of ZKCHAT_GROUP_HISTORY['__all__']) {
+      if (m.gid === groupId && !seen.has(m.timestamp + '|' + m.sender + '|' + m.text)) outMsgs.push(m);
+    }
+  }
+  res.json({ messages: outMsgs });
+});
+
+app.post('/api/chat/groups/invite', async (req, res) => {
+  const { group_id, members } = req.body || {};
+  if (!group_id || !members || !members.length) return res.status(400).json({ error: 'group_id and members required' });
+  const r = await zkchatCmdAsync(`group invite ${ZKCONF} ${group_id} ${members.join(' ')}`);
+  res.json(r.ok ? { invited: true, output: r.data } : { error: r.error });
+});
+
+function getInviteSecret() {
+  const identity = getIdentityHex();
+  if (!identity) return null;
+  return createHmac('sha256', 'zknode-invite-v1').update(identity).digest('hex');
+}
+
+function createInviteToken(groupId) {
+  const identity = getIdentityHex();
+  if (!identity) return null;
+  const secret = getInviteSecret();
+  const ts = Math.floor(Date.now() / 1000);
+  const payload = `${groupId}.${identity}.${ts}`;
+  const sig = createHmac('sha256', secret).update(payload).digest('hex').slice(0, 32);
+  const token = Buffer.from(`${payload}.${sig}`).toString('base64url');
+  return token;
+}
+
+function verifyInviteToken(token) {
+  try {
+    const decoded = Buffer.from(token, 'base64url').toString('utf8');
+    const parts = decoded.split('.');
+    if (parts.length !== 4) return null;
+    const [groupId, inviterId, tsStr, sig] = parts;
+    const ts = parseInt(tsStr, 10);
+    if (isNaN(ts)) return null;
+    const ageDays = (Date.now() / 1000 - ts) / 86400;
+    if (ageDays > 30) return null;
+    const secret = getInviteSecret();
+    if (!secret) return null;
+    const expectedSig = createHmac('sha256', secret).update(`${groupId}.${inviterId}.${tsStr}`).digest('hex').slice(0, 32);
+    if (sig !== expectedSig) return null;
+    return { groupId, inviterId, ts };
+  } catch { return null; }
+}
+
+app.post('/api/chat/groups/invite-token', (req, res) => {
+  const { group_id } = req.body || {};
+  if (!group_id) return res.status(400).json({ error: 'group_id required' });
+  const identity = getIdentityHex();
+  if (!identity) return res.status(500).json({ error: 'cannot determine identity' });
+  const token = createInviteToken(group_id);
+  if (!token) return res.status(500).json({ error: 'cannot create token' });
+  const host = req.headers.host || `${hostname()}:${PORT}`;
+  const link = `http://${host}/#invite=${token}`;
+  res.json({ token, link, group_id, inviter: identity });
+});
+
+app.post('/api/chat/groups/join-token', async (req, res) => {
+  const { token, identity: joinerIdentity } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+  if (!joinerIdentity || joinerIdentity.length !== 32) return res.status(400).json({ error: 'valid 32-char identity hex required' });
+  const verified = verifyInviteToken(token);
+  if (!verified) return res.status(400).json({ error: 'invalid or expired invite token' });
+  const r = await zkchatCmdAsync(`group invite ${ZKCONF} ${verified.groupId} ${joinerIdentity}`);
+  res.json(r.ok ? { joined: true, group_id: verified.groupId, inviter: verified.inviterId, output: r.data } : { error: r.error || r.stderr || 'join failed' });
+});
+
+app.get('/api/chat/groups/invite-info', (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  const verified = verifyInviteToken(token);
+  if (!verified) return res.status(400).json({ error: 'invalid or expired invite token' });
+  res.json({ group_id: verified.groupId, inviter: verified.inviterId, timestamp: verified.ts });
+});
+
+app.post('/api/chat/groups/leave', async (req, res) => {
+  const { group_id } = req.body || {};
+  if (!group_id) return res.status(400).json({ error: 'group_id required' });
+  const r = await zkchatCmdAsync(`group leave ${ZKCONF} ${group_id}`);
+  res.json(r.ok ? { left: true, output: r.data } : { error: r.error });
+});
+
+app.post('/api/chat/groups/delete', (req, res) => {
+  const { group_id } = req.body || {};
+  if (!group_id) return res.json({ error: 'group_id required' });
+  const identityHex = getIdentityHex();
+  if (!identityHex) return res.json({ error: 'cannot determine identity' });
+  const metaRaw = runShell(`docker exec mix-servicenode find /tmp/zkchat /var/lib/katzenpost/servicenode1/chatd -path "*/group_${group_id}/meta.json" -exec cat {} +`, 5000);
+  if (!metaRaw.ok || !metaRaw.data) return res.json({ error: 'group not found' });
+  try {
+    const meta = JSON.parse(metaRaw.data);
+    if (!isGroupOwner(meta, identityHex)) return res.json({ error: 'only the group owner can delete the group' });
+    const del = runShell(`docker exec mix-servicenode rm -rf /var/lib/katzenpost/servicenode1/chatd/group_${group_id} /tmp/zkchat/group_${group_id} 2>/dev/null`, 10000);
+    res.json(del.ok ? { deleted: true } : { error: del.error || 'delete failed' });
+  } catch (e) {
+    res.json({ error: e.message });
+  }
+});
+
+// ─── MESH ENDPOINTS ───────────────────────────────────────────
+
+app.get('/api/mesh/status', (req, res) => {
+  const rnsInspect = runShell('docker inspect -f "{{.State.Running}}" reticulum 2>/dev/null', 4000);
+  const nomInspect = runShell('docker inspect -f "{{.State.Running}}" nomadnet 2>/dev/null', 4000);
+  const rnsPidRaw = runShell('docker inspect -f "{{.State.Pid}}" reticulum 2>/dev/null', 4000);
+  const nomPidRaw = runShell('docker inspect -f "{{.State.Pid}}" nomadnet 2>/dev/null', 4000);
+  const rnsRunning = rnsInspect.ok && rnsInspect.data.trim() === 'true';
+  const nomadRunning = nomInspect.ok && nomInspect.data.trim() === 'true';
+  let rnsPid = null, nomadPid = null;
+  if (rnsPidRaw.ok && /^\d+$/.test(rnsPidRaw.data.trim())) rnsPid = parseInt(rnsPidRaw.data.trim(), 10);
+  if (nomPidRaw.ok && /^\d+$/.test(nomPidRaw.data.trim())) nomadPid = parseInt(nomPidRaw.data.trim(), 10);
+  const pages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
+  const config = runShell('cat /var/nomadnet/config 2>/dev/null');
+  const wikiPages = runShell('grep "^pages" /root/.llm-wiki/indexes/p4p/state.toml 2>/dev/null | grep -oE "[0-9]+"');
+  const nomadPages = runShell('find /var/nomadnet/pages/ -name "*.mu" 2>/dev/null');
+  res.json({
+    rnsd: rnsRunning ? 'running' : 'not running',
+    pid: rnsPid || nomadPid || null,
+    identity: config.ok ? config.data.slice(0, 64) : (rnsRunning ? 'checking...' : null),
+    nomadnet: nomadRunning ? 'active' : 'inactive',
+    pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
+    wiki: {
+      pages: wikiPages.ok ? parseInt(wikiPages.data.trim()) || 0 : 0
+    },
+    nomadPages: nomadPages.ok ? nomadPages.data.split('\n').filter(Boolean).length : 0
+  });
+});
+
+app.get('/api/mesh/nomadnet', (req, res) => {
+  const nomInspect = runShell('docker inspect -f "{{.State.Running}}" nomadnet 2>/dev/null', 4000);
+  const nomPidRaw = runShell('docker inspect -f "{{.State.Pid}}" nomadnet 2>/dev/null', 4000);
+  let nomadPid = null;
+  if (nomPidRaw.ok && /^\d+$/.test(nomPidRaw.data.trim())) nomadPid = parseInt(nomPidRaw.data.trim(), 10);
+  const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
+  const config = runShell('cat /var/nomadnet/config 2>/dev/null');
+  const log = runShell('tail -10 /var/nomadnet/logfile 2>/dev/null');
+  res.json({
+    running: nomInspect.ok && nomInspect.data.trim() === 'true',
+    nomadPid,
+    pages: pages.ok ? pages.data.split('\n').filter(Boolean) : [],
+    config: config.ok ? config.data : null,
+    recentLog: log.ok ? log.data.split('\n') : []
+  });
+});
+
+app.get('/api/mesh/rns', (req, res) => {
+  const status = runShell(NODE_HOME + '/.local/bin/rnstatus -j 2>/dev/null', 5000);
+  const paths = runShell(NODE_HOME + '/.local/bin/rnpath -t -j 2>/dev/null', 5000);
+  const wifi = runShell('/usr/sbin/iw dev wlan0 info 2>/dev/null', 3000);
+  const peers = runShell('/usr/sbin/iw dev wlan0 station dump 2>/dev/null', 3000);
+  let data = { interfaces: [], transport_id: null, uptime: 0, traffic: { txb: 0, rxb: 0 } };
+  if (status.ok) {
+    try { data = JSON.parse(status.data); } catch {}
+  }
+  let pathList = [];
+  if (paths.ok) {
+    try { pathList = JSON.parse(paths.data); } catch {}
+  }
+  const wifiLines = wifi.ok ? wifi.data.split('\n').filter(Boolean) : [];
+  const wifiInfo = {};
+  for (const line of wifiLines) {
+    const parts = line.split(/\s+/, 2);
+    if (parts.length >= 2) wifiInfo[parts[0].replace(':', '')] = parts[1];
+  }
+  res.json({
+    transport_id: data.transport_id || null,
+    network_id: data.network_id || null,
+    uptime: data.transport_uptime || 0,
+    traffic: { txb: data.txb || 0, rxb: data.rxb || 0 },
+    interfaces: (data.interfaces || []).map(iface => ({
+      name: iface.name || iface.short_name || 'Unknown',
+      type: iface.type || 'Unknown',
+      status: iface.status === true ? 'Up' : iface.status === false ? 'Down' : 'Unknown',
+      peers: iface.peers || iface.clients || 0,
+      bitrate: iface.bitrate || 0,
+      rxb: iface.rxb || 0,
+      txb: iface.txb || 0
+    })),
+    paths: pathList,
+    wifi: {
+      ssid: wifiInfo.ssid || null,
+      channel: wifiInfo.channel || null,
+      type: wifiInfo.type || null,
+      txpower: wifiInfo.txpower || null,
+      peers: peers.ok ? peers.data.trim() : null
+    }
+  });
+});
+
+// ─── SYSTEM ENDPOINTS ─────────────────────────────────────────
+
+app.get('/api/system', async (req, res) => res.json(await getSystemStats()));
+app.get('/api/containers', async (req, res) => res.json(await getContainers()));
+app.get('/api/mixnet', async (req, res) => res.json(await getMixnetStatus()));
+app.get('/api/walletshield', async (req, res) => res.json(await getWalletshieldStatus()));
+app.get('/api/ws-heartbeat', (req, res) => res.json(wsHeartbeatState));
+// walletshield's Rust HTTP server does not flush/complete responses on
+// keep-alive connections — the request hangs until timeout while the same
+// POST with `Connection: close` returns in ~2s. Always close; no agent.
+function wsProxy(bodyStr) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const opts = {
+      hostname: '127.0.0.1', port: 9200, path: '/ethereum',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr), 'Connection': 'close' }
+    };
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      r.destroy();
+      reject(new Error('walletshield timeout'));
+    }, 90000);
+    const r = httpRequest(opts, (resp) => {
+      let data = '';
+      resp.on('data', c => data += c);
+      resp.on('end', () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(data);
+      });
+    });
+    r.on('error', (e) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(e);
+    });
+    r.write(bodyStr);
+    r.end();
+  });
+}
+
+function cachedResponse(method, id) {
+  if (method === 'eth_chainId' && cachedChainId !== null)
+    return { jsonrpc: '2.0', id, result: cachedChainId };
+  if ((method === 'net_version' || method === 'eth_chainId') && cachedNetVersion !== null && method === 'net_version')
+    return { jsonrpc: '2.0', id, result: cachedNetVersion };
+  return null;
+}
+
+app.all('/ethereum', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  try {
+    const body = req.body;
+    const isBatch = Array.isArray(body);
+
+    // The mixnet tunnel caps a single payload at UserForwardPayloadLength
+    // (2000 bytes). Batch arrays are SPLIT into sub-batches that each fit,
+    // and replies merged back in original order — MetaMask's large batched
+    // polls work without touching the tunnel limit. A single request that
+    // alone exceeds the limit cannot be split generically: clean -32005.
+    const oversizeErr = (id) => ({ jsonrpc: '2.0', id, error: { code: -32005, message: 'single request too large for mixnet tunnel (max ~1900 bytes)' } });
+    const itemTooBig = (item) => Buffer.byteLength(JSON.stringify(item)) > 1900;
+
+    if (isBatch) {
+      // Split into sub-batches by serialized size; per-item oversize errors.
+      const jobs = body.map((item) => ({ item, tooBig: itemTooBig(item) }));
+      const groups = [];
+      let cur = [], curSize = 0;
+      for (const j of jobs) {
+        if (j.tooBig) { groups.push({ items: [j.item], single: true }); continue; }
+        const sz = Buffer.byteLength(JSON.stringify(j.item)) + 2;
+        if (cur.length && curSize + sz > 1900) { groups.push({ items: cur, single: false }); cur = []; curSize = 0; }
+        cur.push(j.item); curSize += sz;
+      }
+      if (cur.length) groups.push({ items: cur, single: false });
+
+      const results = new Array(body.length);
+      // Pre-fill oversize singles with -32005, remember index mapping.
+      const idxByRef = new Map();
+      body.forEach((item, i) => idxByRef.set(item, i));
+      for (const g of groups) {
+        if (g.single) {
+          results[idxByRef.get(g.items[0])] = oversizeErr(g.items[0].id ?? 1);
+        }
+      }
+      // Forward each splittable group as one sub-batch, scatter replies back.
+      await Promise.all(groups.filter(g => !g.single).map(async (g) => {
+        try {
+          const txt = await wsProxy(JSON.stringify(g.items));
+          const replies = JSON.parse(txt);
+          const byId = new Map();
+          for (const rep of (Array.isArray(replies) ? replies : [replies])) {
+            byId.set(JSON.stringify(rep.id ?? 1), rep);
+          }
+          g.items.forEach((item, k) => {
+            const rep = byId.get(JSON.stringify(item.id ?? 1));
+            results[idxByRef.get(item)] = rep || { jsonrpc: '2.0', id: item.id ?? 1, error: { code: -32603, message: 'missing reply in batch' } };
+          });
+        } catch (e) {
+          g.items.forEach((item) => {
+            const c = cachedResponse(item.method, item.id ?? 1);
+            results[idxByRef.get(item)] = c || { jsonrpc: '2.0', id: item.id ?? 1, error: { code: -32603, message: e.message } };
+          });
+        }
+      }));
+      return res.json(results);
+    }
+
+    const raw = JSON.stringify(body);
+    if (Buffer.byteLength(raw) > 1900) {
+      return res.json(oversizeErr(body.id ?? 1));
+    }
+
+    const method = body?.method;
+    const id = body?.id ?? 1;
+    const cached = cachedResponse(method, id);
+    if (cached) return res.json(cached);
+
+    const txt = await wsProxy(JSON.stringify(body || {}));
+    try { const p = JSON.parse(txt); if (method === 'eth_chainId' && p.result) cachedChainId = p.result; } catch {}
+    try { const p = JSON.parse(txt); if (method === 'net_version' && p.result) cachedNetVersion = p.result; } catch {}
+    res.set('Content-Type', 'application/json');
+    res.send(txt);
+  } catch (e) {
+    const method = req.body?.method;
+    const id = req.body?.id ?? 1;
+    const cached = cachedResponse(method, id);
+    if (cached) return res.json(cached);
+    if (Array.isArray(req.body)) return res.status(502).json(req.body.map(item => ({ jsonrpc: '2.0', id: item.id ?? 1, error: { code: -32603, message: e.message } })));
+    res.status(502).json({ jsonrpc: '2.0', id, error: { code: -32603, message: e.message } });
+  }
+});
+
+app.get('/api/zkchat', (req, res) => {
+  const hasBinary = existsSync('/usr/local/bin/zkchat');
+  const hasConfig = existsSync("/etc/zkchat/thinclient.toml");
+  const mixClientRunning = isPortListening(64332);
+  res.json({
+    running: hasBinary && hasConfig && mixClientRunning,
+    binary: hasBinary,
+    config: hasConfig,
+    mixClient: mixClientRunning,
+    messages: ZKCHAT_MESSAGES.slice(-5)
+  });
+});
+
+
+
+app.get('/api/chat/identity', (req, res) => {
+  try {
+    const raw = execSync('docker exec ' + ZKCHAT_RUNNER + ' cat /etc/zkchat/.zkchat/identity 2>/dev/null', { timeout: 5000 });
+    if (raw && raw.length > 0) {
+      const hex = raw.toString('hex').trim();
+      return res.json({ identity: hex, valid: hex.length === 32 });
+    }
+  } catch {}
+  res.json({ identity: null, valid: false });
+});
+
+app.get('/api/reticulum', (req, res) => {
+  const rnsInspect = runShell('docker inspect -f "{{.State.Running}}" reticulum 2>/dev/null', 4000);
+  const nomInspect = runShell('docker inspect -f "{{.State.Running}}" nomadnet 2>/dev/null', 4000);
+  const rnsPidRaw = runShell('docker inspect -f "{{.State.Pid}}" reticulum 2>/dev/null', 4000);
+  const pages = runShell('ls /var/nomadnet/pages/ 2>/dev/null');
+  let rnsPid = null;
+  if (rnsPidRaw.ok && /^\d+$/.test(rnsPidRaw.data.trim())) rnsPid = parseInt(rnsPidRaw.data.trim(), 10);
+  const radio = runShell(`docker logs --tail 800 reticulum 2>&1 | grep -E 'rnode-wiki|Serial port /dev/ttyACM0' | tail -8`, 6000);
+  let radioStatus = { block: 'rnode-wiki', online: null, detail: null };
+  if (radio.ok && radio.data) {
+    const lines = radio.data.split('\n').filter(Boolean);
+    const last = lines[lines.length - 1] || '';
+    radioStatus.detail = last.replace(/^\[[^\]]+\]\s*/g, '').replace(/^\[[^\]]+\]\s*/, '') || last;
+    if (/configured and powered up/i.test(radio.data)) radioStatus.online = true;
+    else if (/\b(error|failed|refused)\b/i.test(radio.data)) radioStatus.online = false;
+  }
+  res.json({
+    rnsd: rnsInspect.ok && rnsInspect.data.trim() === 'true' ? 'running' : (rnsInspect.ok && rnsInspect.data.trim() === 'false' ? 'stopped' : 'unknown'),
+    rnsPid,
+    nomadnet: nomInspect.ok && nomInspect.data.trim() === 'true' ? 'running' : (nomInspect.ok && nomInspect.data.trim() === 'false' ? 'stopped' : 'unknown'),
+    pages: pages.ok ? pages.data.split('\n').filter(Boolean).length : 0,
+    ports: { tcpPeer: isPortListening(37428), sharedInstance: isPortListening(37431) },
+    radio: radioStatus
+  });
+});
+
+app.get('/api/zymbit', async (req, res) => {
+  const zymApi = await fetchUrl('http://127.0.0.1:8765/api/zymkey/status', 3000);
+  res.json({
+    zkifc: existsSync('/run/zkstatus/zkifc_running') ? 'active' : 'inactive',
+    devZymkey: (() => { try { accessSync('/dev/zymkey', constants.R_OK); return true; } catch { return false; }})(),
+    zscm: zymApi.error ? null : {
+      device: zymApi.device,
+      model: zymApi.model,
+      firmware: zymApi.firmware,
+      serial: zymApi.serial
+    }
+  });
+});
+
+app.get('/api/llm-wiki', async (req, res) => {
+  res.json({
+    container: mcpReady ? 'connected via MCP' : null,
+    mcpOk: mcpReady,
+    sessionId: mcpSessionId ? mcpSessionId.slice(0, 8) + '...' : null
+  });
+});
+
+app.get('/api/prover', async (req, res) => {
+  const s = await getStorageStatus();
+  res.json({ running: s.running, ...s });
+});
+
+app.get('/api/ant', async (req, res) => {
+  const [storage, daemon, nodes] = await Promise.all([
+    getStorageStatus(),
+    getAntDaemonStatus(),
+    getAntNodeStatus()
+  ]);
+  res.json({
+    storage,
+    daemon: daemon.running ? {
+      running: true, pid: daemon.pid, port: daemon.port,
+      uptime_secs: daemon.uptime_secs,
+      nodes_total: daemon.nodes_total, nodes_running: daemon.nodes_running,
+      nodes_stopped: daemon.nodes_stopped, nodes_errored: daemon.nodes_errored,
+      ...(daemon.error ? { error: daemon.error } : {}),
+      ...(daemon.mode ? { mode: daemon.mode } : {})
+    } : (daemon.error ? { running: false, error: daemon.error } : {
+      running: daemon.running, pid: daemon.pid, port: daemon.port,
+      uptime_secs: daemon.uptime_secs,
+      nodes_total: daemon.nodes_total, nodes_running: daemon.nodes_running,
+      nodes_stopped: daemon.nodes_stopped, nodes_errored: daemon.nodes_errored
+    }),
+    nodes: nodes.nodes || [],
+    totalRunning: nodes.total_running || 0,
+    totalStopped: nodes.total_stopped || 0,
+    binaries: {
+      ant: runShell('ant --version 2>&1').ok ? runShell('ant --version 2>&1').data.trim() : null,
+      antNode: runShell('ls /root/.local/share/ant/bin/ant-node-* 2>/dev/null').ok
+    }
+  });
+});
+
+app.post('/api/ant/daemon/start', async (req, res) => {
+  // stop-then-clean-then-start: a stale PID/port file (e.g. left over from
+  // a previous container incarnation whose PIDs no longer exist) makes
+  // plain `start` report "already running" while nothing listens. Remove
+  // the stale files before starting so the button always yields a live
+  // daemon.
+  const cmd = 'docker exec antd sh -c "ant node daemon stop 2>/dev/null; rm -f /var/lib/antd/.local/share/ant/daemon.pid /var/lib/antd/.local/share/ant/daemon.port; ant node daemon start 2>&1"';
+  const r = runShell(cmd);
+  res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
+});
+
+app.post('/api/ant/daemon/stop', async (req, res) => {
+  const r = runShell('docker exec antd ant node daemon stop 2>&1');
+  res.json({ ok: r.ok, message: r.ok ? r.data : r.error });
+});
+
+app.post('/api/ant/node/start', async (req, res) => {
+  // The antd entrypoint starts the daemon AND the direct node (and its
+  // monitor loop restarts the node if killed), so container-level control
+  // is the reliable start/stop surface. restart covers the case where the
+  // container is already up but the node died.
+  const r = runShell('docker start antd 2>&1 || docker restart antd 2>&1', 90000);
+  res.json({ ok: r.ok, message: r.ok ? 'antd container started — daemon + node launching' : r.error });
+});
+
+app.post('/api/ant/node/stop', async (req, res) => {
+  // Killing the ant-node process alone is futile: the entrypoint monitor
+  // loop respawns it within 30s. Stopping the container stops node,
+  // daemon and monitor together.
+  const r = runShell('docker stop antd 2>&1', 60000);
+  res.json({ ok: r.ok, message: r.ok ? 'antd container stopped — node, daemon and monitor halted' : r.error });
+});
+
+const ARB_SEPOLIA_RPC = process.env.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc';
+const ANT_TOKEN_ADDR = process.env.ANT_TOKEN_ADDR || '0x0000000000000000000000000000000000000000'; // ANT on Arb Sepolia
+
+async function getTokenBalance(rpcUrl, tokenAddr, walletAddr) {
+  const data = tokenAddr
+    ? await fetchUrl(rpcUrl, 10000, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'eth_call',
+          params: [{to: tokenAddr, data: '0x70a08231000000000000000000000000' + walletAddr.slice(2)}, 'latest']
+        })
+      })
+    : null;
+  if (data && data.result) {
+    try { return BigInt(data.result).toString(); } catch {}
+  }
+  return '0';
+}
+
+app.get('/api/ant/wallet', async (req, res) => {
+  const zym = await fetchUrl('http://127.0.0.1:8765/api/zymkey/eth-address');
+  res.json({
+    address: zym?.address || null,
+    hardware: 'ZSCM Secure Element',
+    nodeRewardsAddress: zym?.address || null
+  });
+});
+
+app.get('/api/ant/balance', async (req, res) => {
+  const zym = await fetchUrl('http://127.0.0.1:8765/api/zymkey/eth-address');
+  const addr = zym?.address;
+  if (!addr) return res.json({ error: 'no wallet', eth: '0', ant: '0' });
+  const [ethRaw, antRaw] = await Promise.all([
+    fetchUrl(ARB_SEPOLIA_RPC, 10000, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [addr, 'latest']})
+    }),
+    getTokenBalance(ARB_SEPOLIA_RPC, ANT_TOKEN_ADDR, addr)
+  ]);
+  const ethWei = ethRaw?.result || '0x0';
+  const eth = (BigInt(ethWei) / BigInt(10**14)).toString() / 10000;
+  const antWei = BigInt(antRaw || '0');
+  const ant = antWei > 0 ? (antWei / BigInt(10**14)).toString() / 10000 : 0;
+  res.json({ address: addr, eth: eth.toFixed(6), ant: ant.toFixed(4) });
+});
+
+app.get('/api/ant/logs', (req, res) => {
+  const lines = safeInt(req.query.lines, 1, 500, 50);
+  const today = new Date().toISOString().slice(0, 10);
+  const r = runShell(`docker exec antd sh -c 'tail -${lines} /var/lib/antd/logs/ant-node.${today}.log 2>/dev/null' 2>/dev/null || echo "no logs"`);
+  res.json({ logs: r.ok ? r.data.split('\n') : [] });
+});
+
+app.get('/api/services', async (req, res) => {
+  const [containers, mixnet, walletshield, storage, system] = await Promise.all([
+    getContainers(),
+    getMixnetStatus(),
+    getWalletshieldStatus(),
+    getStorageStatus(),
+    getSystemStats()
+  ]);
+  const [antNodes, antDaemon] = await Promise.all([
+    getAntNodeStatus(),
+    getAntDaemonStatus()
+  ]);
+  res.json({
+    system, containers, mixnet, walletshield,
+    ant: {
+      running: antDaemon.running && antNodes.total_running > 0,
+      daemon: antDaemon,
+      nodes: antNodes.nodes || [],
+      storage: { running: storage.running, totalChunks: storage.totalChunks }
+    },
+    prover: { running: storage.running },
+    reticulum: { rnsd: pgrep('rnsd') ? 'running' : 'not running', rnsPid: pgrep('rnsd') }
+  });
+});
+
+
+
+app.get('/api/health', async (req, res) => {
+  try {
+    const mixOk = ['mix-1','mix-2','mix-3','mix-gateway','mix-servicenode','mix-client']
+      .filter(n => { try { return execSync('docker ps --format "{{.Names}}" | grep -q ' + n, { timeout: 3000 }).toString().trim() === ''; } catch { return false; }}).length;
+    const wsOk = wsHeartbeatState.ok ? '200' : '000';
+
+    const [lastBackup, disk, dirauthConsensus] = await Promise.all([
+      runShellAsync('ls -dt /mnt/backup/zknode/daily/*/ 2>/dev/null | head -1', 3000).then(r => {
+        if (!r.ok || !r.data) return -1;
+        // NOTE: a 0-hour-old backup is the GOOD case — `parseInt("0") || -1`
+        // would report -1 here. Guard NaN explicitly instead of falsy-or.
+        return runShellAsync('echo $(( ($(date +%s) - $(stat -c %Y "' + r.data + '")) / 3600 ))', 3000).then(r2 => {
+          const v = parseInt(r2.data);
+          return Number.isFinite(v) && v >= 0 ? v : -1;
+        }).catch(() => -1);
+      }).catch(() => -1),
+      runShellAsync("df / | tail -1 | awk '{print $5}' | sed 's/%//'", 3000).then(r => parseFloat(r.data) || 0).catch(() => 0),
+      runShellAsync('docker exec mix-dirauth-1 tail -5000 /var/lib/katzenpost/auth1/katzenpost.log 2>&1 | grep -cE "Achieved threshold|SUCCESS" || true', 3000).then(r => r.data !== '0').catch(() => false)
+    ]);
+    res.json({
+      status: mixOk >= 5 && wsOk === '200' ? 'healthy' : 'degraded',
+      dirauth_consensus: dirauthConsensus,
+      mix_nodes: mixOk + '/6',
+      walletshield_http: wsOk,
+      dashboard_http: '200',
+      disk_used_percent: disk,
+      last_backup_age_hours: lastBackup,
+      kpclientd_listening: isPortListening(64332)
+    });
+  } catch (e) {
+    res.status(500).json({ status: 'error', error: e.message });
+  }
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '..', 'public', 'index.html'));
+});
+
+// Start MCP connection
+connectMcp();
+
+setInterval(() => {
+  if (!mcpReady && !mcpSessionId) connectMcp();
+}, 30000);
+
+// Sweep zkchat poll containers: a docker run that times out mid-creation
+// leaves a "Created" container behind (--rm only removes containers that
+// actually ran). Without this sweep they accumulate and slow every docker
+// call until dashboard endpoints time out.
+setInterval(() => {
+  const r = runShell('docker container prune -f --filter label=zkchat-poll 2>&1', 30000);
+  if (r.ok && r.data && !r.data.includes('Total reclaimed space: 0B')) console.log('[zkchat-poll sweep]', r.data.trim().split('\n').pop());
+}, 600000);
+
+async function wsHeartbeat() {
+  try {
+    const bodyStr = JSON.stringify({ jsonrpc: '2.0', id: 'hb', method: 'eth_blockNumber', params: [] });
+    const txt = await wsProxy(bodyStr);
+    if(txt.includes('custom 404') || txt.includes('custom 500')){
+      throw new Error('walletshield: ' + txt.trim().slice(0,60));
+    }
+    const p = JSON.parse(txt);
+    if (p.result) {
+      wsHeartbeatState.ok = true;
+      wsHeartbeatState.lastOk = Date.now();
+      wsHeartbeatState.lastError = null;
+      wsHeartbeatState.error = null;
+    } else {
+      throw new Error('unexpected response: ' + txt.slice(0, 100));
+    }
+  } catch (e) {
+    wsHeartbeatState.ok = false;
+    wsHeartbeatState.lastError = Date.now();
+    wsHeartbeatState.error = e.message;
+    console.log('[ws-hb] walletshield unreachable:', e.message);
+  }
+}
+setInterval(wsHeartbeat, 120000);
+wsHeartbeat();
+
+app.listen(PORT, DASHBOARD_BIND, () => {
+  console.log(`ZKNode Dashboard running on http://${DASHBOARD_BIND}:${PORT}` + (AUTH_REQUIRED ? ` (token auth)` : DASHBOARD_AUTH === "optional" ? ` (optional token auth)` : ` (NO TOKEN - loopback only)`));
+});
+

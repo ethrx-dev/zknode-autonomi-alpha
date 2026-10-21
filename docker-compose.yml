@@ -451,6 +451,8 @@ services:
     - DASHBOARD_BIND=${DASHBOARD_BIND:-}
     - LLM_WIKI_PORT=${LLM_WIKI_PORT:-18765}
     - NODE_HOME=${NODE_HOME}
+    - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b}
+    - OLLAMA_BASE=${OLLAMA_BASE:-http://127.0.0.1:11434}
     image: ${IMAGE_DASHBOARD:-zknode-dashboard:latest}
     network_mode: host
     ports:

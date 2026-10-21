@@ -167,3 +167,30 @@ Git tags in each repo: `bridge-live-2026-10-21`, `zeroai-live-2026-10-21`.
   `IMAGE_MIXNET=zeros/mixnet-node:amd64-fleet*` in `.env`.
 - **Group/dashboard polls** can take ~30 s; keep chat handlers async so the UI
   stays responsive.
+
+---
+
+## Dashboard variants (important)
+
+The repo ships two dashboard backends:
+
+| File | Mode | Use for |
+|---|---|---|
+| `zknode-dashboard/server/index.js` | upstream (VPS-aware) | VPS mixnet deployments |
+| `zknode-dashboard/server/index.local.js` | standalone islands | local `mixnet99` (this guide) |
+
+`index.local.js` uses the local container names (`auth1`, `mix1..6`,
+`gateway1`, `servicenode1`, `mix-servicenode`), reads chat groups from the
+local chatd, implements async chat commands (no UI stalls), fixes the mix-count
+display, and enables the **ZeroAI** persona.
+
+To deploy local mode:
+
+```bash
+cd zknode-dashboard
+cp server/index.local.js server/index.js
+docker build -t zknode-dashboard .
+```
+
+Keep both files in sync when adding features. Upstream `main` may be ahead on
+VPS-dashboard features; do not replace it wholesale with the local variant.
