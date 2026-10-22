@@ -194,3 +194,51 @@ docker build -t zknode-dashboard .
 
 Keep both files in sync when adding features. Upstream `main` may be ahead on
 VPS-dashboard features; do not replace it wholesale with the local variant.
+
+---
+
+## SCM4 (arm64) local mode
+
+Use the SCM4 variant of the local dashboard (container names `auth1`,
+`mix1..6`, `gateway1`, `servicenode1`):
+
+```bash
+cd zknode-dashboard
+cp server/index.local-scm4.js server/index.js
+docker build -t zknode-dashboard .
+
+docker rm -f zknode-dashboard
+docker run -d --name zknode-dashboard --restart unless-stopped --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e DASHBOARD_AUTH=optional \
+  -e OLLAMA_HOST=http://<box-tailnet-ip>:11434 \
+  -e OLLAMA_MODEL=gemma4:latest \
+  zknode-dashboard
+```
+
+Groups are read locally by `chat-groups.sh` (auto-detects `mix-servicenode` or
+`servicenode1`, or set `ZKCHAT_SERVICENODE`).
+
+## walletshield RPC (MetaMask)
+
+`walletshield` is loopback-only (`127.0.0.1:9200`). Expose it per interface
+with socat if a wallet must reach it:
+
+```bash
+# tailnet
+docker run -d --name ws-rpc-tailnet --restart unless-stopped --network host \
+  alpine/socat TCP-LISTEN:9200,bind=<tailnet-ip>,fork,reuseaddr TCP:127.0.0.1:9200
+# LAN (off-tailscale)
+docker run -d --name ws-rpc-lan --restart unless-stopped --network host \
+  alpine/socat TCP-LISTEN:9200,bind=<lan-ip>,fork,reuseaddr TCP:127.0.0.1:9200
+```
+
+MetaMask fields:
+- RPC URL: `http://<node-ip>:9200/ethereum` (JSON-RPC POST, note the `/ethereum` path)
+- Chain ID: `1` (upstream is Ethereum mainnet; `eth_chainId` = `0x1`)
+- Symbol: `ETH`
+
+Notes: calls take ~20-95 s through the mixnet, so wallets may time out; CORS
+preflight is not supported (fine for the MetaMask extension, not for browser
+dApps). Chain ID 1 is built into MetaMask — add this as an RPC URL under
+Ethereum Mainnet, or point `-upstream` at another chain for a separate network.
